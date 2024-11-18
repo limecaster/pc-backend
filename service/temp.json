@@ -1,0 +1,397 @@
+{
+    "CPU": {
+        "tdp": {
+            "low": 120,
+            "high": 0
+        },
+        "ecc": true,
+        "partId": "100-100000910WOF",
+        "performanceCoreBoostClock": 5,
+        "coreFamily": "Raphael",
+        "packaging": "Boxed",
+        "lithography": {
+            "low": 5,
+            "high": 0
+        },
+        "integratedGraphics": "Radeon",
+        "coreCount": {
+            "low": 8,
+            "high": 0
+        },
+        "l2Cache": "8 MB",
+        "manufacturer": "AMD",
+        "price": 269,
+        "series": "AMD Ryzen 7",
+        "microarchitecture": "Zen 4",
+        "imageUrl": "//cdna.pcpartpicker.com/static/forever/images/product/f0e0e59d75066ec825667b71c31e3c83.256p.jpg",
+        "maxSupportedMemory": {
+            "low": 128,
+            "high": 0
+        },
+        "name": "AMD Ryzen 7 7800X3D",
+        "simultaneousMultithreading": false,
+        "socket": "AM5",
+        "performanceCoreClock": 4.2,
+        "l3Cache": "96 MB"
+    },
+    "Motherboard": {
+        "miniPcieSlots": {
+            "low": 0,
+            "high": 0
+        },
+        "pciSlots": {
+            "low": 0,
+            "high": 0
+        },
+        "color": "Black",
+        "partId": [
+            "B650 GAMING PLUS WIFI",
+            "7E26-001R"
+        ],
+        "formFactor": "ATX",
+        "memoryType": "DDR5",
+        "memoryMax": {
+            "low": 192,
+            "high": 0
+        },
+        "pcieX4Slots": {
+            "low": 0,
+            "high": 0
+        },
+        "m2Slots": [
+            "2280/22110 M-key",
+            "2260/2280 M-key"
+        ],
+        "pcieX1Slots": {
+            "low": 1,
+            "high": 0
+        },
+        "manufacturer": "MSI",
+        "memorySlots": {
+            "low": 4,
+            "high": 0
+        },
+        "pcieX8Slots": {
+            "low": 0,
+            "high": 0
+        },
+        "supportsECC": false,
+        "price": 179.99,
+        "imageUrl": "https://pc-builder.io/images/motherboard/1692871951_89758.jpg",
+        "miniPcieMsataSlots": {
+            "low": 0,
+            "high": 0
+        },
+        "sata6Gbps": {
+            "low": 4,
+            "high": 0
+        },
+        "msataSlots": {
+            "low": 0,
+            "high": 0
+        },
+        "memorySpeed": [
+            "DDR5-4800",
+            "DDR5-5000",
+            "DDR5-5200",
+            "DDR5-5400",
+            "DDR5-5600",
+            "DDR5-5800",
+            "DDR5-6000",
+            "DDR5-6200",
+            "DDR5-6400"
+        ],
+        "usb20Headers": "2",
+        "onboardEthernet": "1 x 2.5 Gb/s (Realtek 8125BG)",
+        "onboardVideo": "Depends on CPU",
+        "chipset": "AMD B650",
+        "pcieX16Slots": {
+            "low": 2,
+            "high": 0
+        },
+        "wirelessNetworking": "Wi-Fi 6E",
+        "socketCPU": "AM5",
+        "usb32Gen1Headers": "1",
+        "usb32Gen2x2Headers": "0",
+        "name": "MSI B650 GAMING PLUS WIFI ATX AM5 Motherboard",
+        "raidSupport": true,
+        "usb32Gen2Headers": {
+            "low": 1,
+            "high": 0
+        },
+        "usb20HeadersSinglePort": "0",
+        "halfMiniPcieSlots": {
+            "low": 0,
+            "high": 0
+        }
+    },
+    "RAM": {
+        "moduleNumber": {
+            "low": 2,
+            "high": 0
+        },
+        "pricePerGB": 3.437,
+        "color": "Black / Gray",
+        "casLatency": 30,
+        "timing": "30-36-36-76",
+        "formFactor": "288-pin DIMM (DDR5)",
+        "firstWordLatency": 10,
+        "moduleSize": {
+            "low": 32,
+            "high": 0
+        },
+        "heatSpreader": true,
+        "speed": "DDR5-6000",
+        "modules": "2 x 16GB",
+        "manufacturer": "Corsair",
+        "voltage": 1.4,
+        "eccRegistered": "Non-ECC / Unbuffered",
+        "price": 109.99,
+        "imageUrl": "https://pc-builder.io/images/ram/1692872226_386.jpg",
+        "name": "Corsair Vengeance 32 GB (2 x 16 GB) DDR5-6000 CL30 Memory",
+        "partNumber": [
+            "CMK32GX5M2B6000C30"
+        ]
+    },
+    "InternalHardDrive": {
+        "pricePerGB": 0.085,
+        "fullDiskWriteThroughput": 1805,
+        "cache": {
+            "low": 2048,
+            "high": 0
+        },
+        "partId": [
+            "MZ-V8P2T0B/AM",
+            "MZ-V8P2T0BW"
+        ],
+        "formFactor": "3.5",
+        "interface": "M.2 PCIe 4.0 X4",
+        "type": "SSD",
+        "manufacturer": "Samsung",
+        "capacity": {
+            "low": 2048,
+            "high": 0
+        },
+        "sequentialWriteThroughputDisk50Full": "2616",
+        "randomReadThroughputDisk50Full": 409,
+        "nvme": false,
+        "price": 169.99,
+        "imageUrl": "https://cdna.pcpartpicker.com/static/forever/images/product/3b2a91588d1a28bfa1b0184fb7f1c0a1.256p.jpg",
+        "name": "Samsung 980 Pro",
+        "sequentialReadThroughputDisk50Full": 4936,
+        "randomWriteThroughputDisk50Full": 1619,
+        "fullDiskWriteThroughputLast10Seconds": 1752
+    },
+    "GraphicsCard": {
+        "displayPorts": {
+            "low": 0,
+            "high": 0
+        },
+        "tdp": {
+            "low": 115,
+            "high": 0
+        },
+        "memory": {
+            "low": 8,
+            "high": 0
+        },
+        "color": "Black",
+        "boostClock": {
+            "low": 2460,
+            "high": 0
+        },
+        "hdmiPorts": {
+            "low": 0,
+            "high": 0
+        },
+        "memoryType": "GDDR6",
+        "sliCrossfire": "None",
+        "interface": "PCIe x16",
+        "manufacturer": "PNY",
+        "caseExpansionSlotWidth": {
+            "low": 2,
+            "high": 0
+        },
+        "frameSync": "G-Sync",
+        "externalPower": "1 PCIe 8-pin",
+        "price": 329.99,
+        "imageUrl": "https://pc-builder.net/wp-content/uploads/product/e6bacd0f82c0a2704178447a53a6e7f2.1600.jpg",
+        "displayPortOutputs": {
+            "low": 3,
+            "high": 0
+        },
+        "totalSlotWidth": {
+            "low": 2,
+            "high": 0
+        },
+        "dviPorts": {
+            "low": 0,
+            "high": 0
+        },
+        "length": 260,
+        "chipset": "GeForce RTX 4060",
+        "coreClock": {
+            "low": 1830,
+            "high": 0
+        },
+        "name": "PNY XLR8 Gaming VERTO EPIC-X RGB",
+        "hdmiOutputs": {
+            "low": 1,
+            "high": 0
+        },
+        "cooling": {
+            "low": 3,
+            "high": 0
+        },
+        "partNumber": "VCG40608TFXXPB1"
+    },
+    "PowerSupply": {
+        "pcie6Plus2PinConnectors": {
+            "low": 3,
+            "high": 0
+        },
+        "modular": "Full",
+        "pcie12PinConnectors": {
+            "low": 0,
+            "high": 0
+        },
+        "color": "Black",
+        "pcie8PinConnectors": {
+            "low": 0,
+            "high": 0
+        },
+        "sataConnectors": {
+            "low": 7,
+            "high": 0
+        },
+        "length": 140,
+        "atx4PinConnectors": {
+            "low": 0,
+            "high": 0
+        },
+        "type": "ATX",
+        "fanless": false,
+        "manufacturer": "Corsair",
+        "pcie6PinConnectors": {
+            "low": 0,
+            "high": 0
+        },
+        "efficiencyRating": "80+ Gold",
+        "wattage": {
+            "low": 750,
+            "high": 0
+        },
+        "pcie12Plus4PinConnectors": {
+            "low": 1,
+            "high": 0
+        },
+        "price": 99.99,
+        "imageUrl": "//cdna.pcpartpicker.com/static/forever/images/product/336c7955df0312d04655dd3a13973c95.256p.jpg",
+        "molex4PinConnectors": {
+            "low": 4,
+            "high": 0
+        },
+        "name": "Corsair RM750e (2023)",
+        "model": "RM750e (2023)",
+        "partNumber": [
+            "CP-9020262-NA",
+            "CP-9020262-UK",
+            "CP-9020262-EU",
+            "CP-9020262-AU"
+        ],
+        "specsNumber": {
+            "low": 19,
+            "high": 0
+        },
+        "eps8PinConnectors": {
+            "low": 2,
+            "high": 0
+        }
+    },
+    "Case": {
+        "color": "Black",
+        "length": 453,
+        "type": "ATX Mid Tower",
+        "powerSupply": "None",
+        "powerSupplyShroud": true,
+        "manufacturer": "Corsair",
+        "volume": [
+            "48.553 L",
+            "1.715 ft³"
+        ],
+        "frontPanelUSB": [
+            "USB 3.2 Gen 2 Type-C",
+            "USB 3.2 Gen 1 Type-A"
+        ],
+        "driveBays5_25": {
+            "low": 0,
+            "high": 0
+        },
+        "motherboardFormFactor": [
+            "ATX",
+            "EATX",
+            "Micro ATX",
+            "Mini ITX"
+        ],
+        "expansionSlots": [
+            "7 x Full-Height",
+            "2 x Full-Height via Riser"
+        ],
+        "price": 104.99,
+        "imageUrl": "https:https:https:https:https:https:https:https:https:https:https:https:https:https://cdna.pcpartpicker.com/static/forever/images/product/bc6e987da3fe22c616898d1d7fa3d227.256p.jpg",
+        "width": 230,
+        "name": "Corsair 4000D Airflow",
+        "driveBays2_5": {
+            "low": 2,
+            "high": 0
+        },
+        "partNumber": [
+            "CC-9011200-WW"
+        ],
+        "driveBays3_5": {
+            "low": 2,
+            "high": 0
+        },
+        "sidePanel": "Tinted Tempered Glass",
+        "productUrl": "https://pcpartpicker.com/product/bCYQzy/corsair-4000d-airflow-atx-mid-tower-case-cc-9011200-ww",
+        "height": 466
+    },
+    "CPUCooler": {
+        "fanRpm": "800 - 2000 RPM",
+        "color": "Black",
+        "price": 174.88,
+        "imageUrl": "https://pcbuilderus.wpcomstaging.com/wp-content/uploads/product/bc1553239930731c6ae64c658ec3c151.1600.jpg",
+        "name": "Alphacool Eisbaer Aurora 240",
+        "waterCooled": false,
+        "model": "Eisbaer Aurora 240",
+        "radiatorSize": {
+            "low": 240,
+            "high": 0
+        },
+        "partNumber": "11728",
+        "cpuSocketCompatibility": [
+            "AM2",
+            "AM2+",
+            "AM3",
+            "AM3+",
+            "AM4",
+            "AM5",
+            "sTR4",
+            "sTRX4",
+            "FM1",
+            "FM2",
+            "FM2+",
+            "LGA775",
+            "LGA1150",
+            "LGA1151",
+            "LGA1155",
+            "LGA1156",
+            "LGA1200",
+            "LGA2011",
+            "LGA2011-3",
+            "LGA2066"
+        ],
+        "fanless": false,
+        "manufacturer": "Alphacool"
+    }
+}

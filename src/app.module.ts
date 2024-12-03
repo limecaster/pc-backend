@@ -7,6 +7,7 @@ import { Neo4jConfigService } from 'config/neo4j.config';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AutoBuildService } from 'service/auto-build.service';
 import { SpacyService } from 'service/spacy.service';
+import { CheckCompatibilityService } from 'service/check-compatibility.service';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { SpacyService } from 'service/spacy.service';
     AppService,
     ManualBuildService,
     AutoBuildService,
+    CheckCompatibilityService,
     SpacyService,
     Neo4jConfigService,
     ConfigService,

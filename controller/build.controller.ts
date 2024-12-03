@@ -14,7 +14,7 @@ export class BuildController {
     @Query('name') name: string,
     @Query('otherName') otherPartTypeName: string,
   ) {
-    return this.manualBuildService.findCompatipleParts(name, otherPartTypeName);
+    return this.manualBuildService.findCompatibleParts(name, otherPartTypeName);
   }
 
   @Get('label')
@@ -31,22 +31,7 @@ export class BuildController {
     @Param('newPartName') newPartName: string,
     @Query('selectedParts') selectedParts: string[],
   ) {
-    // selectedParts can be parsed into { id, label } objects
-    console.log(selectedParts);
-    let parsedSelectedParts;
-    // Ensure selectedParts is parsed as an array of objects
-    if (typeof selectedParts === 'string') {
-      try {
-        parsedSelectedParts = JSON.parse(selectedParts);
-      } catch (error) {
-        throw error;
-      }
-    } else {
-      parsedSelectedParts = selectedParts.map((part) => JSON.parse(part));
-    }
-    console.log(parsedSelectedParts);
-    console.log(newPartName);
-    console.log(newPartLabel);
+    const parsedSelectedParts = this.parseSelectedParts(selectedParts);
     return this.manualBuildService.checkCompatibilityAcrossLabels(
       newPartName,
       newPartLabel,
@@ -59,18 +44,7 @@ export class BuildController {
     @Query('selectedParts') selectedParts: string[],
     @Query('targetLabel') targetLabel: string,
   ) {
-    let parsedSelectedParts;
-    console.log(selectedParts);
-    // Ensure selectedParts is parsed as an array of objects
-    if (typeof selectedParts === 'string') {
-      try {
-        parsedSelectedParts = JSON.parse(selectedParts);
-      } catch (error) {
-        throw error;
-      }
-    } else {
-      parsedSelectedParts = selectedParts.map((part) => JSON.parse(part));
-    }
+    const parsedSelectedParts = this.parseSelectedParts(selectedParts);
     return this.manualBuildService.getSpecificPartTypeCompatibleWithSelectedParts(
       parsedSelectedParts,
       targetLabel,
@@ -79,7 +53,19 @@ export class BuildController {
 
   @Get('auto-build')
   async autoBuild(@Body('userInput') userInput: string) {
-    console.log(userInput);
     return this.autoBuildService.autoBuild(userInput);
+  }
+
+  private parseSelectedParts(selectedParts: string[]): any[] {
+    if (typeof selectedParts === 'string') {
+      try {
+        return JSON.parse(selectedParts);
+      } catch (error) {
+        console.log(error);
+        throw new Error('Invalid JSON format for selectedParts');
+      }
+    } else {
+      return selectedParts.map((part) => JSON.parse(part));
+    }
   }
 }

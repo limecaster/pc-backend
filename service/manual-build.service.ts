@@ -5,37 +5,34 @@ import { Neo4jConfigService } from 'config/neo4j.config';
 export class ManualBuildService {
   constructor(private readonly neo4jConfigService: Neo4jConfigService) {}
 
-  async findCompatipleParts(name: string, otherPartTypeName: string) {
+  private async runQuery(query: string, params: Record<string, any>) {
     const session = this.neo4jConfigService.getDriver().session();
     try {
-      const result = await session.run(
-        `MATCH (p:CPU {name: \'${name}\' })-[r:COMPATIBLE_WITH]->(other:${otherPartTypeName})
-         RETURN p, collect(other)
-         LIMIT 100;`,
-        { name, otherPartTypeName },
-      );
-      return result;
+      return await session.run(query, params);
     } finally {
       await session.close();
     }
   }
 
+  async findCompatibleParts(name: string, otherPartTypeName: string) {
+    const query = `
+      MATCH (p:CPU {name: $name})-[r:COMPATIBLE_WITH]->(other:${otherPartTypeName})
+      RETURN p, collect(other)
+      LIMIT 100;
+    `;
+    return this.runQuery(query, { name, otherPartTypeName });
+  }
+
   async getCompatiblePartsByLabel(name: string, label: string) {
-    const session = this.neo4jConfigService.getDriver().session();
-    try {
-      const result = await session.run(
-        `CALL apoc.cypher.run(
-          'MATCH (p {name: \"${name}\"})-[:COMPATIBLE_WITH]->(compatible)
-            RETURN compatible',
-            {name: $name}
-          ) YIELD value
-          RETURN value.compatible`,
-        { name, label },
-      );
-      return result;
-    } finally {
-      await session.close();
-    }
+    const query = `
+      CALL apoc.cypher.run(
+        'MATCH (p {name: $name})-[:COMPATIBLE_WITH]->(compatible)
+         RETURN compatible',
+        {name: $name}
+      ) YIELD value
+      RETURN value.compatible
+    `;
+    return this.runQuery(query, { name, label });
   }
 
   async checkCompatibilityAcrossLabels(
@@ -43,7 +40,6 @@ export class ManualBuildService {
     newPartLabel: string,
     selectedParts: { name: string; label: string }[],
   ): Promise<boolean> {
-    const session = this.neo4jConfigService.getDriver().session();
     const matchStatements = selectedParts
       .map(
         (part, index) =>
@@ -51,33 +47,24 @@ export class ManualBuildService {
       )
       .join(' ');
 
-    // Build params for each selected part name
     const params = selectedParts.reduce(
       (acc, part, index) => ({ ...acc, [`selectedId${index}`]: part.name }),
       { newPartName },
     );
 
-    // Construct the full query with multiple MATCH clauses
     const query = `
-    MATCH (newPart:${newPartLabel} {name: $newPartName})
-    ${matchStatements}
-    RETURN newPart
-  `;
+      MATCH (newPart:${newPartLabel} {name: $newPartName})
+      ${matchStatements}
+      RETURN newPart
+    `;
 
-    try {
-      const result = await session.run(query, params);
-      return result.records.length > 0;
-    } finally {
-      await session.close();
-    }
+    const result = await this.runQuery(query, params);
+    return result.records.length > 0;
   }
 
   async getAllPartTypeCompatibleWithSelectedParts(
     selectedParts: { name: string; label: string }[],
   ): Promise<any> {
-    const session = this.neo4jConfigService.getDriver().session();
-
-    // Construct MATCH statements for each selected part
     const matchStatements = selectedParts
       .map(
         (part, index) =>
@@ -85,70 +72,59 @@ export class ManualBuildService {
       )
       .join(' ');
 
-    // Construct parameters for each selected part
     const params = selectedParts.reduce(
       (acc, part, index) => ({ ...acc, [`selectedId${index}`]: part.name }),
       {},
     );
 
-    // Cypher query to find all compatible parts across types
     const query = `
       ${matchStatements}
       RETURN DISTINCT labels(compatible) AS type, compatible
     `;
-    try {
-      const result = await session.run(query, params);
 
-      // Process results to group compatible parts by type
-      const compatibleParts = {};
-      result.records.forEach((record) => {
-        const type = record.get('type')[0]; // Get the primary label/type of the compatible part
-        const part = record.get('compatible').properties;
-        if (!compatibleParts[type]) {
-          compatibleParts[type] = [];
-        }
-        compatibleParts[type].push(part);
-      });
+    const result = await this.runQuery(query, params);
 
-      return compatibleParts;
-    } finally {
-      await session.close();
-    }
+    const compatibleParts = {};
+    result.records.forEach((record) => {
+      const type = record.get('type')[0];
+      const part = record.get('compatible').properties;
+      if (!compatibleParts[type]) {
+        compatibleParts[type] = [];
+      }
+      compatibleParts[type].push(part);
+    });
+
+    return compatibleParts;
   }
 
   async getSpecificPartTypeCompatibleWithSelectedParts(
     selectedParts: { name: string; label: string }[],
     targetLabel: string,
   ): Promise<any[]> {
-    const session = this.neo4jConfigService.getDriver().session();
-
-    // Step 1: Filter selectedParts to only those labels with a COMPATIBLE_WITH relationship with targetLabel
     const filteredSelectedParts = [];
     for (const part of selectedParts) {
       const query = `
         MATCH (a:${part.label})-[:COMPATIBLE_WITH]-(b:${targetLabel})
         RETURN count(b) > 0 AS isRelated
       `;
-      const result = await session.run(query);
+      const result = await this.runQuery(query, {});
       const isRelated = result.records[0].get('isRelated');
       if (isRelated) {
         filteredSelectedParts.push(part);
       }
     }
 
-    // Step 2: If no filtered selected parts require compatibility checks, return all targetLabel parts
     if (filteredSelectedParts.length === 0) {
       const allPartsQuery = `
         MATCH (compatible:${targetLabel})
         RETURN compatible
       `;
-      const result = await session.run(allPartsQuery);
+      const result = await this.runQuery(allPartsQuery, {});
       return result.records.map(
         (record) => record.get('compatible').properties,
       );
     }
 
-    // Step 3: Otherwise, proceed with compatibility check across filtered selected parts
     const matchStatements = filteredSelectedParts
       .map(
         (part, index) => `
@@ -167,14 +143,7 @@ export class ManualBuildService {
       RETURN DISTINCT compatible
     `;
 
-    try {
-      const result = await session.run(query, params);
-      console.log(result.records.length);
-      return result.records.map(
-        (record) => record.get('compatible').properties,
-      );
-    } finally {
-      await session.close();
-    }
+    const result = await this.runQuery(query, params);
+    return result.records.map((record) => record.get('compatible').properties);
   }
 }

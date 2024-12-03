@@ -14,24 +14,24 @@ export class AutoBuildDto {
 
 export class PCConfiguration {
   CPU: object;
-  Motherboard: object;
-  RAM: object;
-  InternalHardDrive: object;
-  GraphicsCard: object;
-  PowerSupply: object;
-  Case: object;
   CPUCooler: object;
+  Motherboard: object;
+  GraphicsCard: object[];
+  RAM: object[];
+  InternalHardDrive: object[];
+  Case: object;
+  PowerSupply: object;
 }
 
 export class BudgetAllocation {
   CPU: number;
+  CPUCooler: number;
   Motherboard: number;
+  GraphicsCard: number;
   RAM: number;
   InternalHardDrive: number;
-  GraphicsCard: number;
-  PowerSupply: number;
   Case: number;
-  CPUCooler: number;
+  PowerSupply: number;
 }
 
 export class Part {
@@ -41,11 +41,11 @@ export class Part {
 
 export class PartsData {
   CPU: object[];
+  CPUCooler: object[];
   Motherboard: object[];
+  GraphicsCard: object[];
   RAM: object[];
   InternalHardDrive: object[];
-  GraphicsCard: object[];
-  PowerSupply: object[];
   Case: object[];
-  CPUCooler: object[];
+  PowerSupply: object[];
 }

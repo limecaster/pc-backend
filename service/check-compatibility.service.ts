@@ -22,16 +22,16 @@ export class CheckCompatibilityService {
    * Set of Neo4j relationships to check compatibility.
    */
   private neo4jRelationships = new Set([
-    'Case->GraphicsCard',
-    'Case->PowerSupply',
-    'Motherboard->Case',
-    'Motherboard->PowerSupply',
+    'CPU->Motherboard',
     'CPU->CPUCooler',
     'Motherboard->CPUCooler',
-    'Motherboard->InternalHardDrive',
     'Motherboard->RAM',
+    'Motherboard->InternalHardDrive',
+    'Motherboard->PowerSupply',
+    'Motherboard->Case',
+    'Case->PowerSupply',
+    'Case->GraphicsCard',
     'PowerSupply->GraphicsCard',
-    'Motherboard->CPU',
   ]);
 
   /**
@@ -108,15 +108,11 @@ export class CheckCompatibilityService {
   }
 
   /**
-   * Checks if the selected power supply can supply power to the other parts.
+   * Calculates the total wattage required by the PC configuration.
    * @param pcConfiguration - Current PC configuration.
-   * @param partData - Data of the power supply part.
-   * @returns Promise resolving to a boolean indicating compatibility.
+   * @returns Total wattage required.
    */
-  private async checkPowerSupply(
-    pcConfiguration: PCConfiguration,
-    partData: object,
-  ): Promise<boolean> {
+  private calculateTotalWattage(pcConfiguration: PCConfiguration): number {
     const componentPowerConsumption = {
       CPU: pcConfiguration['CPU']?.['tdp'] || 0,
       GraphicsCard: pcConfiguration['GraphicsCard']?.['tdp'] || 0,
@@ -135,14 +131,25 @@ export class CheckCompatibilityService {
         : 0,
       CPUCooler: pcConfiguration['CPUCooler'] ? 15 : 0,
     };
-    console.log(componentPowerConsumption);
     const totalPower = Object.values(componentPowerConsumption).reduce(
       (acc, power) => acc + power,
       0,
     );
-    console.log(totalPower, partData['wattage']);
-    // To be safe, we multiply the total power by 1.25
-    return partData['wattage'] >= totalPower * 1.25;
+    return totalPower;
+  }
+
+  /**
+   * Checks if the selected power supply can supply power to the other parts.
+   * @param pcConfiguration - Current PC configuration.
+   * @param partData - Data of the power supply part.
+   * @returns Promise resolving to a boolean indicating compatibility.
+   */
+  private async checkPowerSupply(
+    pcConfiguration: PCConfiguration,
+    partData: object,
+  ): Promise<boolean> {
+    const totalWattage = this.calculateTotalWattage(pcConfiguration);
+    return partData['wattage'] >= totalWattage * 1.25; // Add 25% overhead
   }
 
   /**
@@ -328,6 +335,10 @@ export class CheckCompatibilityService {
     pcConfiguration: PCConfiguration,
     partData: object,
   ): Promise<boolean> {
+    if (!pcConfiguration.Motherboard) {
+      return true;
+    }
+
     const graphicsCardInterface = partData['interface'];
     const slotTypeMap = {
       PCI: 'pciSlots',
@@ -336,6 +347,14 @@ export class CheckCompatibilityService {
       'PCIe x8': 'pcieX8Slots',
       'PCIe x16': 'pcieX16Slots',
     };
+
+    const isMotherboardHasSlot = pcConfiguration.Motherboard
+      ? slotTypeMap[graphicsCardInterface] in pcConfiguration.Motherboard
+      : false;
+
+    if (!isMotherboardHasSlot) {
+      return false;
+    }
 
     let availableSlots =
       pcConfiguration.Motherboard[slotTypeMap[graphicsCardInterface]] || 0;
@@ -437,11 +456,6 @@ export class CheckCompatibilityService {
       return false;
     }
 
-    // // Ensure PowerSupply and Motherboard are checked last
-    // if (label === 'PowerSupply' || label === 'Motherboard') {
-    //   return true;
-    // }
-
     const isNeo4jCompatible = await this.neo4jCheckCompatibility(
       { name: partData['name'], label },
       pcConfiguration,
@@ -451,26 +465,6 @@ export class CheckCompatibilityService {
       return false;
     }
 
-    // // Check PowerSupply and Motherboard compatibility at the end
-    // if (pcConfiguration.Motherboard) {
-    //   const isMotherboardCompatible = await this.checkMotherboard(
-    //     pcConfiguration,
-    //     pcConfiguration.Motherboard,
-    //   );
-    //   if (!isMotherboardCompatible) {
-    //     return false;
-    //   }
-    // }
-
-    // if (pcConfiguration.PowerSupply) {
-    //   const isPowerSupplyCompatible = await this.checkPowerSupply(
-    //     pcConfiguration,
-    //     pcConfiguration.PowerSupply,
-    //   );
-    //   if (!isPowerSupplyCompatible) {
-    //     return false;
-    //   }
-    // }
     return true;
   }
 }

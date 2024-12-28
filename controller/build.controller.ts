@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ManualBuildService } from '../service/manual-build.service';
 import { AutoBuildService } from '../service/auto-build.service';
 
@@ -51,7 +51,7 @@ export class BuildController {
     );
   }
 
-  @Get('auto-build')
+  @Post('auto-build')
   async autoBuild(@Body('userInput') userInput: string) {
     return this.autoBuildService.autoBuild(userInput);
   }

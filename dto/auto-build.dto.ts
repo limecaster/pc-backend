@@ -4,6 +4,9 @@ export class AutoBuildDto {
   @IsNumber()
   budget: number;
 
+  @IsNumber()
+  initialBudget: number;
+
   @IsString()
   purpose: string;
 

@@ -53,7 +53,10 @@ export class BuildController {
 
   @Post('auto-build')
   async autoBuild(@Body('userInput') userInput: string) {
-    return this.autoBuildService.autoBuild(userInput);
+    //console.log(await this.autoBuildService.autoBuildAllOptions(userInput));
+    const result = await this.autoBuildService.autoBuildAllOptions(userInput);
+    
+    return result;
   }
 
   private parseSelectedParts(selectedParts: string[]): any[] {

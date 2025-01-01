@@ -229,26 +229,7 @@ export class AutoBuildService {
     }
 
     private getIndexName(label: string): string {
-        switch (label) {
-            case 'CPU':
-                return 'CPUNameFulltextIndex';
-            case 'GraphicsCard':
-                return 'GraphicsCardNameFulltextIndex';
-            case 'Motherboard':
-                return 'MotherboardNameFulltextIndex';
-            case 'RAM':
-                return 'RAMNameFulltextIndex';
-            case 'InternalHardDrive':
-                return 'InternalHardDriveNameFulltextIndex';
-            case 'PowerSupply':
-                return 'PowerSupplyNameFulltextIndex';
-            case 'Case':
-                return 'CaseNameFulltextIndex';
-            case 'CPUCooler':
-                return 'CPUCoolerNameFulltextIndex';
-            default:
-                return '';
-        }
+        return label + 'NameFulltextIndex';
     }
 
     private calculatePreferredPartsCost(preferredPartsData: PartsData): number {
@@ -280,7 +261,6 @@ export class AutoBuildService {
             } else if (sortOption === 'popular') {
                 orderClause = 'ORDER BY part.solds DESC';
             }
-
             const query = `
               MATCH (part:${part})
               WHERE part.price IS NOT NULL AND part.price <= $price 
@@ -487,6 +467,7 @@ export class AutoBuildService {
         let pcConfig = await this.buildPC(preferredParts, this.partPools[optionType]);
         if (!this.isCompleteConfiguration(pcConfig)) {
             pcConfig = await this.backtrackAndRebuild(autoBuildDto, pcConfig);
+            console.log('BACKTRACKED');
         }
         session.close();
         return pcConfig;

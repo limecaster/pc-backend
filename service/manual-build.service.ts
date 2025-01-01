@@ -262,8 +262,6 @@ export class ManualBuildService {
                 (countResult.records[0].get('totalItems').low, countResult.records[0].get('totalItems').high);
 
 
-            console.log("Total Items:", totalItems);
-
             return { items, totalItems };
         } catch (error) {
             this.logger.error('Error finding parts by labels with pagination:', error);
@@ -304,7 +302,7 @@ export class ManualBuildService {
             if (!partRecord) {
                 throw new Error(`Part with name ${partName} not found`);
             }
-            this.pcConfigurationForManualBuild[partLabels[0]] = partRecord;
+            
             // Check each label for compatibility
             for (const label of partLabels) {
                 const isCompatible = await this.checkCompatibilityService.checkCompatibility(
@@ -315,6 +313,7 @@ export class ManualBuildService {
                     return false;
                 }
             }
+            this.pcConfigurationForManualBuild[partLabels[0]] = partRecord;
             return true;
         } catch (error) {
             this.logger.error('Error checking part compatibility:', error);

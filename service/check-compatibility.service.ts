@@ -34,6 +34,8 @@ export class CheckCompatibilityService {
         'PowerSupply->GraphicsCard',
     ]);
 
+    private totalWattage: number = 0;
+
     /**
      * Runs a Neo4j query to check compatibility.
      * @param session - Neo4j session.
@@ -64,7 +66,7 @@ export class CheckCompatibilityService {
         try {
             for (const partType of Object.keys(pcConfiguration)) {
                 if (!pcConfiguration[partType] || !pcConfiguration[partType].name) {
-                    continue;
+                    return false;
                 }
                 const cacheKey = `${part.label}:${part.name}|${partType}:${pcConfiguration[partType].name}`;
                 if (this.compatibilityCache.has(cacheKey)) {
@@ -147,6 +149,14 @@ export class CheckCompatibilityService {
     }
 
     /**
+     * Updates the total wattage required by the PC configuration.
+     * @param pcConfiguration - Current PC configuration.
+     */
+    public updateTotalWattage(pcConfiguration: PCConfiguration): void {
+        this.totalWattage = this.calculateTotalWattage(pcConfiguration);
+    }
+
+    /**
      * Checks if the selected power supply can supply power to the other parts.
      * @param pcConfiguration - Current PC configuration.
      * @param partData - Data of the power supply part.
@@ -156,8 +166,7 @@ export class CheckCompatibilityService {
         pcConfiguration: PCConfiguration,
         partData: object,
     ): Promise<boolean> {
-        const totalWattage = this.calculateTotalWattage(pcConfiguration);
-        return partData['wattage'] >= totalWattage * 1.25; // Add 25% overhead
+        return partData['wattage'] >= this.totalWattage * 1.25; // Add 25% overhead
     }
 
     /**
@@ -455,6 +464,7 @@ export class CheckCompatibilityService {
         { partData, label }: { partData: object; label: string },
         pcConfiguration: PCConfiguration,
     ): Promise<boolean> {
+        this.updateTotalWattage(pcConfiguration); // Update total wattage whenever checking compatibility
         const isDynamicCompatible = await this.dynamicCheckCompatibility(
             { partData, label },
             pcConfiguration,
@@ -463,7 +473,7 @@ export class CheckCompatibilityService {
         if (!isDynamicCompatible) {
             return false;
         }
-
+        
         const isNeo4jCompatible = await this.neo4jCheckCompatibility(
             { name: partData['name'], label },
             pcConfiguration,

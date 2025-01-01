@@ -9,6 +9,7 @@ import {
 } from 'dto/auto-build.dto';
 import { SpacyService } from './spacy.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
+import { UtilsService } from './utils.service';
 
 @Injectable()
 export class AutoBuildService {
@@ -85,6 +86,7 @@ export class AutoBuildService {
         private readonly neo4jConfigService: Neo4jConfigService,
         private readonly spacyService: SpacyService,
         private readonly checkCompatibilityService: CheckCompatibilityService,
+        private readonly utilsService: UtilsService,
     ) {}
 
     async autoBuild(userInput: string): Promise<PCConfiguration> {
@@ -191,10 +193,6 @@ export class AutoBuildService {
         return { preferredParts: preferredPartsData, otherParts };
     }
 
-    private combineLowHigh(low: number, high: number): number {
-        return high * Math.pow(2, 32) + low;
-    }
-
     private async fetchPreferredPartsData(
         autoBuildDto: AutoBuildDto,
         session: any,
@@ -219,7 +217,7 @@ export class AutoBuildService {
                         'low' in properties[key] &&
                         'high' in properties[key]
                     ) {
-                        properties[key] = this.combineLowHigh(
+                        properties[key] = this.utilsService.combineLowHigh(
                             properties[key].low,
                             properties[key].high,
                         );
@@ -299,7 +297,7 @@ export class AutoBuildService {
                         'low' in properties[key] &&
                         'high' in properties[key]
                     ) {
-                        properties[key] = this.combineLowHigh(
+                        properties[key] = this.utilsService.combineLowHigh(
                             properties[key].low,
                             properties[key].high,
                         );

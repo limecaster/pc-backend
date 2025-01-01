@@ -9,6 +9,23 @@ export class BuildController {
     private readonly autoBuildService: AutoBuildService,
   ) {}
 
+  private mappingFrontendLabelToNeo4jLabel = 
+  {
+    "CPU": ["CPU"],
+    "Bo mạch chủ": ["Motherboard"],
+    "RAM": ["RAM"],
+    "HDD": ["InternalHardDrive"],
+    "SSD": ["InternalHardDrive"],
+    "Card đồ họa": ["GraphicsCard"],
+    "Nguồn": ["PowerSupply"],
+    "Vỏ case": ["Case"],
+    "Quạt tản nhiệt": ["CPUCooler"],
+    "Màn hình": ["Monitor"],
+    "Thiết bị ngoại vi": ["Keyboard", "Mouse", "Speaker"],
+    "Card mở rộng": ["WiredNetworkCard", "WiFiCard"],
+    "Phụ kiện khác": ["ThermalPaste"],
+  }
+  
   @Get()
   async findCompatibleParts(
     @Query('name') name: string,
@@ -29,9 +46,9 @@ export class BuildController {
   async checkCompatibilityAcrossLabels(
     @Param('newPartLabel') newPartLabel: string,
     @Param('newPartName') newPartName: string,
-    @Query('selectedParts') selectedParts: string[],
+    @Query('selectedParts') selectedParts: string,
   ) {
-    const parsedSelectedParts = this.parseSelectedParts(selectedParts);
+    const parsedSelectedParts = this.parseSelectedParts(JSON.parse(selectedParts));
     return this.manualBuildService.checkCompatibilityAcrossLabels(
       newPartName,
       newPartLabel,
@@ -39,16 +56,46 @@ export class BuildController {
     );
   }
 
-  @Get('compatible-parts')
+  @Get('manual-build/compatible-parts')
   async getSpecificPartTypeCompatibleWithSelectedParts(
-    @Query('selectedParts') selectedParts: string[],
+    @Query('selectedParts') selectedParts: string,
     @Query('targetLabel') targetLabel: string,
+    @Query('page') page: string,
+    @Query('limit') limit: string,
   ) {
-    const parsedSelectedParts = this.parseSelectedParts(selectedParts);
-    return this.manualBuildService.getSpecificPartTypeCompatibleWithSelectedParts(
-      parsedSelectedParts,
-      targetLabel,
-    );
+    try {
+      const parsedSelectedParts = this.parseSelectedParts(selectedParts);
+      const targetLabels = this.mappingFrontendLabelToNeo4jLabel[targetLabel] || [];
+      
+      if (targetLabels.length === 0) {
+        throw new Error(`Invalid target label: ${targetLabel}`);
+      }
+  
+      const pageNumber = parseInt(page, 10) || 1;
+      const pageSize = parseInt(limit, 10) || 10;
+  
+      const { items, totalItems } = await this.manualBuildService.findAllPartsByLabelsPaginated(targetLabels, pageNumber, pageSize);
+      const compatibleParts = [];
+      for (const part of items) {
+        const isCompatible = await this.manualBuildService.checkPartCompatibilityWithSelected(
+          part.name,
+          targetLabels,
+          parsedSelectedParts,
+        );
+        if (isCompatible) {
+          compatibleParts.push(part);
+        }
+      }
+  
+      const totalPages = Math.ceil(totalItems / pageSize);
+  
+      console.log("Total Pages:", totalPages);
+  
+      return { items: compatibleParts, totalPages };
+    } catch (error) {
+      console.error('Error fetching compatible parts:', error);
+      throw new Error('Failed to fetch compatible parts');
+    }
   }
 
   @Post('auto-build')
@@ -59,16 +106,26 @@ export class BuildController {
     return result;
   }
 
-  private parseSelectedParts(selectedParts: string[]): any[] {
+  private parseSelectedParts(selectedParts: string | { label: string }[]): any[] {
+    if (!selectedParts) {
+      return [];
+    }
     if (typeof selectedParts === 'string') {
       try {
-        return JSON.parse(selectedParts);
+        const parsedSelectedParts: { label: string }[] = JSON.parse(selectedParts);
+        return parsedSelectedParts.map((part) => {
+          const neo4jLabels = this.mappingFrontendLabelToNeo4jLabel[part.label];
+          return { ...part, neo4jLabels };
+        });
       } catch (error) {
         console.log(error);
         throw new Error('Invalid JSON format for selectedParts');
       }
     } else {
-      return selectedParts.map((part) => JSON.parse(part));
+      return selectedParts.map((part) => {
+        const neo4jLabels = this.mappingFrontendLabelToNeo4jLabel[part.label];
+        return { ...part, neo4jLabels };
+      });
     }
   }
 }

@@ -64,7 +64,7 @@ export class CheckCompatibilityService {
         try {
             for (const partType of Object.keys(pcConfiguration)) {
                 if (!pcConfiguration[partType] || !pcConfiguration[partType].name) {
-                    return false;
+                    continue;
                 }
                 const cacheKey = `${part.label}:${part.name}|${partType}:${pcConfiguration[partType].name}`;
                 if (this.compatibilityCache.has(cacheKey)) {
@@ -77,11 +77,11 @@ export class CheckCompatibilityService {
                 let isCompatible = true;
                 if (this.neo4jRelationships.has(`${partType}->${part.label}`)) {
                     const query = `
-            MATCH (p1:${partType} {name: $name1})
-            -[:COMPATIBLE_WITH]->
-            (p2:${part.label} {name: $name2})
-            RETURN p1
-          `;
+                        MATCH (p1:${partType} {name: $name1})
+                        -[:COMPATIBLE_WITH]->
+                        (p2:${part.label} {name: $name2})
+                        RETURN p1
+                    `;
                     isCompatible = await this.runNeo4jQuery(session, query, {
                         name1: pcConfiguration[partType].name,
                         name2: part.name,
@@ -90,11 +90,11 @@ export class CheckCompatibilityService {
                     this.neo4jRelationships.has(`${part.label}->${partType}`)
                 ) {
                     const query = `
-            MATCH (p1:${part.label} {name: $name1})
-            -[:COMPATIBLE_WITH]->
-            (p2:${partType} {name: $name2})
-            RETURN p1
-          `;
+                        MATCH (p1:${part.label} {name: $name1})
+                        -[:COMPATIBLE_WITH]->
+                        (p2:${partType} {name: $name2})
+                        RETURN p1
+                    `;
                     isCompatible = await this.runNeo4jQuery(session, query, {
                         name1: part.name,
                         name2: pcConfiguration[partType].name,
@@ -211,6 +211,7 @@ export class CheckCompatibilityService {
             (partData['m2Slots']?.length || 0) -
             this.countUsedM2Slots(pcConfiguration, partData['m2Slots']);
 
+
         const isEnoughGraphicsCardSlots =
             pciSlots >= 0 &&
             pcieX1Slots >= 0 &&
@@ -306,11 +307,9 @@ export class CheckCompatibilityService {
         if (!pcConfiguration.Motherboard) {
             return true;
         }
-
         let availableSlots = pcConfiguration.Motherboard
             ? pcConfiguration.Motherboard['memorySlots']
             : 1;
-
         // Reduce the available slots by the number of RAM sticks already installed
         if (Array.isArray(pcConfiguration['RAM'])) {
             for (const ram of pcConfiguration['RAM']) {
@@ -327,7 +326,6 @@ export class CheckCompatibilityService {
                 availableMemorySupported -= ram['moduleSize'];
             }
         }
-
         return (
             partData['moduleNumber'] <= availableSlots &&
             partData['moduleSize'] <= availableMemorySupported

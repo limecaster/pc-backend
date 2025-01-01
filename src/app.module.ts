@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AutoBuildService } from 'service/auto-build.service';
 import { SpacyService } from 'service/spacy.service';
 import { CheckCompatibilityService } from 'service/check-compatibility.service';
+import { UtilsService } from 'service/utils.service';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CheckCompatibilityService } from 'service/check-compatibility.service';
     SpacyService,
     Neo4jConfigService,
     ConfigService,
+    UtilsService,
   ],
 })
 export class AppModule {}

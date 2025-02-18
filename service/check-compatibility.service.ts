@@ -458,31 +458,27 @@ export class CheckCompatibilityService {
      * Checks compatibility of a part with the PC configuration.
      * @param param0 - Object containing part data and label.
      * @param pcConfiguration - Current PC configuration.
+     * @param skipNeo4j - If true, skip Neo4j compatibility check (for partial configuration builds).
      * @returns Promise resolving to a boolean indicating compatibility.
      */
     public async checkCompatibility(
         { partData, label }: { partData: object; label: string },
         pcConfiguration: PCConfiguration,
+        skipNeo4j: boolean = false,
     ): Promise<boolean> {
-        this.updateTotalWattage(pcConfiguration); // Update total wattage whenever checking compatibility
-        const isDynamicCompatible = await this.dynamicCheckCompatibility(
-            { partData, label },
-            pcConfiguration,
-        );
-
+        this.updateTotalWattage(pcConfiguration); // Update total wattage
+        const isDynamicCompatible = await this.dynamicCheckCompatibility({ partData, label }, pcConfiguration);
         if (!isDynamicCompatible) {
             return false;
         }
-        
-        const isNeo4jCompatible = await this.neo4jCheckCompatibility(
-            { name: partData['name'], label },
-            pcConfiguration,
-        );
 
+        if (skipNeo4j) {
+            return true;
+        }
+        const isNeo4jCompatible = await this.neo4jCheckCompatibility({ name: partData['name'], label }, pcConfiguration);
         if (!isNeo4jCompatible) {
             return false;
         }
-
         return true;
     }
 }

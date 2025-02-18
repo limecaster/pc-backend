@@ -102,7 +102,8 @@ export class BuildController {
   async autoBuild(@Body('userInput') userInput: string) {
     //console.log(await this.autoBuildService.autoBuildAllOptions(userInput));
     const result = await this.autoBuildService.autoBuildAllOptions(userInput);
-    
+    //const result2 = await this.autoBuildService.getAllPCConfigurations(userInput);
+
     return result;
   }
 

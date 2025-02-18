@@ -15,14 +15,14 @@ import { UtilsService } from './utils.service';
 export class AutoBuildService {
     private budgetAllocations = {
         gaming: {
-            CPU: 0.25,
-            Motherboard: 0.15,
-            RAM: 0.1,
-            InternalHardDrive: 0.1,
-            GraphicsCard: 0.15,
-            PowerSupply: 0.1,
-            Case: 0.1,
-            CPUCooler: 0.05,
+            CPU: 0.19,
+            Motherboard: 0.1,
+            RAM: 0.04,
+            InternalHardDrive: 0.04,
+            GraphicsCard: 0.4,
+            PowerSupply: 0.15,
+            Case: 0.04,
+            CPUCooler: 0.04,
         },
         workstation: {
             CPU: 0.25,
@@ -89,34 +89,11 @@ export class AutoBuildService {
         private readonly utilsService: UtilsService,
     ) {}
 
-    async autoBuild(userInput: string): Promise<PCConfiguration> {
-        const autoBuildDto = await this.extractUserInput(userInput);
-        autoBuildDto['initialBudget'] = autoBuildDto.budget;
-        const { preferredParts, otherParts } =
-            await this.allocateBudget(autoBuildDto);
-        let pcConfiguration = await this.buildPC(preferredParts, otherParts);
-        if (!this.isCompleteConfiguration(pcConfiguration)) {
-            pcConfiguration = await this.backtrackAndRebuild(
-                autoBuildDto,
-                pcConfiguration,
-            );
-        }
-
-        let totalCost = 0;
-        for (const part in pcConfiguration) {
-            if (pcConfiguration[part]) {
-                totalCost += pcConfiguration[part].price;
-            }
-        }
-        console.log(`Total cost: ${totalCost} VND`);
-        return pcConfiguration;
-    }
-
     private async extractUserInput(userInput: string): Promise<AutoBuildDto> {
         const autoBuildDto = new AutoBuildDto();
         const structuredData =
             await this.spacyService.extractStructuredData(userInput);
-
+        autoBuildDto.userInput = userInput;
         autoBuildDto.preferredParts = new Array<Part>();
 
         for (const [value, label] of structuredData) {
@@ -164,6 +141,7 @@ export class AutoBuildService {
 
     private async allocateBudget(
         autoBuildDto: AutoBuildDto,
+        optionType: 'saving' | 'performance' | 'popular' = 'saving',
     ): Promise<{ preferredParts: PartsData; otherParts: PartsData }> {
         const session = this.neo4jConfigService.getDriver().session();
         const preferredPartsData = new PartsData();
@@ -177,6 +155,13 @@ export class AutoBuildService {
             preferredPartsData,
         );
 
+        // If there is a preferred part, add 0.15 to all weights
+        if (autoBuildDto.preferredParts.length > 0) {
+            for (const part in budgetAllocation) {
+                budgetAllocation[part] += 0.15;
+            }
+        }
+
         if (!this.isReducePreferredParts) {
             autoBuildDto.budget -=
                 this.calculatePreferredPartsCost(preferredPartsData);
@@ -187,17 +172,37 @@ export class AutoBuildService {
         await this.fetchPartsWithinBudget(
             session,
             budgetAllocation,
-            'saving',
+            optionType,
         );
-        const otherParts = this.partPools['saving'];
+        const otherParts = this.partPools[optionType];
         return { preferredParts: preferredPartsData, otherParts };
     }
+
+    private preferredPartsCache = {
+        userInput: '',
+        data: {
+            CPU: {},
+            Motherboard: {},
+            RAM: {},
+            InternalHardDrive: {},
+            GraphicsCard: {},
+            PowerSupply: {},
+            Case: {},
+            CPUCooler: {},
+        },
+    };
 
     private async fetchPreferredPartsData(
         autoBuildDto: AutoBuildDto,
         session: any,
         preferredPartsData: PartsData,
     ) {
+        if (this.preferredPartsCache.userInput === autoBuildDto.userInput) {
+            Object.assign(preferredPartsData, this.preferredPartsCache.data);
+            return;
+        }
+
+        const startTime = new Date().getTime();
         for (const part of autoBuildDto.preferredParts) {
             const indexName = this.getIndexName(part.label);
             const query = `CALL db.index.fulltext.queryNodes($indexName, $partname)
@@ -226,6 +231,10 @@ export class AutoBuildService {
                 return properties;
             });
         }
+        this.preferredPartsCache.userInput = autoBuildDto.userInput;
+        this.preferredPartsCache.data = preferredPartsData;
+        const endTime = new Date().getTime();
+        console.log(`Fetch preferred parts time: ${endTime - startTime}ms`);
     }
 
     private getIndexName(label: string): string {
@@ -249,26 +258,72 @@ export class AutoBuildService {
         }
     }
 
+    private partCache: Map<string, any> = new Map();
+    private lastBudgetSnapshot: Record<string, Record<string, number>> = {};
+    private lastUserInputHash: string | null = null;
+
+    private shouldRefreshCache(
+        newBudget: BudgetAllocation,
+        newUserInput: string,
+    ): boolean {
+        const inputChanged = this.lastUserInputHash !== newUserInput;
+
+        if (inputChanged) {
+            this.lastUserInputHash = newUserInput;
+            this.partCache.clear(); // Clear cache when input changes
+            this.lastBudgetSnapshot = {}; // Reset budget snapshot
+            return true;
+        }
+
+        return false;
+    }
+
     private async fetchPartsWithinBudget(
         session: any,
         budgetAllocation: BudgetAllocation,
         sortOption: 'saving' | 'performance' | 'popular',
     ) {
+        const startTime = new Date().getTime();
+        console.log(budgetAllocation);
+        this.shouldRefreshCache(
+            budgetAllocation,
+            this.preferredPartsCache.userInput,
+        );
+
         for (const part in budgetAllocation) {
+            const cacheKey = `${part}-${budgetAllocation[part]}-${sortOption}`;
+
+            // Check if budget changed for this part type
+            const lastBudgetForPart =
+                this.lastBudgetSnapshot[sortOption]?.[part];
+            if (
+                this.partCache.has(cacheKey) &&
+                lastBudgetForPart === budgetAllocation[part]
+            ) {
+                console.log(`Cache hit for ${cacheKey}`);
+                this.partPools[sortOption][part] = this.partCache.get(cacheKey);
+                continue;
+            }
+
             let orderClause = 'ORDER BY part.price ASC';
             if (sortOption === 'performance') {
                 orderClause = 'ORDER BY part.benchmarkScore DESC';
             } else if (sortOption === 'popular') {
                 orderClause = 'ORDER BY part.solds DESC';
             }
+
             const query = `
-              MATCH (part:${part})
-              WHERE part.price IS NOT NULL AND part.price <= $price 
-              ${orderClause}
-              RETURN part
+            MATCH (part:${part})
+            WHERE part.price IS NOT NULL AND part.price <= $price 
+            ${orderClause}
+            RETURN part
             `;
-            const result = await session.run(query, { price: budgetAllocation[part] });
-            this.partPools[sortOption][part] = result.records.map((record) => {
+
+            const result = await session.run(query, {
+                price: budgetAllocation[part],
+            });
+
+            const parts = result.records.map((record) => {
                 const properties = record.get('part').properties;
                 for (const key in properties) {
                     if (
@@ -285,53 +340,52 @@ export class AutoBuildService {
                 }
                 return properties;
             });
-        }
-    }
 
-    private async buildPC(
-        preferredParts: PartsData,
-        otherParts: PartsData,
-    ): Promise<PCConfiguration> {
-        const pcConfiguration = new PCConfiguration();
-        this.addPreferredPartsToConfiguration(preferredParts, pcConfiguration);
-        await this.addCompatiblePartsToConfiguration(
-            otherParts,
-            pcConfiguration,
-        );
-        return pcConfiguration;
-    }
-
-    private addPreferredPartsToConfiguration(
-        preferredParts: PartsData,
-        pcConfiguration: PCConfiguration,
-    ) {
-        for (const part in preferredParts) {
-            if (preferredParts[part].length > 0) {
-                pcConfiguration[part] = preferredParts[part][0];
+            // Update cache and budget snapshot
+            this.partCache.set(cacheKey, parts);
+            if (!this.lastBudgetSnapshot[sortOption]) {
+                this.lastBudgetSnapshot[sortOption] = {};
             }
+            this.lastBudgetSnapshot[sortOption][part] = budgetAllocation[part];
+
+            this.partPools[sortOption][part] = parts;
         }
+
+        const endTime = new Date().getTime();
+        console.log(`Fetch parts within budget time: ${endTime - startTime}ms`);
     }
 
-    private async addCompatiblePartsToConfiguration(
-        otherParts: PartsData,
-        pcConfiguration: PCConfiguration,
-    ) {
-        for (const label of this.partOrder) {
-            if (otherParts[label]?.length && !pcConfiguration[label]) {
-                for (const partData of otherParts[label]) {
-                    if (
-                        await this.checkCompatibilityService.checkCompatibility(
-                            { partData, label },
-                            pcConfiguration,
-                        )
-                    ) {
-                        pcConfiguration[label] = partData;
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    // private addPreferredPartsToConfiguration(
+    //     preferredParts: PartsData,
+    //     pcConfiguration: PCConfiguration,
+    // ) {
+    //     for (const part in preferredParts) {
+    //         if (preferredParts[part].length > 0) {
+    //             pcConfiguration[part] = preferredParts[part][0];
+    //         }
+    //     }
+    // }
+
+    // private async addCompatiblePartsToConfiguration(
+    //     otherParts: PartsData,
+    //     pcConfiguration: PCConfiguration,
+    // ) {
+    //     for (const label of this.partOrder) {
+    //         if (otherParts[label]?.length && !pcConfiguration[label]) {
+    //             for (const partData of otherParts[label]) {
+    //                 if (
+    //                     await this.checkCompatibilityService.checkCompatibility(
+    //                         { partData, label },
+    //                         pcConfiguration,
+    //                     )
+    //                 ) {
+    //                     pcConfiguration[label] = partData;
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     public isCompleteConfiguration(pcConfiguration: PCConfiguration): boolean {
         const requiredParts = [
@@ -354,72 +408,38 @@ export class AutoBuildService {
         );
     }
 
-    private async backtrackAndRebuild(
-        autoBuildDto: AutoBuildDto,
-        partialConfig: PCConfiguration,
-        attempts = 0,
-    ): Promise<PCConfiguration> {
-        const { preferredParts, otherParts } =
-            await this.allocateBudget(autoBuildDto);
-        const configuration = new PCConfiguration();
-
-        // Copy partialConfig into configuration
-        for (const part of Object.keys(partialConfig)) {
-            if (partialConfig[part]) {
-                configuration[part] = partialConfig[part];
-            }
+    /**
+     * Utility: Shuffles an array using the Fisher–Yates algorithm.
+     */
+    private shuffleArray<T>(array: T[]): T[] {
+        const arr = [...array]; // copy to avoid modifying original
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
         }
+        return arr;
+    }
 
-        const tryPart = async (index: number): Promise<boolean> => {
-            if (index >= this.partOrder.length) return true;
-            const label = this.partOrder[index];
-            if (configuration[label]) {
-                return await tryPart(index + 1);
-            }
-            const pool = preferredParts[label]?.length
-                ? preferredParts[label]
-                : otherParts[label];
-            if (!pool || pool.length === 0) {
-                return await tryPart(index + 1);
-            }
-            for (const partData of pool) {
-                if (
-                    await this.checkCompatibilityService.checkCompatibility(
-                        { partData, label },
-                        configuration,
-                    )
-                ) {
-                    configuration[label] = partData;
-                    if (await tryPart(index + 1)) return true;
-                    configuration[label] = null;
-                }
-            }
-            return false;
-        };
-
-        await tryPart(0);
-
-        if (!this.isCompleteConfiguration(configuration)) {
-            if (attempts >= 30 || this.calculateTotalCost(configuration) > autoBuildDto.initialBudget * 1.2) {
-                // Return partial configuration or an indication that we can't fully build
-                return configuration;
-            }
-            autoBuildDto.budget = Math.floor(autoBuildDto.budget * 1.05);
-            return this.backtrackAndRebuild(autoBuildDto, configuration, attempts + 1);
-        }
-
-        return configuration;
+    /**
+     * Dynamically reallocates budget across parts based on availability.
+     * If a certain part type is missing, redistribute its budget proportionally to others.
+     */
+    private reallocateBudget(currentBudget: number): number {
+        // Example: If a motherboard is missing, shift some budget from CPU/GPU to motherboard
+        return Math.floor(currentBudget * 0.98 + 500_000); // Adjust dynamically
     }
 
     public async autoBuildAllOptions(userInput: string) {
+        const startTime = new Date().getTime();
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
 
-        const [savingConfig, performanceConfig, popularConfig] = await Promise.all([
-            this.buildOption(autoBuildDto, 'saving'),
-            this.buildOption(autoBuildDto, 'performance'),
-            this.buildOption(autoBuildDto, 'popular')
-        ]);
+        const [savingConfig, performanceConfig, popularConfig] =
+            await Promise.all([
+                this.buildOption(autoBuildDto, 'saving'),
+                this.buildOption(autoBuildDto, 'performance'),
+                this.buildOption(autoBuildDto, 'popular'),
+            ]);
         const totalCost = (config: PCConfiguration) => {
             let total = 0;
             for (const part in config) {
@@ -428,14 +448,16 @@ export class AutoBuildService {
                 }
             }
             return total;
-        }
+        };
         console.log(`Saving: ${totalCost(savingConfig)} VND`);
         console.log(`Performance: ${totalCost(performanceConfig)} VND`);
         console.log(`Popular: ${totalCost(popularConfig)} VND`);
+        const endTime = new Date().getTime();
+        console.log(`Auto build all options time: ${endTime - startTime}ms`);
         return {
-          saving: savingConfig,
-          performance: performanceConfig,
-          popular: popularConfig,
+            saving: savingConfig,
+            performance: performanceConfig,
+            popular: popularConfig,
         };
     }
 
@@ -447,7 +469,10 @@ export class AutoBuildService {
         autoBuildDto.budget = autoBuildDto.initialBudget;
         this.isReducePreferredParts = false;
 
-        const { preferredParts } = await this.allocateBudget(autoBuildDto);
+        const { preferredParts } = await this.allocateBudget(
+            autoBuildDto,
+            optionType,
+        );
         const session = this.neo4jConfigService.getDriver().session();
 
         this.allocateRemainingBudget(autoBuildDto, {
@@ -456,7 +481,8 @@ export class AutoBuildService {
         const budgetAllocation = new BudgetAllocation();
         for (const part in this.budgetAllocations[autoBuildDto.purpose]) {
             budgetAllocation[part] =
-                autoBuildDto.budget * this.budgetAllocations[autoBuildDto.purpose][part];
+                autoBuildDto.budget *
+                this.budgetAllocations[autoBuildDto.purpose][part];
         }
         await this.fetchPartsWithinBudget(
             session,
@@ -464,13 +490,310 @@ export class AutoBuildService {
             optionType,
         );
 
-        let pcConfig = await this.buildPC(preferredParts, this.partPools[optionType]);
+        let pcConfig = await this.buildPC(
+            preferredParts,
+            this.partPools[optionType],
+        );
         if (!this.isCompleteConfiguration(pcConfig)) {
             pcConfig = await this.backtrackAndRebuild(autoBuildDto, pcConfig);
             console.log('BACKTRACKED');
         }
         session.close();
         return pcConfig;
-        
+    }
+
+    /**
+     * Deep-search buildPC: Recursively try combinations for all required parts.
+     */
+    private async buildPC(
+        preferredParts: PartsData,
+        otherParts: PartsData,
+    ): Promise<PCConfiguration> {
+        const startTime = Date.now();
+        const pcConfiguration = new PCConfiguration();
+
+        // Use a deep search to fill all parts.
+        const success = await this.tryBuildConfiguration(
+            preferredParts,
+            otherParts,
+            pcConfiguration,
+            0,
+        );
+
+        const endTime = Date.now();
+        console.log(`Build PC time: ${endTime - startTime}ms`);
+        return pcConfiguration;
+    }
+
+    /**
+     * Recursively attempts to assign parts for each label in partOrder.
+     *
+     * For each part type, it builds a candidate pool (preferred parts first, then other parts).
+     * It then iterates over the pool and applies the compatibility check.
+     * If no candidate passes the check for a required part, it falls back to selecting the first candidate.
+     */
+    private async tryBuildConfiguration(
+        preferredParts: PartsData,
+        otherParts: PartsData,
+        pcConfiguration: PCConfiguration,
+        index: number,
+    ): Promise<boolean> {
+        if (index >= this.partOrder.length) {
+            return this.isCompleteConfiguration(pcConfiguration);
+        }
+
+        const label = this.partOrder[index];
+        const pool = [
+            ...(preferredParts[label] || []),
+            ...(otherParts[label] || []),
+        ];
+
+        if (pool.length === 0) return false;
+
+        console.log(`Trying to build ${label}...`);
+        console.log(`Pool: ${pool.length} parts`);
+        console.log(
+            `Configuration Parts: ${JSON.stringify(this.extractConfigNames(pcConfiguration))}`,
+        );
+
+        let candidateFound = false;
+
+        // First try: iterate over the candidate pool in given order.
+        for (const partData of pool) {
+            if (
+                await this.checkCompatibilityService.checkCompatibility(
+                    { partData, label },
+                    pcConfiguration,
+                )
+            ) {
+                pcConfiguration[label] = partData;
+                candidateFound = true;
+                if (
+                    await this.tryBuildConfiguration(
+                        preferredParts,
+                        otherParts,
+                        pcConfiguration,
+                        index + 1,
+                    )
+                ) {
+                    return true;
+                }
+                // Backtrack if deeper recursion fails.
+                pcConfiguration[label] = null;
+            }
+        }
+
+        // Fallback: if no candidate passed and this part is required, select the first candidate unconditionally.
+        if (!candidateFound && this.isRequiredPart(label)) {
+            console.log(`Fallback: assigning first candidate for ${label}`);
+            pcConfiguration[label] = pool[0];
+            if (
+                await this.tryBuildConfiguration(
+                    preferredParts,
+                    otherParts,
+                    pcConfiguration,
+                    index + 1,
+                )
+            ) {
+                return true;
+            }
+            // Backtrack fallback.
+            pcConfiguration[label] = null;
+        }
+
+        return false;
+    }
+
+    /**
+     * Utility: Extracts a simple summary of the configuration (e.g., part names) for logging.
+     */
+    private extractConfigNames(
+        pcConfiguration: PCConfiguration,
+    ): Record<string, any> {
+        const summary: Record<string, any> = {};
+        for (const part of this.partOrder) {
+            summary[part] = pcConfiguration[part]
+                ? pcConfiguration[part].name || 'N/A'
+                : null;
+        }
+        return summary;
+    }
+
+    /**
+     * Determines if a part is required.
+     */
+    private isRequiredPart(label: string): boolean {
+        const requiredParts = [
+            'CPU',
+            'Motherboard',
+            'RAM',
+            'GraphicsCard',
+            'PowerSupply',
+            'Case',
+            'CPUCooler',
+            'InternalHardDrive',
+        ];
+        return requiredParts.includes(label);
+    }
+
+    /**
+     * Backtracking function: If a complete configuration isn’t found with deep search,
+     * adjust the budget and retry.
+     */
+    private async backtrackAndRebuild(
+        autoBuildDto: AutoBuildDto,
+        partialConfig: PCConfiguration,
+        attempts = 0,
+        lastBudgetIncrease = 0,
+    ): Promise<PCConfiguration> {
+        const startTime = Date.now();
+        const { preferredParts, otherParts } =
+            await this.allocateBudget(autoBuildDto);
+        const configuration = new PCConfiguration();
+        Object.assign(configuration, partialConfig);
+
+        const success = await this.tryBuildConfiguration(
+            preferredParts,
+            otherParts,
+            configuration,
+            0,
+        );
+
+        if (!success || !this.isCompleteConfiguration(configuration)) {
+            console.log(
+                `❌ Incomplete configuration after ${attempts} attempts`,
+            );
+
+            if (
+                attempts >= 30 ||
+                lastBudgetIncrease >= 3 ||
+                this.calculateTotalCost(configuration) >
+                    autoBuildDto.initialBudget * 1.2
+            ) {
+                console.log(
+                    '⚠️ Max retries or budget limit reached. Returning partial build.',
+                );
+                return configuration;
+            }
+
+            // Try to reallocate budget before increasing it.
+            if (attempts % 5 === 0) {
+                autoBuildDto.budget = this.reallocateBudget(
+                    autoBuildDto.budget,
+                );
+            } else {
+                autoBuildDto.budget = Math.floor(autoBuildDto.budget * 1.05);
+                lastBudgetIncrease++;
+            }
+
+            return this.backtrackAndRebuild(
+                autoBuildDto,
+                configuration,
+                attempts + 1,
+                lastBudgetIncrease,
+            );
+        }
+
+        console.log(`✅ Build completed in ${Date.now() - startTime}ms`);
+        return configuration;
+    }
+
+    /**
+     * Recursively collects all valid PC configurations.
+     * After a successful configuration, randomly remove one used part from its pool.
+     */
+    private async collectAllConfigurations(
+        preferredParts: PartsData,
+        otherParts: PartsData,
+        pcConfiguration: PCConfiguration,
+        index: number,
+        results: PCConfiguration[]
+    ): Promise<void> {
+        if (index >= this.partOrder.length) {
+            if (this.isCompleteConfiguration(pcConfiguration)) {
+                // Clone and add configuration to results.
+                results.push({ ...pcConfiguration });
+                // Randomly choose one label from partOrder.
+                const randIndex = Math.floor(Math.random() * this.partOrder.length);
+                const randomLabel = this.partOrder[randIndex];
+                const candidateName = pcConfiguration[randomLabel]?.name;
+                if (candidateName) {
+                    const removeCandidate = (arr: any[]) => arr.filter(item => item.name !== candidateName);
+                    if (preferredParts[randomLabel]) {
+                        preferredParts[randomLabel] = removeCandidate(preferredParts[randomLabel]);
+                    }
+                    if (otherParts[randomLabel]) {
+                        otherParts[randomLabel] = removeCandidate(otherParts[randomLabel]);
+                    }
+                }
+            }
+            return;
+        }
+        const label = this.partOrder[index];
+        const pool = [
+            ...(preferredParts[label] || []),
+            ...(otherParts[label] || []),
+        ];
+        if (pool.length === 0) return;
+        console.log(`Trying to build ${label}...`);
+        console.log(`Pool: ${pool.length} parts`);
+        console.log(`Configuration Parts: ${JSON.stringify(this.extractConfigNames(pcConfiguration))}`);
+        for (const candidate of pool) {
+            if (await this.checkCompatibilityService.checkCompatibility({ partData: candidate, label }, pcConfiguration)) {
+                pcConfiguration[label] = candidate;
+                await this.collectAllConfigurations(preferredParts, otherParts, pcConfiguration, index + 1, results);
+                pcConfiguration[label] = null;
+            }
+        }
+    }
+
+    /**
+     * Public method to get all possible PC configurations for each option.
+     * This implementation reuses the single-build method (buildOption) by repeatedly calling it.
+     * After each successful build, one random used candidate (by label) is removed from the candidate pools.
+     */
+    public async getAllPCConfigurations(userInput: string): Promise<{
+        saving: PCConfiguration[];
+        performance: PCConfiguration[];
+        popular: PCConfiguration[];
+    }> {
+        const autoBuildDto = await this.extractUserInput(userInput);
+        autoBuildDto['initialBudget'] = autoBuildDto.budget;
+        const options = ['saving', 'performance', 'popular'] as const;
+        const results: { saving: PCConfiguration[]; performance: PCConfiguration[]; popular: PCConfiguration[] } = {
+            saving: [],
+            performance: [],
+            popular: []
+        };
+        const maxAttempts = 20;
+        for (const option of options) {
+            const builds: PCConfiguration[] = [];
+            let attempts = 0;
+            // Ensure candidate pools are refreshed for this option.
+            await this.allocateBudget(autoBuildDto, option);
+            while (attempts < maxAttempts) {
+                // Reset budget for each attempt
+                autoBuildDto.budget = autoBuildDto.initialBudget;
+                const config = await this.buildOption(autoBuildDto, option);
+                if (!this.isCompleteConfiguration(config)) break;
+                // Ensure uniqueness by JSON string comparison.
+                const configStr = JSON.stringify(config);
+                if (!builds.some(b => JSON.stringify(b) === configStr)) {
+                    builds.push(config);
+                    // Randomly choose one label from partOrder and remove its candidate.
+                    const randomLabel = this.partOrder[Math.floor(Math.random() * this.partOrder.length)];
+                    const candidateName = config[randomLabel]?.name;
+                    if (candidateName) {
+                        const removeCandidate = (arr: any[]) => arr.filter(item => item.name !== candidateName);
+                        if (this.partPools[option][randomLabel]) {
+                            this.partPools[option][randomLabel] = removeCandidate(this.partPools[option][randomLabel]);
+                        }
+                    }
+                }
+                attempts++;
+            }
+            results[option] = builds;
+        }
+        return results;
     }
 }

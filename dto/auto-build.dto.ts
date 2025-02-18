@@ -1,6 +1,10 @@
 import { IsNumber, IsString, IsOptional } from 'class-validator';
 
 export class AutoBuildDto {
+
+  @IsString()
+  userInput: string;
+
   @IsNumber()
   budget: number;
 
@@ -19,9 +23,9 @@ export class PCConfiguration {
   CPU: object;
   CPUCooler: object;
   Motherboard: object;
-  GraphicsCard: object[];
-  RAM: object[];
-  InternalHardDrive: object[];
+  GraphicsCard: object;
+  RAM: object;
+  InternalHardDrive: object;
   Case: object;
   PowerSupply: object;
 }

@@ -10,6 +10,7 @@ import {
 import { SpacyService } from './spacy.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
 import { UtilsService } from './utils.service';
+import { BuildGateway } from '../gateway/build.gateway';
 
 @Injectable()
 export class AutoBuildService {
@@ -87,6 +88,7 @@ export class AutoBuildService {
         private readonly spacyService: SpacyService,
         private readonly checkCompatibilityService: CheckCompatibilityService,
         private readonly utilsService: UtilsService,
+        private readonly buildGateway: BuildGateway,
     ) {}
 
     private async extractUserInput(userInput: string): Promise<AutoBuildDto> {
@@ -155,10 +157,17 @@ export class AutoBuildService {
             preferredPartsData,
         );
 
+
+        // This is a trick to get more parts for the same budget, which is easier to build a PC
         // If there is a preferred part, add 0.15 to all weights
         if (autoBuildDto.preferredParts.length > 0) {
             for (const part in budgetAllocation) {
                 budgetAllocation[part] += 0.15;
+            }
+        } else {
+            // If there is no preferred part, add 0.1 to all weights
+            for (const part in budgetAllocation) {
+                budgetAllocation[part] += 0.1;
             }
         }
 
@@ -278,13 +287,89 @@ export class AutoBuildService {
         return false;
     }
 
+    // private async fetchPartsWithinBudget(
+    //     session: any,
+    //     budgetAllocation: BudgetAllocation,
+    //     sortOption: 'saving' | 'performance' | 'popular',
+    // ) {
+    //     const startTime = new Date().getTime();
+    //     console.log(budgetAllocation);
+    //     this.shouldRefreshCache(
+    //         budgetAllocation,
+    //         this.preferredPartsCache.userInput,
+    //     );
+
+    //     for (const part in budgetAllocation) {
+    //         const cacheKey = `${part}-${budgetAllocation[part]}-${sortOption}`;
+
+    //         // Check if budget changed for this part type
+    //         const lastBudgetForPart =
+    //             this.lastBudgetSnapshot[sortOption]?.[part];
+    //         if (
+    //             this.partCache.has(cacheKey) &&
+    //             lastBudgetForPart === budgetAllocation[part]
+    //         ) {
+    //             console.log(`Cache hit for ${cacheKey}`);
+    //             this.partPools[sortOption][part] = this.partCache.get(cacheKey);
+    //             continue;
+    //         }
+
+    //         let orderClause = 'ORDER BY part.price ASC';
+    //         if (sortOption === 'performance') {
+    //             orderClause = 'ORDER BY part.benchmarkScore DESC';
+    //         } else if (sortOption === 'popular') {
+    //             orderClause = 'ORDER BY part.solds DESC';
+    //         }
+
+    //         const query = `
+    //         MATCH (part:${part})
+    //         WHERE part.price IS NOT NULL AND part.price <= $price
+    //         ${orderClause}
+    //         RETURN part
+    //         `;
+
+    //         const result = await session.run(query, {
+    //             price: budgetAllocation[part],
+    //         });
+
+    //         const parts = result.records.map((record) => {
+    //             const properties = record.get('part').properties;
+    //             for (const key in properties) {
+    //                 if (
+    //                     properties[key] &&
+    //                     typeof properties[key] === 'object' &&
+    //                     'low' in properties[key] &&
+    //                     'high' in properties[key]
+    //                 ) {
+    //                     properties[key] = this.utilsService.combineLowHigh(
+    //                         properties[key].low,
+    //                         properties[key].high,
+    //                     );
+    //                 }
+    //             }
+    //             return properties;
+    //         });
+
+    //         // Update cache and budget snapshot
+    //         this.partCache.set(cacheKey, parts);
+    //         if (!this.lastBudgetSnapshot[sortOption]) {
+    //             this.lastBudgetSnapshot[sortOption] = {};
+    //         }
+    //         this.lastBudgetSnapshot[sortOption][part] = budgetAllocation[part];
+
+    //         this.partPools[sortOption][part] = parts;
+    //     }
+
+    //     const endTime = new Date().getTime();
+    //     console.log(`Fetch parts within budget time: ${endTime - startTime}ms`);
+    // }
+
     private async fetchPartsWithinBudget(
         session: any,
         budgetAllocation: BudgetAllocation,
         sortOption: 'saving' | 'performance' | 'popular',
     ) {
         const startTime = new Date().getTime();
-        console.log(budgetAllocation);
         this.shouldRefreshCache(
             budgetAllocation,
             this.preferredPartsCache.userInput,
@@ -292,16 +377,26 @@ export class AutoBuildService {
 
         for (const part in budgetAllocation) {
             const cacheKey = `${part}-${budgetAllocation[part]}-${sortOption}`;
-
-            // Check if budget changed for this part type
             const lastBudgetForPart =
                 this.lastBudgetSnapshot[sortOption]?.[part];
+
             if (
                 this.partCache.has(cacheKey) &&
                 lastBudgetForPart === budgetAllocation[part]
             ) {
-                console.log(`Cache hit for ${cacheKey}`);
-                this.partPools[sortOption][part] = this.partCache.get(cacheKey);
+                let parts = this.partCache.get(cacheKey);
+                // Filter out any previously removed candidates.
+                if (
+                    this.removedCandidates[sortOption] &&
+                    this.removedCandidates[sortOption][part]
+                ) {
+                    const removedNames =
+                        this.removedCandidates[sortOption][part];
+                    parts = parts.filter(
+                        (item) => !removedNames.includes(item.name),
+                    );
+                }
+                this.partPools[sortOption][part] = parts;
                 continue;
             }
 
@@ -317,13 +412,11 @@ export class AutoBuildService {
             WHERE part.price IS NOT NULL AND part.price <= $price 
             ${orderClause}
             RETURN part
-            `;
-
+          `;
             const result = await session.run(query, {
                 price: budgetAllocation[part],
             });
-
-            const parts = result.records.map((record) => {
+            let parts = result.records.map((record) => {
                 const properties = record.get('part').properties;
                 for (const key in properties) {
                     if (
@@ -341,7 +434,18 @@ export class AutoBuildService {
                 return properties;
             });
 
-            // Update cache and budget snapshot
+            // Filter out any removed candidates.
+            if (
+                this.removedCandidates[sortOption] &&
+                this.removedCandidates[sortOption][part]
+            ) {
+                const removedNames = this.removedCandidates[sortOption][part];
+                parts = parts.filter(
+                    (item) => !removedNames.includes(item.name),
+                );
+            }
+
+            // Update cache and snapshot.
             this.partCache.set(cacheKey, parts);
             if (!this.lastBudgetSnapshot[sortOption]) {
                 this.lastBudgetSnapshot[sortOption] = {};
@@ -350,7 +454,6 @@ export class AutoBuildService {
 
             this.partPools[sortOption][part] = parts;
         }
-
         const endTime = new Date().getTime();
         console.log(`Fetch parts within budget time: ${endTime - startTime}ms`);
     }
@@ -409,18 +512,6 @@ export class AutoBuildService {
     }
 
     /**
-     * Utility: Shuffles an array using the Fisher–Yates algorithm.
-     */
-    private shuffleArray<T>(array: T[]): T[] {
-        const arr = [...array]; // copy to avoid modifying original
-        for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
-    }
-
-    /**
      * Dynamically reallocates budget across parts based on availability.
      * If a certain part type is missing, redistribute its budget proportionally to others.
      */
@@ -430,7 +521,6 @@ export class AutoBuildService {
     }
 
     public async autoBuildAllOptions(userInput: string) {
-        const startTime = new Date().getTime();
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
 
@@ -449,11 +539,9 @@ export class AutoBuildService {
             }
             return total;
         };
-        console.log(`Saving: ${totalCost(savingConfig)} VND`);
-        console.log(`Performance: ${totalCost(performanceConfig)} VND`);
-        console.log(`Popular: ${totalCost(popularConfig)} VND`);
-        const endTime = new Date().getTime();
-        console.log(`Auto build all options time: ${endTime - startTime}ms`);
+        // console.log(`Saving: ${totalCost(savingConfig)} VND`);
+        // console.log(`Performance: ${totalCost(performanceConfig)} VND`);
+        // console.log(`Popular: ${totalCost(popularConfig)} VND`);
         return {
             saving: savingConfig,
             performance: performanceConfig,
@@ -550,11 +638,11 @@ export class AutoBuildService {
 
         if (pool.length === 0) return false;
 
-        console.log(`Trying to build ${label}...`);
-        console.log(`Pool: ${pool.length} parts`);
-        console.log(
-            `Configuration Parts: ${JSON.stringify(this.extractConfigNames(pcConfiguration))}`,
-        );
+        // console.log(`Trying to build ${label}...`);
+        // console.log(`Pool: ${pool.length} parts`);
+        // console.log(
+        //     `Configuration Parts: ${JSON.stringify(this.extractConfigNames(pcConfiguration))}`,
+        // );
 
         let candidateFound = false;
 
@@ -707,23 +795,30 @@ export class AutoBuildService {
         otherParts: PartsData,
         pcConfiguration: PCConfiguration,
         index: number,
-        results: PCConfiguration[]
+        results: PCConfiguration[],
     ): Promise<void> {
         if (index >= this.partOrder.length) {
             if (this.isCompleteConfiguration(pcConfiguration)) {
                 // Clone and add configuration to results.
                 results.push({ ...pcConfiguration });
                 // Randomly choose one label from partOrder.
-                const randIndex = Math.floor(Math.random() * this.partOrder.length);
+                const randIndex = Math.floor(
+                    Math.random() * this.partOrder.length,
+                );
                 const randomLabel = this.partOrder[randIndex];
                 const candidateName = pcConfiguration[randomLabel]?.name;
                 if (candidateName) {
-                    const removeCandidate = (arr: any[]) => arr.filter(item => item.name !== candidateName);
+                    const removeCandidate = (arr: any[]) =>
+                        arr.filter((item) => item.name !== candidateName);
                     if (preferredParts[randomLabel]) {
-                        preferredParts[randomLabel] = removeCandidate(preferredParts[randomLabel]);
+                        preferredParts[randomLabel] = removeCandidate(
+                            preferredParts[randomLabel],
+                        );
                     }
                     if (otherParts[randomLabel]) {
-                        otherParts[randomLabel] = removeCandidate(otherParts[randomLabel]);
+                        otherParts[randomLabel] = removeCandidate(
+                            otherParts[randomLabel],
+                        );
                     }
                 }
             }
@@ -735,65 +830,130 @@ export class AutoBuildService {
             ...(otherParts[label] || []),
         ];
         if (pool.length === 0) return;
-        console.log(`Trying to build ${label}...`);
-        console.log(`Pool: ${pool.length} parts`);
-        console.log(`Configuration Parts: ${JSON.stringify(this.extractConfigNames(pcConfiguration))}`);
+        // console.log(`Trying to build ${label}...`);
+        // console.log(`Pool: ${pool.length} parts`);
+        // console.log(
+        //     `Configuration Parts: ${JSON.stringify(this.extractConfigNames(pcConfiguration))}`,
+        // );
         for (const candidate of pool) {
-            if (await this.checkCompatibilityService.checkCompatibility({ partData: candidate, label }, pcConfiguration)) {
+            if (
+                await this.checkCompatibilityService.checkCompatibility(
+                    { partData: candidate, label },
+                    pcConfiguration,
+                )
+            ) {
                 pcConfiguration[label] = candidate;
-                await this.collectAllConfigurations(preferredParts, otherParts, pcConfiguration, index + 1, results);
+                await this.collectAllConfigurations(
+                    preferredParts,
+                    otherParts,
+                    pcConfiguration,
+                    index + 1,
+                    results,
+                );
                 pcConfiguration[label] = null;
             }
         }
     }
 
-    /**
-     * Public method to get all possible PC configurations for each option.
-     * This implementation reuses the single-build method (buildOption) by repeatedly calling it.
-     * After each successful build, one random used candidate (by label) is removed from the candidate pools.
-     */
     public async getAllPCConfigurations(userInput: string): Promise<{
         saving: PCConfiguration[];
         performance: PCConfiguration[];
         popular: PCConfiguration[];
     }> {
+        const startTime = Date.now();
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
         const options = ['saving', 'performance', 'popular'] as const;
-        const results: { saving: PCConfiguration[]; performance: PCConfiguration[]; popular: PCConfiguration[] } = {
-            saving: [],
-            performance: [],
-            popular: []
-        };
+        const results: {
+            saving: PCConfiguration[];
+            performance: PCConfiguration[];
+            popular: PCConfiguration[];
+        } = { saving: [], performance: [], popular: [] };
         const maxAttempts = 20;
+
+        // Reset removal record for each run
+        this.removedCandidates = {
+            saving: {},
+            performance: {},
+            popular: {},
+        };
+
         for (const option of options) {
             const builds: PCConfiguration[] = [];
             let attempts = 0;
             // Ensure candidate pools are refreshed for this option.
             await this.allocateBudget(autoBuildDto, option);
             while (attempts < maxAttempts) {
-                // Reset budget for each attempt
+                // Reset budget for each attempt.
                 autoBuildDto.budget = autoBuildDto.initialBudget;
                 const config = await this.buildOption(autoBuildDto, option);
                 if (!this.isCompleteConfiguration(config)) break;
-                // Ensure uniqueness by JSON string comparison.
+
                 const configStr = JSON.stringify(config);
-                if (!builds.some(b => JSON.stringify(b) === configStr)) {
+                console.log(
+                    `Attempt ${attempts + 1}: ${this.isCompleteConfiguration(config) ? '✅' : '❌'}`,
+                );
+                console.log('Length:', builds.length);
+
+                // Prevent duplicate configurations.
+                if (
+                    !builds.some(
+                        (existingConfig) =>
+                            JSON.stringify(existingConfig) === configStr,
+                    )
+                ) {
                     builds.push(config);
-                    // Randomly choose one label from partOrder and remove its candidate.
-                    const randomLabel = this.partOrder[Math.floor(Math.random() * this.partOrder.length)];
+
+                    // Randomly choose one part label from partOrder.
+                    const randomLabel =
+                        this.partOrder[
+                            Math.floor(Math.random() * this.partOrder.length)
+                        ];
                     const candidateName = config[randomLabel]?.name;
                     if (candidateName) {
-                        const removeCandidate = (arr: any[]) => arr.filter(item => item.name !== candidateName);
-                        if (this.partPools[option][randomLabel]) {
-                            this.partPools[option][randomLabel] = removeCandidate(this.partPools[option][randomLabel]);
+                        // Record the removal persistently.
+                        if (!this.removedCandidates[option][randomLabel]) {
+                            this.removedCandidates[option][randomLabel] = [];
                         }
+                        this.removedCandidates[option][randomLabel].push(
+                            candidateName,
+                        );
+
+                        // Optionally update the in-memory candidate pool immediately.
+                        if (this.partPools[option][randomLabel]) {
+                            this.partPools[option][randomLabel] =
+                                this.partPools[option][randomLabel].filter(
+                                    (item) => item.name !== candidateName,
+                                );
+                        }
+                    }
+                    if (this.isCompleteConfiguration(config)) {
+                        this.buildGateway.sendConfigUpdate(config);
                     }
                 }
                 attempts++;
             }
             results[option] = builds;
         }
+        const endTime = Date.now();
+        console.log(`Total time: ${endTime - startTime}ms`);
         return results;
+    }
+    // In your class constructor or as a property initializer
+    private removedCandidates: {
+        saving: { [partLabel: string]: string[] };
+        performance: { [partLabel: string]: string[] };
+        popular: { [partLabel: string]: string[] };
+    } = {
+        saving: {},
+        performance: {},
+        popular: {},
+    };
+
+    public async getSinglePCConfiguration(userInput: string) {
+        const autoBuildDto = await this.extractUserInput(userInput);
+        autoBuildDto['initialBudget'] = autoBuildDto.budget;
+        const singleConfig = await this.buildOption(autoBuildDto, 'performance');
+        return singleConfig;
     }
 }

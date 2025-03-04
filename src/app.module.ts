@@ -9,6 +9,9 @@ import { AutoBuildService } from 'service/auto-build.service';
 import { SpacyService } from 'service/spacy.service';
 import { CheckCompatibilityService } from 'service/check-compatibility.service';
 import { UtilsService } from 'service/utils.service';
+import { BuildGateway } from 'gateway/build.gateway';
+import { ChatbotController } from 'controller/chatbot.controller';
+import { ChatbotService } from 'service/chatbot.service';
 
 @Module({
   imports: [
@@ -16,7 +19,7 @@ import { UtilsService } from 'service/utils.service';
       isGlobal: true,
     }),
   ],
-  controllers: [AppController, BuildController],
+  controllers: [AppController, BuildController, ChatbotController],
   providers: [
     AppService,
     ManualBuildService,
@@ -26,6 +29,8 @@ import { UtilsService } from 'service/utils.service';
     Neo4jConfigService,
     ConfigService,
     UtilsService,
+    ChatbotService,
+    BuildGateway
   ],
 })
 export class AppModule {}

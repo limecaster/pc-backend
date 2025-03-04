@@ -26,35 +26,35 @@ export class BuildController {
     "Phụ kiện khác": ["ThermalPaste"],
   }
   
-  @Get()
-  async findCompatibleParts(
-    @Query('name') name: string,
-    @Query('otherName') otherPartTypeName: string,
-  ) {
-    return this.manualBuildService.findCompatibleParts(name, otherPartTypeName);
-  }
+  // @Get()
+  // async findCompatibleParts(
+  //   @Query('name') name: string,
+  //   @Query('otherName') otherPartTypeName: string,
+  // ) {
+  //   return this.manualBuildService.findCompatibleParts(name, otherPartTypeName);
+  // }
 
-  @Get('label')
-  async getCompatiblePartsByLabel(
-    @Query('name') name: string,
-    @Query('label') label: string,
-  ) {
-    return this.manualBuildService.getCompatiblePartsByLabel(name, label);
-  }
+  // @Get('label')
+  // async getCompatiblePartsByLabel(
+  //   @Query('name') name: string,
+  //   @Query('label') label: string,
+  // ) {
+  //   return this.manualBuildService.getCompatiblePartsByLabel(name, label);
+  // }
 
-  @Get('check-compatibility/:newPartLabel/:newPartName')
-  async checkCompatibilityAcrossLabels(
-    @Param('newPartLabel') newPartLabel: string,
-    @Param('newPartName') newPartName: string,
-    @Query('selectedParts') selectedParts: string,
-  ) {
-    const parsedSelectedParts = this.parseSelectedParts(JSON.parse(selectedParts));
-    return this.manualBuildService.checkCompatibilityAcrossLabels(
-      newPartName,
-      newPartLabel,
-      parsedSelectedParts,
-    );
-  }
+  // @Get('check-compatibility/:newPartLabel/:newPartName')
+  // async checkCompatibilityAcrossLabels(
+  //   @Param('newPartLabel') newPartLabel: string,
+  //   @Param('newPartName') newPartName: string,
+  //   @Query('selectedParts') selectedParts: string,
+  // ) {
+  //   const parsedSelectedParts = this.parseSelectedParts(JSON.parse(selectedParts));
+  //   return this.manualBuildService.checkCompatibilityAcrossLabels(
+  //     newPartName,
+  //     newPartLabel,
+  //     parsedSelectedParts,
+  //   );
+  // }
 
   @Get('manual-build/compatible-parts')
   async getSpecificPartTypeCompatibleWithSelectedParts(
@@ -101,8 +101,15 @@ export class BuildController {
   @Post('auto-build')
   async autoBuild(@Body('userInput') userInput: string) {
     //console.log(await this.autoBuildService.autoBuildAllOptions(userInput));
-    const result = await this.autoBuildService.autoBuildAllOptions(userInput);
-    //const result2 = await this.autoBuildService.getAllPCConfigurations(userInput);
+    //const result = await this.autoBuildService.autoBuildAllOptions(userInput);
+    const result2 = await this.autoBuildService.getAllPCConfigurations(userInput);
+
+    return result2;
+  }
+
+  @Post('single-auto-build')
+  async singleAutoBuild(@Body('userInput') userInput: string) {
+    const result = await this.autoBuildService.getSinglePCConfiguration(userInput);
 
     return result;
   }

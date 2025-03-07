@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Neo4jConfigService } from 'config/neo4j.config';
-import { UtilsService } from './utils.service';
+import { UtilsService } from '../../service/utils.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
 import { PCConfiguration } from 'dto/auto-build.dto';
 

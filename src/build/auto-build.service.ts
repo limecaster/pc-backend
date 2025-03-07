@@ -7,10 +7,10 @@ import {
     PartsData,
     PCConfiguration,
 } from 'dto/auto-build.dto';
-import { SpacyService } from './spacy.service';
+import { SpacyService } from '../build/spacy.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
-import { UtilsService } from './utils.service';
-import { BuildGateway } from '../gateway/build.gateway';
+import { UtilsService } from '../../service/utils.service';
+import { BuildGateway } from '../../gateway/build.gateway';
 
 @Injectable()
 export class AutoBuildService {

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ManualBuildService } from '../service/manual-build.service';
-import { AutoBuildService } from '../service/auto-build.service';
+import { ManualBuildService } from '../build/manual-build.service';
+import { AutoBuildService } from '../build/auto-build.service';
 
 @Controller('build')
 export class BuildController {

@@ -9,4 +9,9 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  @Get('test')
+  async testConnection(): Promise<string> {
+    return this.appService.testConnection();
+  }
 }

@@ -1,25 +1,29 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { BuildController } from 'controller/build.controller';
-import { ManualBuildService } from 'service/manual-build.service';
+import { BuildController } from './build/build.controller';
+import { ManualBuildService } from 'src/build/manual-build.service';
 import { Neo4jConfigService } from 'config/neo4j.config';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AutoBuildService } from 'service/auto-build.service';
-import { SpacyService } from 'service/spacy.service';
-import { CheckCompatibilityService } from 'service/check-compatibility.service';
+import { AutoBuildService } from 'src/build/auto-build.service';
+import { SpacyService } from 'src/build/spacy.service';
+import { CheckCompatibilityService } from 'src/build/check-compatibility.service';
 import { UtilsService } from 'service/utils.service';
 import { BuildGateway } from 'gateway/build.gateway';
-import { ChatbotController } from 'controller/chatbot.controller';
-import { ChatbotService } from 'service/chatbot.service';
+import { ChatbotController } from 'src/chatbot/chatbot.controller';
+import { ChatbotService } from 'src/chatbot/chatbot.service';
+import { PostgresConfigService } from 'config/postgres.config';
+import { ProductModule } from './product/product.module';
+import { ProductController } from './product/product.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ProductModule,
   ],
-  controllers: [AppController, BuildController, ChatbotController],
+  controllers: [AppController, BuildController, ChatbotController, ProductController],
   providers: [
     AppService,
     ManualBuildService,
@@ -27,6 +31,7 @@ import { ChatbotService } from 'service/chatbot.service';
     CheckCompatibilityService,
     SpacyService,
     Neo4jConfigService,
+    PostgresConfigService,
     ConfigService,
     UtilsService,
     ChatbotService,

@@ -15,27 +15,58 @@ import { ChatbotService } from 'src/chatbot/chatbot.service';
 import { PostgresConfigService } from 'config/postgres.config';
 import { ProductModule } from './product/product.module';
 import { ProductController } from './product/product.controller';
+import { PaymentModule } from './payment/payment.module';
+import { AuthModule } from './auth/auth.module';
+import { UserModule } from './customer/customer.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { EmailModule } from './email/email.module';
+import { CartModule } from './cart/cart.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-    ProductModule,
-  ],
-  controllers: [AppController, BuildController, ChatbotController, ProductController],
-  providers: [
-    AppService,
-    ManualBuildService,
-    AutoBuildService,
-    CheckCompatibilityService,
-    SpacyService,
-    Neo4jConfigService,
-    PostgresConfigService,
-    ConfigService,
-    UtilsService,
-    ChatbotService,
-    BuildGateway
-  ],
+    imports: [
+        ConfigModule.forRoot({
+            isGlobal: true,
+        }),
+        TypeOrmModule.forRootAsync({
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => ({
+                type: 'postgres',
+                host: configService.get('DB_HOST', 'localhost'),
+                port: configService.get<number>('DB_PORT', 5432),
+                username: configService.get('DB_USERNAME', 'postgres'),
+                password: configService.get('DB_PASSWORD', 'postgres'),
+                database: configService.get('DB_NAME', 'pc_ecommerce'),
+                autoLoadEntities: true,
+                synchronize: true, // Set to false in production
+            }),
+        }),
+        ProductModule,
+        PaymentModule,
+        AuthModule,
+        UserModule,
+        EmailModule,
+        CartModule,
+        DashboardModule,
+    ],
+    controllers: [
+        AppController,
+        BuildController,
+        ChatbotController,
+        ProductController,
+    ],
+    providers: [
+        AppService,
+        ManualBuildService,
+        AutoBuildService,
+        CheckCompatibilityService,
+        SpacyService,
+        Neo4jConfigService,
+        PostgresConfigService,
+        ConfigService,
+        UtilsService,
+        ChatbotService,
+        BuildGateway,
+    ],
 })
 export class AppModule {}

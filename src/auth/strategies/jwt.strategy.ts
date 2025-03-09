@@ -2,6 +2,12 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Customer } from '../../customer/customer.entity';
+import { Admin } from '../../admin/admin.entity';
+import { Staff } from '../../staff/staff.entity';
+import { Role } from '../enums/role.enum';
 import { CustomerService } from '../../customer/customer.service';
 
 @Injectable()
@@ -9,6 +15,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly logger = new Logger(JwtStrategy.name);
     
     constructor(
+        @InjectRepository(Customer)
+        private customerRepository: Repository<Customer>,
+        @InjectRepository(Admin)
+        private adminRepository: Repository<Admin>,
+        @InjectRepository(Staff)
+        private staffRepository: Repository<Staff>,
         private configService: ConfigService,
         private customerService: CustomerService,
     ) {
@@ -39,27 +51,30 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         }
 
         try {
-            // First try to find the user
-            const user = await this.customerService.findOne(payload.sub);
+            // Check the user type from payload
+            const { id, userType } = payload;
+            
+            let user;
+            let role: Role;
+            
+            if (userType === 'admin') {
+                user = await this.adminRepository.findOne({ where: { id } });
+                role = Role.ADMIN;
+            } else if (userType === 'staff') {
+                user = await this.staffRepository.findOne({ where: { id } });
+                role = Role.STAFF;
+            } else {
+                // Default is customer
+                user = await this.customerRepository.findOne({ where: { id } });
+                role = Role.CUSTOMER;
+            }
+            
             if (!user) {
-                // If we couldn't find the user ID in the database
-                const errorMsg = `User with ID ${payload.sub} not found. This could mean the account was deleted.`;
-                this.logger.error(errorMsg);
-                throw new UnauthorizedException('User not found or account deleted. Please log in again.');
+                throw new UnauthorizedException('User not found');
             }
-
-            // Check if the user is valid for authentication
-            const isValidUser = await this.customerService.isValidForAuth(payload.sub);
-            if (!isValidUser) {
-                this.logger.error(`User with ID ${payload.sub} exists but is not valid for authentication`);
-                throw new UnauthorizedException('Your account is inactive or unverified.');
-            }
-
-            return { 
-                id: user.id, 
-                username: payload.email || user.username,
-                email: user.email 
-            };
+            
+            // Add role to the user object for RolesGuard
+            return { ...user, role };
         } catch (error) {
             // If it's already an UnauthorizedException, just rethrow it
             if (error instanceof UnauthorizedException) {

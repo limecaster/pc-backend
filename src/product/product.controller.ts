@@ -1,15 +1,60 @@
-import { Controller, Get, Param, NotFoundException, Post } from '@nestjs/common';
+import { Controller, Get, Param, NotFoundException, Post, Query } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { ProductDetailsDto } from './dto/product-response.dto';
+
+// Define interface for paginated response
+interface PaginatedProductsResponse {
+  products: ProductDetailsDto[];
+  total: number;
+  pages: number;
+  page: number;
+}
 
 @Controller('products')
 export class ProductController {
     constructor(private readonly productService: ProductService) {}
 
-    @Get('category/:category')
-    async findByCategory(@Param('category') category: string): Promise<ProductDetailsDto[]> {
+    @Get('brands')
+    async getAllBrands(): Promise<string[]> {
         try {
-            return await this.productService.findByCategory(category);
+            return await this.productService.getAllBrands();
+        } catch (error) {
+            console.error('Error retrieving brands:', error);
+            throw new Error('Failed to retrieve brands');
+        }
+    }
+
+    @Get('all')
+    async getAllProducts(
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 12,
+        @Query('brands') brandsParam?: string,
+        @Query('minPrice') minPrice?: number,
+        @Query('maxPrice') maxPrice?: number,
+        @Query('minRating') minRating?: number
+    ): Promise<PaginatedProductsResponse> {
+        try {
+            const brands = brandsParam ? brandsParam.split(',') : undefined;
+            return await this.productService.findByCategory(undefined, page, limit, brands, minPrice, maxPrice, minRating);
+        } catch (error) {
+            console.error('Error retrieving all products:', error);
+            throw new Error('Failed to retrieve all products');
+        }
+    }
+
+    @Get('category/:category')
+    async findByCategory(
+        @Param('category') category: string,
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 12,
+        @Query('brands') brandsParam?: string,
+        @Query('minPrice') minPrice?: number,
+        @Query('maxPrice') maxPrice?: number,
+        @Query('minRating') minRating?: number
+    ): Promise<PaginatedProductsResponse> {
+        try {
+            const brands = brandsParam ? brandsParam.split(',') : undefined;
+            return await this.productService.findByCategory(category, page, limit, brands, minPrice, maxPrice, minRating);
         } catch (error) {
             console.error('Error retrieving products by category:', error);
             throw new Error('Failed to retrieve products by category');
@@ -26,6 +71,25 @@ export class ProductController {
         }
     }
 
+    @Get('search')
+    async searchProducts(
+        @Query('query') query: string,
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 12,
+        @Query('brands') brandsParam?: string,
+        @Query('minPrice') minPrice?: number,
+        @Query('maxPrice') maxPrice?: number,
+        @Query('minRating') minRating?: number
+    ): Promise<PaginatedProductsResponse> {
+        try {
+            const brands = brandsParam ? brandsParam.split(',') : undefined;
+            return await this.productService.searchByName(query, page, limit, brands, minPrice, maxPrice, minRating);
+        } catch (error) {
+            console.error('Error searching products:', error);
+            throw new Error('Failed to search products');
+        }
+    }
+
     @Get(':slug')
     async findBySlug(@Param('slug') slug: string): Promise<ProductDetailsDto> {
         try {
@@ -39,7 +103,6 @@ export class ProductController {
         }
     }
 
-   
     // @Post('import-from-neo4j')
     // async importFromNeo4j() {
     //     try {

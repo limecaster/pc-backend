@@ -30,6 +30,7 @@
     "@nestjs/platform-express": "^11.0.10",
     "@nestjs/platform-socket.io": "^11.0.10",
     "@nestjs/platform-ws": "^11.0.10",
+    "@nestjs/schedule": "^5.0.1",
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.0.10",
     "@payos/node": "^1.0.10",

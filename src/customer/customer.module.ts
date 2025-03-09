@@ -8,4 +8,4 @@ import { CustomerService } from './customer.service';
   providers: [CustomerService],
   exports: [CustomerService, TypeOrmModule.forFeature([Customer])],
 })
-export class UserModule {}
+export class CustomerModule {}

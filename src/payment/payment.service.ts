@@ -4,6 +4,23 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import * as crypto from 'crypto';
 
+// Define interfaces for payment status responses
+export interface PaymentStatusSuccessResponse {
+    success: true;
+    status: string;
+    paymentData: any;
+    orderUpdated?: boolean;
+    orderId?: number;
+}
+
+export interface PaymentStatusErrorResponse {
+    success: false;
+    message: string;
+    code?: string;
+}
+
+export type PaymentStatusResponse = PaymentStatusSuccessResponse | PaymentStatusErrorResponse;
+
 @Injectable()
 export class PaymentService {
     private readonly logger = new Logger(PaymentService.name);
@@ -45,10 +62,10 @@ export class PaymentService {
             const paymentData = {
                 orderCode, // Use numeric orderCode
                 amount: order.total,
-                description: 'Thanh toan B Store', // Keep description under 25 characters
+                description: 'Thanh toan B Store', // Use description if provided
                 cancelUrl:
                     order.cancelUrl ||
-                    `${this.configService.get<string>('FRONTEND_URL')}/checkout`,
+                    `${this.configService.get<string>('FRONTEND_URL')}/checkout/failure`,
                 returnUrl:
                     order.returnUrl ||
                     `${this.configService.get<string>('FRONTEND_URL')}/checkout/success`,
@@ -156,6 +173,48 @@ export class PaymentService {
         } catch (error) {
             this.logger.error('Error verifying webhook signature:', error);
             return false;
+        }
+    }
+    
+    // Check payment status
+    async checkPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
+        try {
+            this.logger.log(`Checking payment status for payment ID: ${paymentId}`);
+            
+            const response = await firstValueFrom(
+                this.httpService.get(
+                    `${this.payosApiUrl}/v2/payment-requests/${paymentId}`,
+                    {
+                        headers: {
+                            'x-client-id': this.clientId,
+                            'x-api-key': this.apiKey,
+                        },
+                    }
+                )
+            );
+            
+            this.logger.log(`Payment status response: ${response.status}`);
+            
+            if (response.data && response.data.code === '00') {
+                return {
+                    success: true,
+                    status: response.data.data.status,
+                    paymentData: response.data.data
+                };
+            } else {
+                return {
+                    success: false,
+                    message: response.data?.desc || 'Failed to check payment status',
+                    code: response.data?.code
+                };
+            }
+        } catch (error) {
+            this.logger.error(`Error checking payment status: ${error}`);
+            if (error.response) {
+                this.logger.error('Error response data:', error.response.data);
+            }
+            
+            throw new Error('Failed to check payment status');
         }
     }
 }

@@ -1,35 +1,50 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    ManyToOne,
+    CreateDateColumn,
+    UpdateDateColumn,
+} from 'typeorm';
 import { Customer } from './customer.entity';
 
-@Entity({ name: 'Address' })
+@Entity('customer_address')
 export class Address {
-  @PrimaryGeneratedColumn()
-  id: number;
+    @PrimaryGeneratedColumn()
+    id: number;
 
-  @Column()
-  street: string;
+    @Column()
+    fullName: string;
 
-  @Column()
-  city: string;
+    @Column()
+    phoneNumber: string;
 
-  @Column()
-  state: string;
+    @Column()
+    street: string;
 
-  @Column({ name: 'postal_code' })
-  postalCode: string;
+    @Column()
+    ward: string;
 
-  @Column()
-  country: string;
+    @Column()
+    district: string;
 
-  @Column({ name: 'is_default', default: false })
-  isDefault: boolean;
+    @Column()
+    city: string;
 
-  @ManyToOne(() => Customer, customer => customer.addresses)
-  user: Customer;
+    @Column({ default: false })
+    isDefault: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+    @ManyToOne(() => Customer, (customer) => customer.addresses, {
+        onDelete: 'CASCADE',
+    })
+    customer: Customer;
 
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+    @Column()
+    customerId: number;
+
+    @CreateDateColumn()
+    createdAt: Date;
+
+    @UpdateDateColumn()
+    updatedAt: Date;
 }

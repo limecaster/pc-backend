@@ -17,11 +17,14 @@ import { ProductModule } from './product/product.module';
 import { ProductController } from './product/product.controller';
 import { PaymentModule } from './payment/payment.module';
 import { AuthModule } from './auth/auth.module';
-import { UserModule } from './customer/customer.module';
+import { CustomerModule } from './customer/customer.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EmailModule } from './email/email.module';
 import { CartModule } from './cart/cart.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { WishlistModule } from './wishlist/wishlist.module';
+import { CheckoutModule } from './checkout/checkout.module';
+import { OrderModule } from './order/order.module';
 
 @Module({
     imports: [
@@ -44,10 +47,13 @@ import { DashboardModule } from './dashboard/dashboard.module';
         ProductModule,
         PaymentModule,
         AuthModule,
-        UserModule,
+        CustomerModule,
         EmailModule,
         CartModule,
         DashboardModule,
+        WishlistModule,
+        CheckoutModule,
+        OrderModule,
     ],
     controllers: [
         AppController,

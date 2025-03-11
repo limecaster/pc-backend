@@ -1,88 +1,66 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, UnauthorizedException, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Customer } from '../../customer/customer.entity';
-import { Admin } from '../../admin/admin.entity';
-import { Staff } from '../../staff/staff.entity';
-import { Role } from '../enums/role.enum';
 import { CustomerService } from '../../customer/customer.service';
+import { Role } from '../enums/role.enum';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly logger = new Logger(JwtStrategy.name);
     
     constructor(
-        @InjectRepository(Customer)
-        private customerRepository: Repository<Customer>,
-        @InjectRepository(Admin)
-        private adminRepository: Repository<Admin>,
-        @InjectRepository(Staff)
-        private staffRepository: Repository<Staff>,
         private configService: ConfigService,
         private customerService: CustomerService,
     ) {
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: configService.get<string>('JWT_SECRET') || 'default_secret_for_development_only', // Use same default as auth module
-            algorithms: ['HS256'], // Explicitly set algorithm
-            passReqToCallback: true,
+            secretOrKey: configService.get<string>('JWT_SECRET'),
         });
-
-        const jwtSecret = configService.get<string>('JWT_SECRET');
-        
-        // Log the secret's first few characters to help with debugging
-        this.logger.debug(`JWT Strategy initialized with secret: ${jwtSecret?.substring(0, 5)}...`);
-        
-        if (!jwtSecret) {
-            this.logger.error('JWT_SECRET is not defined! Using fallback secret.');
-        }
     }
 
-    async validate(request: any, payload: any) {
-        this.logger.debug(`JWT Auth headers: ${request.headers.authorization?.substring(0, 20)}...`);
+    async validate(payload: any) {
+        this.logger.debug(`JWT payload validation: ${JSON.stringify(payload)}`);
         
-        if (!payload || !payload.sub) {
-            this.logger.error('Invalid token payload - missing sub field');
-            throw new UnauthorizedException('Invalid token payload');
+        // Ensure the role is included
+        if (!payload.role) {
+            this.logger.warn('JWT missing role information');
         }
-
-        try {
-            // Check the user type from payload
-            const { id, userType } = payload;
-            
-            let user;
-            let role: Role;
-            
-            if (userType === 'admin') {
-                user = await this.adminRepository.findOne({ where: { id } });
-                role = Role.ADMIN;
-            } else if (userType === 'staff') {
-                user = await this.staffRepository.findOne({ where: { id } });
-                role = Role.STAFF;
-            } else {
-                // Default is customer
-                user = await this.customerRepository.findOne({ where: { id } });
-                role = Role.CUSTOMER;
-            }
-            
-            if (!user) {
-                throw new UnauthorizedException('User not found');
-            }
-            
-            // Add role to the user object for RolesGuard
-            return { ...user, role };
-        } catch (error) {
-            // If it's already an UnauthorizedException, just rethrow it
-            if (error instanceof UnauthorizedException) {
-                throw error;
-            }
-            
-            this.logger.error(`Error validating user: ${error.message}`);
-            throw new InternalServerErrorException('Authentication failed due to a server error.');
+        
+        // Check if payload contains required fields
+        if (!payload.sub) {
+            this.logger.error('JWT payload missing user ID');
+            throw new UnauthorizedException('Invalid token structure');
         }
+        
+        // For staff and admin roles, we could validate against their respective services
+        if (payload.role === Role.STAFF || payload.role === Role.ADMIN) {
+            // Here you would check against your staff/admin services
+            // For now, we'll just pass through the role information
+            return {
+                id: payload.sub,
+                username: payload.username,
+                email: payload.email,
+                role: payload.role || 'customer', // Default to customer if no role provided
+            };
+        }
+        
+        // For customers, validate that they exist in the database
+        const user = await this.customerService.findById(payload.sub);
+        if (!user) {
+            this.logger.error(`User with ID ${payload.sub} not found in database`);
+            throw new UnauthorizedException('User not found');
+        }
+        
+        // Return user data with role information
+        return {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            firstName: user.firstname || user.firstname,
+            lastName: user.lastname || user.lastname,
+            role: payload.role || Role.CUSTOMER, // Preserve role from token or default to CUSTOMER
+        };
     }
 }

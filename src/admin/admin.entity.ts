@@ -5,22 +5,25 @@ export class Admin {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column({ length: 50 })
+    @Column()
     firstname: string;
 
-    @Column({ length: 50 })
+    @Column()
     lastname: string;
 
-    @Column({ name: 'phone_number', nullable: true, length: 20 })
+    @Column({ nullable: true, name: 'phone_number' })
     phoneNumber: string;
 
-    @Column({ unique: true, length: 50 })
+    @Column({ unique: true })
     username: string;
 
     @Column()
     password: string;
 
-    @Column({ unique: true, length: 100 })
+    @Column({ default: 'active' })
+    status: string;
+
+    @Column({ unique: true })
     email: string;
 
     @Column({ nullable: true })
@@ -35,7 +38,7 @@ export class Admin {
     @Column({ nullable: true })
     city: string;
 
-    @Column({ name: 'latest_login', type: 'timestamp', nullable: true })
+    @Column({ nullable: true, name: 'latest_login' })
     latestLogin: Date;
 
     @CreateDateColumn({ name: 'created_at' })

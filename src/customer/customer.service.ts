@@ -3,6 +3,7 @@ import {
     ConflictException,
     NotFoundException,
     Logger,
+    UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -401,5 +402,43 @@ export class CustomerService {
         }
         
         return customer;
+    }
+
+    async validateCustomer(username: string, password: string): Promise<any> {
+        this.logger.debug(`Validating customer credentials for: ${username}`);
+        
+        // Try to find by username or email
+        const customer = await this.findByLoginId(username);
+        
+        if (!customer) {
+            this.logger.warn(`Customer not found: ${username}`);
+            throw new UnauthorizedException('Invalid credentials');
+        }
+        
+        // Verify password
+        const isPasswordValid = await bcrypt.compare(password, customer.password);
+        if (!isPasswordValid) {
+            this.logger.warn(`Invalid password for customer: ${username}`);
+            throw new UnauthorizedException('Invalid credentials');
+        }
+        
+        // Verify email is confirmed
+        if (!customer.isEmailVerified) {
+            this.logger.warn(`Unverified email for customer: ${username}`);
+            throw new UnauthorizedException('Please verify your email before logging in');
+        }
+        
+        // Check if customer is active
+        if (customer.status !== 'active') {
+            this.logger.warn(`Inactive customer: ${username}, status: ${customer.status}`);
+            throw new UnauthorizedException('Your account has been deactivated');
+        }
+        
+        // Update last login timestamp
+        await this.updateLoginTimestamp(customer.id);
+        
+        // Return customer without sensitive information
+        const { password: _, ...result } = customer;
+        return result;
     }
 }

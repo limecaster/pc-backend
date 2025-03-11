@@ -96,4 +96,5 @@ export class Customer {
     // Property for wishlist items
     @Column({ type: 'jsonb', nullable: true })
     wishlist: any[];
+    role: import("../auth/enums/role.enum").Role;
 }

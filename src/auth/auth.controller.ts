@@ -10,21 +10,29 @@ import {
     Logger,
     HttpCode,
     HttpStatus,
+    UnauthorizedException,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { CustomerService } from '../customer/customer.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { EmailService } from '../email/email.service';
+import { StaffService } from '../staff/staff.service';
+import { AdminService } from '../admin/admin.service';
+import { Role } from './enums/role.enum';
 
 @Controller('auth')
 export class AuthController {
     private readonly logger = new Logger(AuthController.name);
     
     constructor(
-        private authService: AuthService,
+        private authService: AuthService,   
         private customerService: CustomerService,
         private emailService: EmailService,
+        private staffService: StaffService,
+        private adminService: AdminService,
+        private jwtService: JwtService, // Add for debug token
     ) {}
 
     @UseGuards(LocalAuthGuard)
@@ -32,45 +40,134 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async login(@Request() req) {
         // This will only execute if the LocalAuthGuard passes
-        this.logger.log(`User successfully authenticated: ${req.user.id} (${req.user.email})`);
+        this.logger.log(`User successfully authenticated: ${req.user.id} (${req.user.email}) with role: ${req.user.role}`);
         
         // Log the raw request body for debugging
         this.logger.debug(`Login request body: ${JSON.stringify(req.body)}`);
         
+        // Return JWT token and user info including role
         return this.authService.login(req.user);
     }
 
-    // // Debug endpoint - DO NOT USE IN PRODUCTION
-    // @Post('debug-login')
-    // async debugLogin(@Body() loginData: { loginId: string, password: string }) {
-    //     this.logger.debug(`Debug login attempt for: ${loginData.loginId}`);
+    // Staff-specific login endpoint for better logging and control
+    @Post('staff/login')
+    @HttpCode(HttpStatus.OK)
+    async staffLogin(@Body() loginData: { username: string; password: string }) {
+        this.logger.log(`Staff login attempt: ${loginData.username}`);
         
-    //     try {
-    //         // Try to find the user
-    //         let user = await this.customerService.findByEmail(loginData.loginId);
-    //         if (!user) {
-    //             user = await this.customerService.findByUsername(loginData.loginId);
-    //         }
+        try {
+            const staff = await this.staffService.validateStaff(loginData.username, loginData.password);
             
-    //         if (user) {
-    //             this.logger.debug(`Found user with ID: ${user.id}`);
-    //             return { 
-    //                 message: "User exists in database", 
-    //                 userId: user.id,
-    //                 email: user.email,
-    //                 username: user.username,
-    //                 status: user.status,
-    //                 isEmailVerified: user.isEmailVerified
-    //             };
-    //         } else {
-    //             this.logger.debug(`No user found for login ID: ${loginData.loginId}`);
-    //             return { message: "User not found in database" };
-    //         }
-    //     } catch (error) {
-    //         this.logger.error(`Debug login error: ${error.message}`);
-    //         return { message: "Error during lookup", error: error.message };
-    //     }
-    // }
+            // If we got here, validation was successful - create token with staff role
+            const result = this.authService.login({
+                ...staff,
+                role: Role.STAFF
+            });
+            
+            this.logger.log(`Staff login successful for: ${loginData.username}`);
+            return result;
+        } catch (error) {
+            this.logger.error(`Staff login error for ${loginData.username}: ${error.message}`);
+            
+            // Throw proper HTTP exceptions with status codes
+            if (error instanceof UnauthorizedException) {
+                throw new UnauthorizedException('Invalid staff credentials');
+            }
+            
+            throw new UnauthorizedException('Failed to authenticate staff');
+        }
+    }
+
+    // Admin-specific login endpoint
+    @Post('admin/login')
+    @HttpCode(HttpStatus.OK)
+    async adminLogin(@Body() loginData: { username: string; password: string }) {
+        this.logger.log(`Admin login attempt: ${loginData.username}`);
+        
+        try {
+            const admin = await this.adminService.validateAdmin(loginData.username, loginData.password);
+            
+            // If we got here, validation was successful - create token with admin role
+            const result = this.authService.login({
+                ...admin,
+                role: Role.ADMIN
+            });
+            
+            this.logger.log(`Admin login successful for: ${loginData.username}`);
+            
+            // Log the token structure to help debug
+            this.logger.debug(`Generated token with payload containing role: ${Role.ADMIN}`);
+            
+            return result;
+        } catch (error) {
+            this.logger.error(`Admin login error for ${loginData.username}: ${error.message}`);
+            
+            throw new UnauthorizedException('Invalid admin credentials');
+        }
+    }
+
+    // Unified login endpoint for all user types
+    @Post('unified-login')
+    @HttpCode(HttpStatus.OK)
+    async unifiedLogin(@Body() loginData: { username: string; password: string }) {
+        this.logger.log(`Unified login attempt for: ${loginData.username}`);
+        
+        try {
+            // Try to authenticate as admin first
+            try {
+                const admin = await this.adminService.validateAdmin(loginData.username, loginData.password);
+                if (admin) {
+                    const result = this.authService.login({
+                        ...admin,
+                        role: Role.ADMIN
+                    });
+                    this.logger.log(`Admin login successful for: ${loginData.username}`);
+                    return result;
+                }
+            } catch (adminError) {
+                // Not an admin, continue to next role check
+                this.logger.debug(`Not an admin: ${adminError.message}`);
+            }
+            
+            // Try to authenticate as staff
+            try {
+                const staff = await this.staffService.validateStaff(loginData.username, loginData.password);
+                if (staff) {
+                    const result = this.authService.login({
+                        ...staff,
+                        role: Role.STAFF
+                    });
+                    this.logger.log(`Staff login successful for: ${loginData.username}`);
+                    return result;
+                }
+            } catch (staffError) {
+                // Not staff, continue to customer check
+                this.logger.debug(`Not staff: ${staffError.message}`);
+            }
+            
+            // Try to authenticate as customer
+            try {
+                const customer = await this.customerService.validateCustomer(loginData.username, loginData.password);
+                if (customer) {
+                    const result = this.authService.login({
+                        ...customer,
+                        role: Role.CUSTOMER
+                    });
+                    this.logger.log(`Customer login successful for: ${loginData.username}`);
+                    return result;
+                }
+            } catch (customerError) {
+                // Not a customer
+                this.logger.debug(`Not a customer: ${customerError.message}`);
+            }
+            
+            // If we reached here, authentication failed for all roles
+            throw new UnauthorizedException('Invalid credentials');
+        } catch (error) {
+            this.logger.error(`Login error for ${loginData.username}: ${error.message}`);
+            throw new UnauthorizedException('Invalid credentials');
+        }
+    }
 
     @Post('register')
     async register(
@@ -234,6 +331,8 @@ export class AuthController {
     @UseGuards(JwtAuthGuard)
     @Get('profile')
     getProfile(@Request() req) {
+        // Log the role for debugging
+        this.logger.debug(`User ${req.user.id} with role ${req.user.role} accessed profile`);
         return req.user;
     }
 
@@ -265,11 +364,49 @@ export class AuthController {
     @Get('verify-token')
     async verifyToken(@Request() req) {
         // If the guard passes, the token is valid and user exists
-        this.logger.debug(`Token verification successful for user: ${req.user.id}`);
+        this.logger.debug(`Token verification successful for user: ${req.user.id} with role: ${req.user.role}`);
         return {
             valid: true,
             userId: req.user.id,
+            role: req.user.role,
         };
     }
 
+    @Post('refresh')
+    async refreshToken(@Body() body: { refreshToken: string }) {
+        try {
+            this.logger.debug('Token refresh requested');
+            const result = await this.authService.refreshToken(body.refreshToken);
+            this.logger.debug('Token refresh successful');
+            return result;
+        } catch (error) {
+            this.logger.error(`Token refresh failed: ${error.message}`);
+            throw new UnauthorizedException('Invalid refresh token');
+        }
+    }
+
+    // Debug endpoint to check token structure - only enable during development!
+    @Post('debug/token')
+    @HttpCode(HttpStatus.OK)
+    async debugToken(@Body() body: { token: string }) {
+        try {
+            // Decode without verification
+            const decoded = this.jwtService.decode(body.token);
+            // Don't log the entire token in production!
+            this.logger.debug(`Token decode result: ${JSON.stringify(decoded)}`);
+            
+            return {
+                success: true,
+                decoded: decoded,
+                hasRole: decoded && 'role' in decoded,
+                role: decoded ? decoded['role'] : null,
+                hasSub: decoded && 'sub' in decoded,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+            };
+        }
+    }
 }

@@ -7,12 +7,14 @@ import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 import { OrderScheduler } from './order.scheduler';
 import { CheckoutModule } from '../checkout/checkout.module';
+import { EmailModule } from '../email/email.module'; // Import EmailModule
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Order, OrderItem]),
         ScheduleModule.forRoot(),
         forwardRef(() => CheckoutModule), // Use forwardRef to break circular dependency
+        EmailModule,
     ],
     controllers: [OrderController],
     providers: [OrderService, OrderScheduler],

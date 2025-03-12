@@ -33,8 +33,14 @@ async function bootstrap() {
         exposedHeaders: 'Authorization',
     });
 
-    // Add global validation pipe
-    app.useGlobalPipes(new ValidationPipe());
+    // Add global validation pipe with transform enabled
+    app.useGlobalPipes(
+        new ValidationPipe({
+            transform: true, // Enable automatic type transformation
+            whitelist: true,
+            forbidNonWhitelisted: true,
+        })
+    );
 
     // WebSocket adapters
     app.useWebSocketAdapter(new WsAdapter(app));

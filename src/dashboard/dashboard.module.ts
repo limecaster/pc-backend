@@ -1,16 +1,19 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Customer } from '../customer/customer.entity';
-import { Address } from '../customer/address.entity';
+import { DashboardController } from './dashboard.controller';
+import { DashboardService } from './dashboard.service';
 import { Order } from '../order/order.entity';
-import { AccountModule } from './account/account.module';
-import { OverviewModule } from './overview/overview.module';
+import { Customer } from '../customer/customer.entity';
+import { Product } from '../product/product.entity';
+import { OrderItem } from '../order/order-item.entity';
+import { Address } from '../customer/address.entity';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([Customer, Address, Order]), 
-        AccountModule, 
-        OverviewModule
-    ],
+  imports: [
+    TypeOrmModule.forFeature([Order, Customer, Product, OrderItem, Address]),
+  ],
+  controllers: [DashboardController],
+  providers: [DashboardService],
+  exports: [DashboardService],
 })
 export class DashboardModule {}

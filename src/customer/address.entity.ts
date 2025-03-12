@@ -1,14 +1,15 @@
 import {
     Entity,
-    PrimaryGeneratedColumn,
     Column,
+    PrimaryGeneratedColumn,
     ManyToOne,
     CreateDateColumn,
     UpdateDateColumn,
+    JoinColumn
 } from 'typeorm';
 import { Customer } from './customer.entity';
 
-@Entity('customer_address')
+@Entity({ name: 'Address' })
 export class Address {
     @PrimaryGeneratedColumn()
     id: number;
@@ -16,7 +17,7 @@ export class Address {
     @Column()
     fullName: string;
 
-    @Column()
+    @Column({ nullable: true })
     phoneNumber: string;
 
     @Column()
@@ -34,17 +35,16 @@ export class Address {
     @Column({ default: false })
     isDefault: boolean;
 
-    @ManyToOne(() => Customer, (customer) => customer.addresses, {
-        onDelete: 'CASCADE',
-    })
+    @ManyToOne(() => Customer, customer => customer.addresses, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'customer_id' })
     customer: Customer;
 
-    @Column()
+    @Column({ name: 'customer_id' })
     customerId: number;
 
-    @CreateDateColumn()
+    @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 
-    @UpdateDateColumn()
+    @UpdateDateColumn({ name: 'updated_at' })
     updatedAt: Date;
 }

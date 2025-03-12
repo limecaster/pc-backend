@@ -25,6 +25,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { OrderModule } from './order/order.module';
+import { Address } from './customer/address.entity';
 
 @Module({
     imports: [
@@ -35,11 +36,12 @@ import { OrderModule } from './order/order.module';
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({
                 type: 'postgres',
-                host: configService.get('DATABASE_HOST', 'localhost'),
-                port: configService.get<number>('DATABASE_PORT', 5432),
-                username: configService.get('DATABASE_USERNAME', 'postgres'),
-                password: configService.get('DATABASE_PASSWORD', 'postgres'),
-                database: configService.get('DATABASE_NAME', 'pc_ecommerce'),
+                host: configService.get('POSTGRES_HOST', 'localhost'),
+                port: configService.get<number>('POSTGRES_PORT', 5432),
+                username: configService.get('POSTGRES_USER', 'postgres'),
+                password: configService.get('POSTGRES_PASSWORD', 'postgres'),
+                database: configService.get('POSTGRES_NAME', 'pc_ecommerce'),
+                entities: [/* Manually specify entities here if autoLoadEntities is false */],
                 autoLoadEntities: true,
                 synchronize: true, // Set to false in production
             }),

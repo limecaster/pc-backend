@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, In, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
+import { Repository, ILike, In, MoreThanOrEqual, LessThanOrEqual, Between, MoreThan } from 'typeorm';
 import { Product } from './product.entity';
 import { PostgresConfigService } from '../../config/postgres.config';
 import { Neo4jConfigService } from '../../config/neo4j.config';
@@ -10,6 +10,7 @@ import {
     ReviewDto,
 } from './dto/product-response.dto';
 import { UtilsService } from 'service/utils.service';
+import { parse } from 'path';
 
 @Injectable()
 export class ProductService {
@@ -29,9 +30,9 @@ export class ProductService {
             // Extract product ID from slug
             const id = slug;
             
-            // Use TypeORM to fetch product
+            // Use TypeORM to fetch product - add status filter
             const product = await this.productRepository.findOne({
-                where: { id }
+                where: { id, status: "active" }
             });
 
             if (!product) {
@@ -199,7 +200,7 @@ export class ProductService {
             // If no brand filter, use standard category filtering
             if (!brands || brands.length === 0) {
                 // Build where clause with category and price filters
-                const whereClause: any = category ? { category } : {};
+                const whereClause: any = category ? { category, status: "active" } : { status: "active" };
                 
                 // Add price filtering if provided
                 if (minPrice !== undefined && maxPrice !== undefined) {
@@ -267,7 +268,7 @@ export class ProductService {
             }
             
             // Query PostgreSQL with these IDs
-            const whereClause: any = { id: In(matchingIds) };
+            const whereClause: any = { id: In(matchingIds), status: "active" };
             if (category) {
                 whereClause.category = category;
             }
@@ -370,9 +371,9 @@ export class ProductService {
         const driver = this.neo4jConfigService.getDriver();
         const session = driver.session();
         try {
-            // Use TypeORM to fetch products by exact name
+            // Use TypeORM to fetch products by exact name - add status filter
             const products = await this.productRepository.find({
-                where: { name },
+                where: { name, status: "active" },
                 order: { createdAt: 'DESC' }
             });
 
@@ -500,13 +501,12 @@ export class ProductService {
         const driver = this.neo4jConfigService.getDriver();
         const session = driver.session();
         try {
-            // Use TypeORM to fetch products
+            // Use TypeORM to fetch products - add status filter
             const products = await this.productRepository.find({
-                where: { category: 'CPU' },
+                where: { status: "active" },
                 order: { createdAt: 'DESC' },
                 take: 8
             });
-
             const productDetails: ProductDetailsDto[] = [];
             for (const product of products) {
                 const specificationsQuery = `
@@ -531,7 +531,6 @@ export class ProductService {
                 const ratingResult = await pool.query(avgRatingQuery, [product.id]);
                 const rating = ratingResult.rows[0].avg_rating || 0;
                 const reviewCount = parseInt(ratingResult.rows[0].count) || 0;
-
                 productDetails.push({
                     id: product.id.toString(),
                     name: product.name,
@@ -610,7 +609,7 @@ export class ProductService {
                 
                 // If no brand filter, use standard search
                 if (!brands || brands.length === 0) {
-                    const whereClause: any = { name: ILike(`%${query}%`) };
+                    const whereClause: any = { name: ILike(`%${query}%`), status: "active" };
                     
                     // Add rating filter if provided
                     if (ratingFilteredIds) {
@@ -663,7 +662,8 @@ export class ProductService {
                 // Now query PostgreSQL with these IDs and the search term
                 const whereClause: any = {
                     id: In(matchingIds),
-                    name: ILike(`%${query}%`)
+                    name: ILike(`%${query}%`),
+                    status: "active"
                 };
                 
                 // Add price filtering if provided
@@ -727,26 +727,5 @@ export class ProductService {
         } finally {
             await session.close();
         }
-    }
-
-    // Helper method to map Product entity to ProductDetailsDto
-    private mapToProductDetailsDto(product: Product): ProductDetailsDto {
-        return {
-            id: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: parseFloat(product.price.toString()),
-            // Use additional_images instead of imageUrl which doesn't exist
-            imageUrl: product.additional_images ? 
-                JSON.parse(product.additional_images)[0] || '/images/product-placeholder.jpg' : 
-                '/images/product-placeholder.jpg',
-            category: product.category || '',
-            rating: 0,
-            reviewCount: 0,
-            specifications: undefined,
-            sku: product.id || '',
-            stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
-            brand: ''
-        };
     }
 }

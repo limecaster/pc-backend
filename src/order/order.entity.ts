@@ -3,11 +3,13 @@ import {
     Column,
     PrimaryGeneratedColumn,
     ManyToOne,
+    OneToMany,
     CreateDateColumn,
     UpdateDateColumn,
     JoinColumn,
 } from 'typeorm';
 import { Customer } from '../customer/customer.entity';
+import { OrderItem } from './order-item.entity';
 
 export enum OrderStatus {
     PENDING_APPROVAL = 'pending_approval',
@@ -32,6 +34,12 @@ export class Order {
     @Column({ type: 'decimal', precision: 10, scale: 2, name: 'total_price' })
     total: number;
 
+    @Column({ nullable: true })
+    subtotal: number;
+
+    @Column({ nullable: true })
+    shippingFee: number;
+
     @Column({ name: 'order_date' })
     orderDate: Date;
 
@@ -51,6 +59,15 @@ export class Order {
     @Column({ name: 'delivery_address' })
     deliveryAddress: string;
 
+    @Column({ nullable: true })
+    customerName: string;
+
+    @Column({ nullable: true })
+    customerPhone: string;
+
+    @Column({ nullable: true })
+    deliveryCity: string;
+
     @ManyToOne(() => Customer, (customer) => customer.orders)
     @JoinColumn({ name: 'customer_id' })
     customer: Customer;
@@ -68,5 +85,15 @@ export class Order {
     @Column({ nullable: true })
     approvalDate: Date;
 
-    items: any;
+    @Column({ nullable: true })
+    shippedAt: Date;
+
+    @Column({ nullable: true })
+    deliveredAt: Date;
+
+    @Column({ nullable: true })
+    guestEmail: string;
+
+    @OneToMany(() => OrderItem, (orderItem) => orderItem.order)
+    items: OrderItem[];
 }

@@ -158,11 +158,35 @@ export class CustomerService {
     }): Promise<Customer> {
         // Check for existing email
         const existingEmail = await this.findByEmail(userData.email);
+        
+        // If the email exists but is not verified, we allow re-registration
         if (existingEmail) {
-            throw new ConflictException('Email đã được sử dụng');
+            if (existingEmail.isEmailVerified) {
+                throw new ConflictException('Email đã được sử dụng');
+            } else {
+                // Generate a new OTP for the existing unverified user
+                const otpCode = this.generateOTPCode();
+                existingEmail.verificationToken = otpCode;
+                
+                // Update password if provided in the new registration
+                if (userData.password) {
+                    existingEmail.password = await bcrypt.hash(userData.password, 10);
+                }
+                
+                // Update other fields if provided
+                if (userData.username) existingEmail.username = userData.username;
+                if (userData.firstname) existingEmail.firstname = userData.firstname;
+                if (userData.lastname) existingEmail.lastname = userData.lastname;
+                
+                existingEmail.updatedAt = new Date();
+                await this.customerRepository.save(existingEmail);
+                
+                this.logger.log(`Regenerated OTP for unverified user: ${existingEmail.email}`);
+                return existingEmail;
+            }
         }
 
-        // Check for existing username if provided
+        // Handle username check and creation as before
         if (userData.username) {
             const existingUsername = await this.findByUsername(
                 userData.username,
@@ -189,6 +213,7 @@ export class CustomerService {
         });
 
         await this.customerRepository.save(newCustomer);
+        this.logger.log(`Created new user with email: ${newCustomer.email}`);
         return newCustomer;
     }
 

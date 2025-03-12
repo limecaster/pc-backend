@@ -11,6 +11,8 @@ import {
     HttpCode,
     HttpStatus,
     UnauthorizedException,
+    BadRequestException,
+    NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
@@ -199,9 +201,31 @@ export class AuthController {
     }
 
     @Post('verify-email')
-    async verifyEmail(@Body() body: { email: string; otpCode: string }) {
-        await this.customerService.verifyEmail(body.email, body.otpCode);
-        return { message: 'Email verified successfully' };
+    async verifyEmail(
+        @Body() verifyData: { email: string; otpCode: string }
+    ) {
+        try {
+            const verifiedUser = await this.customerService.verifyEmail(
+                verifyData.email,
+                verifyData.otpCode
+            );
+            
+            return {
+                success: true,
+                message: 'Email verified successfully',
+                user: {
+                    id: verifiedUser.id,
+                    email: verifiedUser.email,
+                    status: verifiedUser.status,
+                    isEmailVerified: verifiedUser.isEmailVerified
+                }
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw new BadRequestException(error.message);
+            }
+            throw error;
+        }
     }
 
     @Post('resend-otp')
@@ -407,6 +431,25 @@ export class AuthController {
                 success: false,
                 error: error.message,
             };
+        }
+    }
+
+    @Post('check-verification-status')
+    async checkVerificationStatus(@Body() data: { email: string }) {
+        try {
+            const customer = await this.customerService.findByEmail(data.email);
+            if (!customer) {
+                return { exists: false, isVerified: false };
+            }
+            
+            return { 
+                exists: true, 
+                isVerified: customer.isEmailVerified,
+                status: customer.status 
+            };
+        } catch (error) {
+            this.logger.error(`Error checking verification status: ${error.message}`);
+            return { error: "Failed to check verification status" };
         }
     }
 }

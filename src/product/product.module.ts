@@ -7,11 +7,14 @@ import { PostgresConfigService } from '../../config/postgres.config';
 import { Neo4jConfigService } from 'config/neo4j.config';
 import { UtilsService } from 'service/utils.service';
 import { Product } from './product.entity';
+import { CloudinaryConfigService } from '../config/cloudinary.config';
+import { CloudinaryModule } from '../config/cloudinary.module';
 
 @Module({
     imports: [
         ConfigModule,
-        TypeOrmModule.forFeature([Product])
+        TypeOrmModule.forFeature([Product]),
+        CloudinaryModule, // Import CloudinaryModule here
     ],
     controllers: [ProductController],
     providers: [
@@ -19,6 +22,7 @@ import { Product } from './product.entity';
         PostgresConfigService,
         Neo4jConfigService,
         UtilsService,
+        CloudinaryConfigService,
     ],
     exports: [ProductService],
 })

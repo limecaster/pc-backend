@@ -5,6 +5,7 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import * as dotenv from 'dotenv';
+import * as bodyParser from 'body-parser';
 
 // Load environment variables
 dotenv.config();
@@ -41,6 +42,10 @@ async function bootstrap() {
             forbidNonWhitelisted: true,
         })
     );
+
+    // Configure file size limits for uploads
+    app.use(bodyParser.json({ limit: '50mb' }));
+    app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
     // WebSocket adapters
     app.useWebSocketAdapter(new WsAdapter(app));

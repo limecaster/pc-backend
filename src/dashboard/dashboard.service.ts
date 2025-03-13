@@ -231,7 +231,10 @@ export class DashboardService {
 
     async getProductCategories() {
         try {
-            // Get actual product categories and counts from database
+            // Get total products count first
+            const totalProductsCount = await this.productRepository.count();
+            
+            // Get actual product categories and counts from database - top 10 categories
             const categoriesData = await this.productRepository
                 .createQueryBuilder('product')
                 .select('product.category', 'category')
@@ -242,23 +245,46 @@ export class DashboardService {
                 .getRawMany();
             
             if (categoriesData && categoriesData.length > 0) {
+                // Calculate sum of displayed categories
+                const displayedCategoriesSum = categoriesData.reduce(
+                    (sum, item) => sum + parseInt(item.count), 0
+                );
+                
+                // Calculate the difference between total and displayed categories
+                const otherCategoriesCount = totalProductsCount - displayedCategoriesSum;
+                
                 // Sort by count in descending order
                 categoriesData.sort((a, b) => parseInt(b.count) - parseInt(a.count));
                 
                 const categories = categoriesData.map(item => item.category);
                 const counts = categoriesData.map(item => parseInt(item.count));
                 
-                return { categories, counts };
+                // Add "Other" category if there are products not in top categories
+                if (otherCategoriesCount > 0) {
+                    categories.push('Khác');
+                    counts.push(otherCategoriesCount);
+                }
+                
+                return { 
+                    categories, 
+                    counts,
+                    totalCount: totalProductsCount 
+                };
             }
             
             // Fallback to placeholder data if no real data
             return {
                 categories: ['Laptop', 'Desktop', 'Màn hình', 'CPU', 'GPU', 'Phụ kiện'],
-                counts: [0, 0, 0, 0, 0, 0]
+                counts: [0, 0, 0, 0, 0, 0],
+                totalCount: 0
             };
         } catch (error) {
             this.logger.error(`Error getting product categories: ${error.message}`);
-            return { categories: [], counts: [] };
+            return { 
+                categories: [], 
+                counts: [],
+                totalCount: 0 
+            };
         }
     }
 

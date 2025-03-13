@@ -25,7 +25,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { OrderModule } from './order/order.module';
-import { Address } from './customer/address.entity';
+import { CloudinaryModule } from './config/cloudinary.module';
+import { RatingModule } from './rating/rating.module';
 
 @Module({
     imports: [
@@ -56,6 +57,8 @@ import { Address } from './customer/address.entity';
         WishlistModule,
         CheckoutModule,
         OrderModule,
+        CloudinaryModule,
+        RatingModule,
     ],
     controllers: [
         AppController,

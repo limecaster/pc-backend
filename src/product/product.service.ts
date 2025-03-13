@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, In, MoreThanOrEqual, LessThanOrEqual, Between, MoreThan } from 'typeorm';
+import { Repository, ILike, In, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
 import { Product } from './product.entity';
 import { PostgresConfigService } from '../../config/postgres.config';
 import { Neo4jConfigService } from '../../config/neo4j.config';
@@ -10,10 +10,11 @@ import {
     ReviewDto,
 } from './dto/product-response.dto';
 import { UtilsService } from 'service/utils.service';
-import { parse } from 'path';
 
 @Injectable()
 export class ProductService {
+    private readonly logger = new Logger(ProductService.name);
+
     constructor(
         @InjectRepository(Product)
         private readonly productRepository: Repository<Product>,
@@ -726,6 +727,232 @@ export class ProductService {
             throw new Error('Failed to fetch brands');
         } finally {
             await session.close();
+        }
+    }
+
+    async createProduct(productData: any): Promise<any> {
+        try {
+            // Create product in PostgreSQL database - fix property naming to match entity definition
+            const product = this.productRepository.create({
+                id: productData.id, // Make sure ID is properly handled
+                name: productData.name,
+                description: productData.description,
+                price: productData.price,
+                stockQuantity: productData.stock_quantity, // Ensure this matches entity
+                status: productData.status || 'active',
+                category: productData.category,
+                // These properties might need to be adjusted based on your actual entity definition
+                // Remove properties that don't exist in your Product entity
+                // Add any required properties that might be missing
+            });
+        
+            const savedProduct = await this.productRepository.save(product);
+        
+            // If Neo4j integration is being used, store the product there too
+            try {
+                // Store the product in Neo4j with the Cloudinary image URLs
+                await this.storeProductInNeo4j({
+                    ...savedProduct,
+                    images: productData.images || [],
+                    thumbnail: productData.thumbnail || null,
+                    specifications: productData.specifications || {},
+                });
+            } catch (neoError) {
+                console.error(`Failed to save product in Neo4j: ${neoError.message}`);
+                // Continue even if Neo4j storage fails
+            }
+        
+            return {
+                success: true,
+                product: savedProduct,
+            };
+        } catch (error) {
+            console.error(`Failed to create product: ${error.message}`);
+            throw error;
+        }
+    }
+    
+    // Add a method to store product in Neo4j
+    private async storeProductInNeo4j(product: any): Promise<void> {
+        // This is a placeholder for your actual Neo4j integration code
+        // You would need to inject your Neo4j service and call the appropriate methods
+        
+        // Example pseudo-code:
+        // const cypher = `
+        //   MERGE (p:Product {id: $id})
+        //   SET p.name = $name, 
+        //       p.description = $description,
+        //       p.price = $price,
+        //       p.category = $category,
+        //       p.thumbnail = $thumbnail,
+        //       p.images = $images,
+        //       p.specifications = $specifications
+        // `;
+        // await this.neo4jService.write(cypher, {
+        //   id: product.id,
+        //   name: product.name,
+        //   description: product.description,
+        //   price: product.price,
+        //   category: product.category,
+        //   thumbnail: product.thumbnail,
+        //   images: product.images,
+        //   specifications: product.specifications
+        // });
+        
+        // For now, just log the attempt
+        this.logger.log(`Storing product ${product.id} in Neo4j with images: ${product.images?.length || 0}`);
+    }
+
+    async getAllCategories(): Promise<string[]> {
+        try {
+            const result = await this.productRepository
+                .createQueryBuilder('product')
+                .select('DISTINCT product.category', 'category')
+                .where('product.category IS NOT NULL')
+                .orderBy('category', 'ASC')
+                .getRawMany();
+            
+            return result.map(item => item.category);
+        } catch (error) {
+            this.logger.error('Error fetching categories:', error);
+            throw new Error('Failed to fetch categories');
+        }
+    }
+
+    async findAllProductsForAdmin(
+        page: number = 1, 
+        limit: number = 12,
+        sortBy: string = 'createdAt',
+        sortOrder: 'ASC' | 'DESC' = 'DESC'
+    ): Promise<{
+        products: ProductDetailsDto[],
+        total: number,
+        pages: number,
+        page: number
+    }> {
+        const pool = this.postgresConfigService.getPool();
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+        
+        try {
+            // Calculate offset for pagination
+            const offset = (page - 1) * limit;
+            
+            // Get total count for pagination - no status filter
+            const totalCount = await this.productRepository.count();
+            
+            // Get paginated products from PostgreSQL - no status filter
+            const products = await this.productRepository.find({
+                order: { [sortBy]: sortOrder },
+                skip: offset,
+                take: limit
+            });
+            
+            const productDetails = await this.enrichProductsWithDetails(products, session, pool);
+            
+            return {
+                products: productDetails,
+                total: totalCount,
+                pages: Math.ceil(totalCount / limit),
+                page: page
+            };
+        } catch (error) {
+            this.logger.error('Error fetching products for admin:', error);
+            throw new Error('Failed to fetch products for admin');
+        } finally {
+            if (session) await session.close();
+        }
+    }
+
+    async findByIdForAdmin(id: string): Promise<ProductDetailsDto> {
+        const pool = this.postgresConfigService.getPool();
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+        try {
+            // Get product without status filter for admin view
+            const product = await this.productRepository.findOne({
+                where: { id }
+            });
+
+            if (!product) {
+                throw new NotFoundException(`Product with ID ${id} not found`);
+            }
+
+            // Query to get product specifications
+            const specificationsQuery = `
+                MATCH (p {id: $id}) RETURN p AS product
+            `;
+
+            const specificationsResult = await session.run(
+                specificationsQuery,
+                { id }
+            );
+            
+            const specifications = specificationsResult.records.map(
+                (record) => {
+                    const properties = record.get('product').properties;
+                    for (const key in properties) {
+                        if (
+                        properties[key] &&
+                        typeof properties[key] === 'object' &&
+                        'low' in properties[key] &&
+                        'high' in properties[key]
+                        ) {
+                        properties[key] = this.utilsService.combineLowHigh(
+                            properties[key].low,
+                            properties[key].high,
+                        );
+                        }
+                    }
+                    return properties;
+                },
+            )[0] as ProductSpecDto;
+
+            // Parse additional images if they exist
+            let additionalImages = [];
+            if (product.additional_images) {
+                try {
+                    additionalImages = JSON.parse(product.additional_images);
+                } catch (e) {
+                    console.error('Error parsing additional images:', e);
+                }
+            }
+            
+            // Return with stock_quantity for admin editing
+            const productDetails: ProductDetailsDto = {
+                id: product.id.toString(),
+                name: product.name,
+                price: parseFloat(product.price.toString()),
+                originalPrice: product.originalPrice
+                    ? parseFloat(product.originalPrice.toString())
+                    : undefined,
+                discount: product.discount
+                    ? parseFloat(product.discount.toString())
+                    : undefined,
+                rating: 0, // Admin view doesn't need ratings computation
+                reviewCount: 0,
+                status: product.status,
+                stockQuantity: product.stockQuantity,
+                description: product.description || '',
+                additionalInfo: product.additionalInfo || undefined,
+                imageUrl: specifications['imageUrl'] || '',
+                additionalImages: additionalImages,
+                specifications: specifications || undefined,
+                sku: product.id || '',
+                brand: specifications['manufacturer'] || '',
+                category: product.category || '',
+                stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
+            };
+
+            return productDetails;
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            this.logger.error(`Error fetching product for admin: ${error.message}`);
+            throw new Error('Failed to fetch product details');
+        } finally {
+            if (session) await session.close();
         }
     }
 }

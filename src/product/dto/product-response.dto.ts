@@ -32,4 +32,6 @@ export class ProductDetailsDto {
     category: string;
     color?: string;
     size?: string;
+    status?: string;
+    stockQuantity?: number;
 }

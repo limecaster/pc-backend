@@ -52,18 +52,32 @@ export class StaffService {
         return result;
     }
 
-    async findStaffById(id: number): Promise<any> {
+    async findAll(page = 1, limit = 10): Promise<{ staff: Staff[], total: number, pages: number }> {
+        const [staff, total] = await this.staffRepository.findAndCount({
+            select: ['id', 'firstname', 'lastname', 'email', 'phoneNumber', 'role', 'status', 'createdAt', 'updatedAt'],
+            skip: (page - 1) * limit,
+            take: limit,
+            order: { createdAt: 'DESC' }
+        });
+
+        return {
+            staff,
+            total,
+            pages: Math.ceil(total / limit)
+        };
+    }
+
+    async findStaffById(id: number): Promise<Staff> {
         const staff = await this.staffRepository.findOne({
-            where: { id, status: 'active' },
+            where: { id },
+            select: ['id', 'firstname', 'lastname', 'email', 'phoneNumber', 'role', 'status', 'street', 'ward', 'district', 'city', 'createdAt', 'updatedAt']
         });
 
         if (!staff) {
-            return null;
+            throw new NotFoundException(`Staff with ID ${id} not found`);
         }
 
-        // Return without password
-        const { password, ...result } = staff;
-        return result;
+        return staff;
     }
 
     async createStaff(staffData: {
@@ -73,56 +87,126 @@ export class StaffService {
         firstname: string;
         lastname: string;
         phoneNumber?: string;
-    }): Promise<any> {
-        try {
-            // Check if username or email already exists
-            const existingStaff = await this.staffRepository.findOne({
-                where: [
-                    { username: staffData.username },
-                    { email: staffData.email },
-                ],
-            });
+        role?: string;
+    }): Promise<{ staff: Staff }> {
+        // Check if email or username already exists
+        const existingStaff = await this.staffRepository.findOne({
+            where: [
+                { email: staffData.email },
+                { username: staffData.username }
+            ]
+        });
 
-            if (existingStaff) {
-                throw new ConflictException('Username or email already exists');
-            }
-
-            // Hash the password
-            const saltRounds = 10;
-            const hashedPassword = await bcrypt.hash(
-                staffData.password,
-                saltRounds,
-            );
-
-            // Create new staff - fix TypeScript error by creating entity properly
-            const newStaff = this.staffRepository.create({
-                firstname: staffData.firstname,
-                lastname: staffData.lastname,
-                email: staffData.email,
-                username: staffData.username,
-                password: hashedPassword,
-                status: 'active',
-                role: 'staff',
-                phoneNumber: staffData.phoneNumber || null,
-            });
-
-            // Save to database
-            const savedStaff = await this.staffRepository.save(newStaff);
-
-            // Return staff data without password
-            const { password, ...result } = savedStaff;
-            return { success: true, staff: result };
-        } catch (error) {
-            if (error instanceof ConflictException) {
-                throw error;
-            }
-            this.logger.error(
-                `Failed to create staff: ${error.message}`,
-                error.stack,
-            );
-            throw new InternalServerErrorException(
-                'Failed to create staff account',
-            );
+        if (existingStaff) {
+            throw new ConflictException('Email or username already exists');
         }
+
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(staffData.password, 10);
+
+        // Create new staff member
+        const newStaff = this.staffRepository.create({
+            ...staffData,
+            password: hashedPassword,
+            role: staffData.role || 'staff',
+            status: 'active',
+        });
+
+        const savedStaff = await this.staffRepository.save(newStaff);
+        
+        // Remove password from returned object
+        const { password, ...staffWithoutPassword } = savedStaff;
+        
+        return { staff: staffWithoutPassword as Staff };
+    }
+
+    async updateStaff(id: number, staffData: {
+        firstname?: string;
+        lastname?: string;
+        email?: string;
+        phoneNumber?: string;
+        role?: string;
+        status?: string;
+        street?: string;
+        ward?: string;
+        district?: string;
+        city?: string;
+        password?: string;
+    }): Promise<Staff> {
+        const staff = await this.staffRepository.findOne({ where: { id } });
+        
+        if (!staff) {
+            throw new NotFoundException(`Staff with ID ${id} not found`);
+        }
+
+        // If updating email, check for duplicates
+        if (staffData.email && staffData.email !== staff.email) {
+            const existingStaff = await this.staffRepository.findOne({ 
+                where: { email: staffData.email } 
+            });
+            
+            if (existingStaff) {
+                throw new ConflictException('Email already exists');
+            }
+        }
+
+        // If password is provided, hash it
+        if (staffData.password) {
+            staffData.password = await bcrypt.hash(staffData.password, 10);
+        }
+
+        // Update staff data
+        Object.assign(staff, staffData);
+        
+        const updatedStaff = await this.staffRepository.save(staff);
+        
+        // Remove password from returned object
+        const { password, ...staffWithoutPassword } = updatedStaff;
+        
+        return staffWithoutPassword as Staff;
+    }
+
+    async deleteStaff(id: number): Promise<void> {
+        const staff = await this.staffRepository.findOne({ where: { id } });
+        
+        if (!staff) {
+            throw new NotFoundException(`Staff with ID ${id} not found`);
+        }
+        
+        await this.staffRepository.remove(staff);
+    }
+
+    async deactivateStaff(id: number): Promise<Staff> {
+        const staff = await this.staffRepository.findOne({ where: { id } });
+        
+        if (!staff) {
+            throw new NotFoundException(`Staff with ID ${id} not found`);
+        }
+        
+        staff.status = 'inactive';
+        
+        const updatedStaff = await this.staffRepository.save(staff);
+        
+        // Remove password from returned object
+        const { password, ...staffWithoutPassword } = updatedStaff;
+        
+        return staffWithoutPassword as Staff;
+    }
+
+    async activateStaff(id: number): Promise<Staff> {
+        const staff = await this.staffRepository.findOne({ where: { id } });
+        
+        if (!staff) {
+            throw new NotFoundException(`Staff with ID ${id} not found`);
+        }
+        
+        staff.status = 'active';
+        
+        const updatedStaff = await this.staffRepository.save(staff);
+        
+        // Remove password from returned object
+        const { password, ...staffWithoutPassword } = updatedStaff;
+        
+        return staffWithoutPassword as Staff;
     }
 }

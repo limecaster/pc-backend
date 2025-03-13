@@ -2,13 +2,19 @@ import {
     Controller, 
     Get, 
     Post, 
+    Put,
+    Delete,
     Param, 
     UseGuards, 
     Request, 
     Logger,
     NotFoundException,
     ForbiddenException,
-    Body
+    Body,
+    Query,
+    HttpStatus,
+    HttpCode,
+    ParseIntPipe
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -20,7 +26,6 @@ import { OrderStatus } from '../order/order.entity';
 
 @Controller('staff')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.STAFF)
 export class StaffController {
     private readonly logger = new Logger(StaffController.name);
 
@@ -29,7 +34,9 @@ export class StaffController {
         private readonly orderService: OrderService
     ) {}
 
+    // Staff-specific endpoints (any staff can access)
     @Get('profile')
+    @Roles(Role.STAFF, Role.ADMIN)
     async getStaffProfile(@Request() req) {
         const staffId = req.user.id;
         this.logger.log(`Staff ${staffId} retrieving their profile`);
@@ -42,6 +49,134 @@ export class StaffController {
         return {
             success: true,
             profile: staffProfile
+        };
+    }
+
+    // Admin-only endpoints for staff management
+    @Get('all')
+    @Roles(Role.ADMIN)
+    async getAllStaff(
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10
+    ) {
+        this.logger.log(`Admin retrieving all staff members (page ${page})`);
+        
+        const result = await this.staffService.findAll(page, limit);
+        
+        return {
+            success: true,
+            staff: result.staff,
+            total: result.total,
+            pages: result.pages,
+            page
+        };
+    }
+
+    @Get(':id')
+    @Roles(Role.ADMIN)
+    async getStaffById(@Param('id', ParseIntPipe) id: number) {
+        this.logger.log(`Admin retrieving staff member ${id}`);
+        
+        const staff = await this.staffService.findStaffById(id);
+        
+        return {
+            success: true,
+            staff
+        };
+    }
+
+    @Post()
+    @Roles(Role.ADMIN)
+    async createStaff(
+        @Body() staffData: {
+            username: string;
+            email: string;
+            password: string;
+            firstname: string;
+            lastname: string;
+            phoneNumber?: string;
+            role?: string;
+        }
+    ) {
+        this.logger.log(`Admin creating new staff account for ${staffData.email}`);
+        
+        const result = await this.staffService.createStaff(staffData);
+        
+        return {
+            success: true,
+            message: 'Staff account created successfully',
+            staff: result.staff
+        };
+    }
+
+    @Put(':id')
+    @Roles(Role.ADMIN)
+    async updateStaff(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() staffData: {
+            firstname?: string;
+            lastname?: string;
+            email?: string;
+            phoneNumber?: string;
+            role?: string;
+            status?: string;
+            street?: string;
+            ward?: string;
+            district?: string;
+            city?: string;
+            password?: string;
+        }
+    ) {
+        this.logger.log(`Admin updating staff member ${id}`);
+        
+        const updatedStaff = await this.staffService.updateStaff(id, staffData);
+        
+        return {
+            success: true,
+            message: 'Staff account updated successfully',
+            staff: updatedStaff
+        };
+    }
+
+    @Delete(':id')
+    @Roles(Role.ADMIN)
+    @HttpCode(HttpStatus.OK)
+    async deleteStaff(@Param('id', ParseIntPipe) id: number) {
+        this.logger.log(`Admin deleting staff member ${id}`);
+        
+        await this.staffService.deleteStaff(id);
+        
+        return {
+            success: true,
+            message: 'Staff account deleted successfully'
+        };
+    }
+
+    @Post(':id/deactivate')
+    @Roles(Role.ADMIN)
+    async deactivateStaff(@Param('id', ParseIntPipe) id: number) {
+        this.logger.log(`Admin deactivating staff member ${id}`);
+        
+        const staff = await this.staffService.deactivateStaff(id);
+        
+        return {
+            success: true,
+            message: 'Staff account deactivated successfully',
+            staff
+        };
+    }
+
+    @Post(':id/activate')
+    @Roles(Role.ADMIN)
+    async activateStaff(@Param('id', ParseIntPipe) id: number) {
+        this.logger.log(`Admin activating staff member ${id}`);
+        
+        const staff = await this.staffService.activateStaff(id);
+        
+        return {
+            success: true,
+            message: 'Staff account activated successfully',
+            staff
         };
     }
 
@@ -178,40 +313,6 @@ export class StaffController {
             return {
                 success: false,
                 message: error.message || 'Failed to retrieve dashboard statistics'
-            };
-        }
-    }
-
-    // This endpoint allows admins to register new staff members
-    @Post('register')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(Role.ADMIN)
-    async registerStaff(
-        @Body() staffData: {
-            username: string;
-            email: string;
-            password: string;
-            firstname: string;
-            lastname: string;
-            phoneNumber?: string;
-        },
-        @Request() req
-    ) {
-        try {
-            this.logger.log(`Admin ${req.user.id} registering new staff account for ${staffData.email}`);
-            
-            const result = await this.staffService.createStaff(staffData);
-            
-            return {
-                success: true,
-                message: 'Staff account created successfully',
-                staff: result.staff
-            };
-        } catch (error) {
-            this.logger.error(`Failed to register staff: ${error.message}`);
-            return {
-                success: false,
-                message: error.message || 'Failed to create staff account'
             };
         }
     }

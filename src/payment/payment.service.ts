@@ -19,7 +19,9 @@ export interface PaymentStatusErrorResponse {
     code?: string;
 }
 
-export type PaymentStatusResponse = PaymentStatusSuccessResponse | PaymentStatusErrorResponse;
+export type PaymentStatusResponse =
+    | PaymentStatusSuccessResponse
+    | PaymentStatusErrorResponse;
 
 @Injectable()
 export class PaymentService {
@@ -175,12 +177,16 @@ export class PaymentService {
             return false;
         }
     }
-    
+
     // Check payment status
-    async checkPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
+    async checkPaymentStatus(
+        paymentId: string,
+    ): Promise<PaymentStatusResponse> {
         try {
-            this.logger.log(`Checking payment status for payment ID: ${paymentId}`);
-            
+            this.logger.log(
+                `Checking payment status for payment ID: ${paymentId}`,
+            );
+
             const response = await firstValueFrom(
                 this.httpService.get(
                     `${this.payosApiUrl}/v2/payment-requests/${paymentId}`,
@@ -189,23 +195,24 @@ export class PaymentService {
                             'x-client-id': this.clientId,
                             'x-api-key': this.apiKey,
                         },
-                    }
-                )
+                    },
+                ),
             );
-            
+
             this.logger.log(`Payment status response: ${response.status}`);
-            
+
             if (response.data && response.data.code === '00') {
                 return {
                     success: true,
                     status: response.data.data.status,
-                    paymentData: response.data.data
+                    paymentData: response.data.data,
                 };
             } else {
                 return {
                     success: false,
-                    message: response.data?.desc || 'Failed to check payment status',
-                    code: response.data?.code
+                    message:
+                        response.data?.desc || 'Failed to check payment status',
+                    code: response.data?.code,
                 };
             }
         } catch (error) {
@@ -213,7 +220,7 @@ export class PaymentService {
             if (error.response) {
                 this.logger.error('Error response data:', error.response.data);
             }
-            
+
             throw new Error('Failed to check payment status');
         }
     }

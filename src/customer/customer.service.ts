@@ -23,49 +23,61 @@ export class CustomerService {
         this.logger.debug(`Looking up user by email: ${email}`);
         try {
             // First try with exact match
-            let customer = await this.customerRepository.findOne({ where: { email } });
-            
+            let customer = await this.customerRepository.findOne({
+                where: { email },
+            });
+
             // If not found, try case-insensitive lookup
             if (!customer) {
-                this.logger.debug(`No exact match for email: ${email}, trying case-insensitive query`);
-                
+                this.logger.debug(
+                    `No exact match for email: ${email}, trying case-insensitive query`,
+                );
+
                 // Using query builder for case-insensitive search
                 customer = await this.customerRepository
                     .createQueryBuilder('customer')
                     .where('LOWER(customer.email) = LOWER(:email)', { email })
                     .getOne();
-                
+
                 if (customer) {
-                    this.logger.debug(`Found user with case-insensitive email match: ${customer.email} (ID: ${customer.id})`);
+                    this.logger.debug(
+                        `Found user with case-insensitive email match: ${customer.email} (ID: ${customer.id})`,
+                    );
                 }
             }
-            
+
             // Last resort: Direct SQL query to see what's happening
             if (!customer) {
                 this.logger.debug(`Still no match, executing raw SQL query`);
-                
+
                 const rawResults = await this.customerRepository.query(
                     `SELECT id, email, username FROM "Customer" WHERE email = $1 OR LOWER(email) = LOWER($1)`,
-                    [email]
+                    [email],
                 );
-                
-                this.logger.debug(`Raw SQL results: ${JSON.stringify(rawResults)}`);
-                
+
+                this.logger.debug(
+                    `Raw SQL results: ${JSON.stringify(rawResults)}`,
+                );
+
                 // If we found results in raw SQL but not through TypeORM, there's a mapping issue
                 if (rawResults && rawResults.length > 0) {
                     // Try to load the full entity based on the ID we found
-                    customer = await this.customerRepository.findOne({ 
-                        where: { id: rawResults[0].id } 
+                    customer = await this.customerRepository.findOne({
+                        where: { id: rawResults[0].id },
                     });
-                    
+
                     if (customer) {
-                        this.logger.debug(`Found through raw SQL: ${customer.id}`);
+                        this.logger.debug(
+                            `Found through raw SQL: ${customer.id}`,
+                        );
                     }
                 }
             }
-            
+
             if (customer) {
-                this.logger.debug(`Found user with ID ${customer.id} by email: ${email}`);
+                this.logger.debug(
+                    `Found user with ID ${customer.id} by email: ${email}`,
+                );
             } else {
                 this.logger.debug(`No user found with email: ${email}`);
                 // List all emails in the database for debugging
@@ -73,13 +85,17 @@ export class CustomerService {
                     .createQueryBuilder('customer')
                     .select(['customer.id', 'customer.email'])
                     .getMany();
-                    
-                this.logger.debug(`All emails in database: ${JSON.stringify(allEmails.map(c => c.email))}`);
+
+                this.logger.debug(
+                    `All emails in database: ${JSON.stringify(allEmails.map((c) => c.email))}`,
+                );
             }
-            
+
             return customer;
         } catch (error) {
-            this.logger.error(`Database error looking up user by email: ${error.message}`);
+            this.logger.error(
+                `Database error looking up user by email: ${error.message}`,
+            );
             throw error;
         }
     }
@@ -88,45 +104,57 @@ export class CustomerService {
         this.logger.debug(`Looking up user by username: ${username}`);
         try {
             // Try exact match first
-            let customer = await this.customerRepository.findOne({ where: { username } });
-            
+            let customer = await this.customerRepository.findOne({
+                where: { username },
+            });
+
             // Try case-insensitive lookup
             if (!customer) {
-                this.logger.debug(`No exact match for username: ${username}, trying case-insensitive query`);
-                
+                this.logger.debug(
+                    `No exact match for username: ${username}, trying case-insensitive query`,
+                );
+
                 customer = await this.customerRepository
                     .createQueryBuilder('customer')
-                    .where('LOWER(customer.username) = LOWER(:username)', { username })
+                    .where('LOWER(customer.username) = LOWER(:username)', {
+                        username,
+                    })
                     .getOne();
-                
+
                 if (customer) {
-                    this.logger.debug(`Found user with case-insensitive username match: ${customer.username}`);
+                    this.logger.debug(
+                        `Found user with case-insensitive username match: ${customer.username}`,
+                    );
                 }
             }
-            
+
             // Raw SQL fallback
             if (!customer) {
                 const rawResults = await this.customerRepository.query(
                     `SELECT id, email, username FROM "Customer" WHERE username = $1 OR LOWER(username) = LOWER($1)`,
-                    [username]
+                    [username],
                 );
-                
-                this.logger.debug(`Raw username SQL results: ${JSON.stringify(rawResults)}`);
-                
+
+                this.logger.debug(
+                    `Raw username SQL results: ${JSON.stringify(rawResults)}`,
+                );
+
                 if (rawResults && rawResults.length > 0) {
-                    customer = await this.customerRepository.findOne({ 
-                        where: { id: rawResults[0].id } 
+                    customer = await this.customerRepository.findOne({
+                        where: { id: rawResults[0].id },
                     });
                 }
             }
-            
+
             if (!customer) {
                 this.logger.debug(`No user found with username: ${username}`);
             }
-            
+
             return customer;
         } catch (error) {
-            this.logger.error(`Error finding user by username: ${error.message}`);
+            this.logger.error(
+                `Error finding user by username: ${error.message}`,
+            );
             throw error;
         }
     }
@@ -137,14 +165,18 @@ export class CustomerService {
 
     async findOne(id: number): Promise<Customer> {
         try {
-            const customer = await this.customerRepository.findOne({ where: { id } });
+            const customer = await this.customerRepository.findOne({
+                where: { id },
+            });
             if (!customer) {
                 this.logger.warn(`User with ID ${id} not found in database`);
                 return null;
             }
             return customer;
         } catch (error) {
-            this.logger.error(`Error finding user with ID ${id}: ${error.message}`);
+            this.logger.error(
+                `Error finding user with ID ${id}: ${error.message}`,
+            );
             throw error;
         }
     }
@@ -158,7 +190,7 @@ export class CustomerService {
     }): Promise<Customer> {
         // Check for existing email
         const existingEmail = await this.findByEmail(userData.email);
-        
+
         // If the email exists but is not verified, we allow re-registration
         if (existingEmail) {
             if (existingEmail.isEmailVerified) {
@@ -167,21 +199,29 @@ export class CustomerService {
                 // Generate a new OTP for the existing unverified user
                 const otpCode = this.generateOTPCode();
                 existingEmail.verificationToken = otpCode;
-                
+
                 // Update password if provided in the new registration
                 if (userData.password) {
-                    existingEmail.password = await bcrypt.hash(userData.password, 10);
+                    existingEmail.password = await bcrypt.hash(
+                        userData.password,
+                        10,
+                    );
                 }
-                
+
                 // Update other fields if provided
-                if (userData.username) existingEmail.username = userData.username;
-                if (userData.firstname) existingEmail.firstname = userData.firstname;
-                if (userData.lastname) existingEmail.lastname = userData.lastname;
-                
+                if (userData.username)
+                    existingEmail.username = userData.username;
+                if (userData.firstname)
+                    existingEmail.firstname = userData.firstname;
+                if (userData.lastname)
+                    existingEmail.lastname = userData.lastname;
+
                 existingEmail.updatedAt = new Date();
                 await this.customerRepository.save(existingEmail);
-                
-                this.logger.log(`Regenerated OTP for unverified user: ${existingEmail.email}`);
+
+                this.logger.log(
+                    `Regenerated OTP for unverified user: ${existingEmail.email}`,
+                );
                 return existingEmail;
             }
         }
@@ -258,7 +298,9 @@ export class CustomerService {
                 { latestLogin: new Date() },
             );
         } catch (error) {
-            this.logger.error(`Failed to update login timestamp for user ${id}: ${error.message}`);
+            this.logger.error(
+                `Failed to update login timestamp for user ${id}: ${error.message}`,
+            );
             // Don't throw here, just log the error
         }
     }
@@ -370,9 +412,12 @@ export class CustomerService {
         try {
             const customer = await this.findOne(id);
             if (!customer) return false;
-            
+
             // Check if user is active and email verified
-            return customer.status === 'active' && customer.isEmailVerified === true;
+            return (
+                customer.status === 'active' &&
+                customer.isEmailVerified === true
+            );
         } catch (error) {
             this.logger.error(`Error checking user validity: ${error.message}`);
             return false;
@@ -380,13 +425,15 @@ export class CustomerService {
     }
 
     // For debugging purposes - list all users
-    async getAllCustomers(): Promise<{id: number, email: string, username: string}[]> {
+    async getAllCustomers(): Promise<
+        { id: number; email: string; username: string }[]
+    > {
         try {
             const customers = await this.customerRepository.find();
-            return customers.map(customer => ({
+            return customers.map((customer) => ({
                 id: customer.id,
                 email: customer.email,
-                username: customer.username
+                username: customer.username,
             }));
         } catch (error) {
             this.logger.error(`Error listing all customers: ${error.message}`);
@@ -397,71 +444,84 @@ export class CustomerService {
     // Add a flexible lookup method that tries both email and username
     async findByLoginId(loginId: string): Promise<Customer | undefined> {
         this.logger.debug(`Flexible lookup by loginId: ${loginId}`);
-        
+
         // Try email first
         let customer = await this.findByEmail(loginId);
-        console.log("Found by email: ", customer);
+        console.log('Found by email: ', customer);
         // If not found by email, try username
         if (!customer) {
             customer = await this.findByUsername(loginId);
         }
-        console.log("Found by username: ", customer);
+        console.log('Found by username: ', customer);
         // If still not found, try direct query
         if (!customer) {
             try {
-                this.logger.debug(`Attempting direct query for loginId: ${loginId}`);
-                
+                this.logger.debug(
+                    `Attempting direct query for loginId: ${loginId}`,
+                );
+
                 // Query that checks both email and username fields
                 const result = await this.customerRepository.query(
                     `SELECT * FROM "Customer" WHERE email = $1 OR username = $1 LIMIT 1`,
-                    [loginId]
+                    [loginId],
                 );
-                
+
                 if (result && result.length > 0) {
                     this.logger.debug(`Found user directly: ${result[0].id}`);
-                    customer = await this.customerRepository.findOne({ where: { id: result[0].id } });
+                    customer = await this.customerRepository.findOne({
+                        where: { id: result[0].id },
+                    });
                 }
             } catch (error) {
                 this.logger.error(`Error in direct query: ${error.message}`);
             }
         }
-        
+
         return customer;
     }
 
     async validateCustomer(username: string, password: string): Promise<any> {
         this.logger.debug(`Validating customer credentials for: ${username}`);
-        
+
         // Try to find by username or email
         const customer = await this.findByLoginId(username);
-        
+
         if (!customer) {
             this.logger.warn(`Customer not found: ${username}`);
             throw new UnauthorizedException('Invalid credentials');
         }
-        
+
         // Verify password
-        const isPasswordValid = await bcrypt.compare(password, customer.password);
+        const isPasswordValid = await bcrypt.compare(
+            password,
+            customer.password,
+        );
         if (!isPasswordValid) {
             this.logger.warn(`Invalid password for customer: ${username}`);
             throw new UnauthorizedException('Invalid credentials');
         }
-        
+
         // Verify email is confirmed
         if (!customer.isEmailVerified) {
             this.logger.warn(`Unverified email for customer: ${username}`);
-            throw new UnauthorizedException('Please verify your email before logging in');
+            throw new UnauthorizedException(
+                'Please verify your email before logging in',
+            );
         }
-        
+
         // Check if customer is active
         if (customer.status !== 'active') {
-            this.logger.warn(`Inactive customer: ${username}, status: ${customer.status}`);
-            throw new UnauthorizedException('Your account has been deactivated');
+            this.logger.warn(
+                `Inactive customer: ${username}, status: ${customer.status}`,
+            );
+            throw new UnauthorizedException(
+                'Your account has been deactivated',
+            );
         }
-        
+
         // Update last login timestamp
         await this.updateLoginTimestamp(customer.id);
-        
+
         // Return customer without sensitive information
         const { password: _, ...result } = customer;
         return result;

@@ -27,9 +27,9 @@ import { Role } from './enums/role.enum';
 @Controller('auth')
 export class AuthController {
     private readonly logger = new Logger(AuthController.name);
-    
+
     constructor(
-        private authService: AuthService,   
+        private authService: AuthService,
         private customerService: CustomerService,
         private emailService: EmailService,
         private staffService: StaffService,
@@ -42,11 +42,13 @@ export class AuthController {
     @HttpCode(HttpStatus.OK)
     async login(@Request() req) {
         // This will only execute if the LocalAuthGuard passes
-        this.logger.log(`User successfully authenticated: ${req.user.id} (${req.user.email}) with role: ${req.user.role}`);
-        
+        this.logger.log(
+            `User successfully authenticated: ${req.user.id} (${req.user.email}) with role: ${req.user.role}`,
+        );
+
         // Log the raw request body for debugging
         this.logger.debug(`Login request body: ${JSON.stringify(req.body)}`);
-        
+
         // Return JWT token and user info including role
         return this.authService.login(req.user);
     }
@@ -54,28 +56,37 @@ export class AuthController {
     // Staff-specific login endpoint for better logging and control
     @Post('staff/login')
     @HttpCode(HttpStatus.OK)
-    async staffLogin(@Body() loginData: { username: string; password: string }) {
+    async staffLogin(
+        @Body() loginData: { username: string; password: string },
+    ) {
         this.logger.log(`Staff login attempt: ${loginData.username}`);
-        
+
         try {
-            const staff = await this.staffService.validateStaff(loginData.username, loginData.password);
-            
+            const staff = await this.staffService.validateStaff(
+                loginData.username,
+                loginData.password,
+            );
+
             // If we got here, validation was successful - create token with staff role
             const result = this.authService.login({
                 ...staff,
-                role: Role.STAFF
+                role: Role.STAFF,
             });
-            
-            this.logger.log(`Staff login successful for: ${loginData.username}`);
+
+            this.logger.log(
+                `Staff login successful for: ${loginData.username}`,
+            );
             return result;
         } catch (error) {
-            this.logger.error(`Staff login error for ${loginData.username}: ${error.message}`);
-            
+            this.logger.error(
+                `Staff login error for ${loginData.username}: ${error.message}`,
+            );
+
             // Throw proper HTTP exceptions with status codes
             if (error instanceof UnauthorizedException) {
                 throw new UnauthorizedException('Invalid staff credentials');
             }
-            
+
             throw new UnauthorizedException('Failed to authenticate staff');
         }
     }
@@ -83,27 +94,38 @@ export class AuthController {
     // Admin-specific login endpoint
     @Post('admin/login')
     @HttpCode(HttpStatus.OK)
-    async adminLogin(@Body() loginData: { username: string; password: string }) {
+    async adminLogin(
+        @Body() loginData: { username: string; password: string },
+    ) {
         this.logger.log(`Admin login attempt: ${loginData.username}`);
-        
+
         try {
-            const admin = await this.adminService.validateAdmin(loginData.username, loginData.password);
-            
+            const admin = await this.adminService.validateAdmin(
+                loginData.username,
+                loginData.password,
+            );
+
             // If we got here, validation was successful - create token with admin role
             const result = this.authService.login({
                 ...admin,
-                role: Role.ADMIN
+                role: Role.ADMIN,
             });
-            
-            this.logger.log(`Admin login successful for: ${loginData.username}`);
-            
+
+            this.logger.log(
+                `Admin login successful for: ${loginData.username}`,
+            );
+
             // Log the token structure to help debug
-            this.logger.debug(`Generated token with payload containing role: ${Role.ADMIN}`);
-            
+            this.logger.debug(
+                `Generated token with payload containing role: ${Role.ADMIN}`,
+            );
+
             return result;
         } catch (error) {
-            this.logger.error(`Admin login error for ${loginData.username}: ${error.message}`);
-            
+            this.logger.error(
+                `Admin login error for ${loginData.username}: ${error.message}`,
+            );
+
             throw new UnauthorizedException('Invalid admin credentials');
         }
     }
@@ -111,62 +133,81 @@ export class AuthController {
     // Unified login endpoint for all user types
     @Post('unified-login')
     @HttpCode(HttpStatus.OK)
-    async unifiedLogin(@Body() loginData: { username: string; password: string }) {
+    async unifiedLogin(
+        @Body() loginData: { username: string; password: string },
+    ) {
         this.logger.log(`Unified login attempt for: ${loginData.username}`);
-        
+
         try {
             // Try to authenticate as admin first
             try {
-                const admin = await this.adminService.validateAdmin(loginData.username, loginData.password);
+                const admin = await this.adminService.validateAdmin(
+                    loginData.username,
+                    loginData.password,
+                );
                 if (admin) {
                     const result = this.authService.login({
                         ...admin,
-                        role: Role.ADMIN
+                        role: Role.ADMIN,
                     });
-                    this.logger.log(`Admin login successful for: ${loginData.username}`);
+                    this.logger.log(
+                        `Admin login successful for: ${loginData.username}`,
+                    );
                     return result;
                 }
             } catch (adminError) {
                 // Not an admin, continue to next role check
                 this.logger.debug(`Not an admin: ${adminError.message}`);
             }
-            
+
             // Try to authenticate as staff
             try {
-                const staff = await this.staffService.validateStaff(loginData.username, loginData.password);
+                const staff = await this.staffService.validateStaff(
+                    loginData.username,
+                    loginData.password,
+                );
                 if (staff) {
                     const result = this.authService.login({
                         ...staff,
-                        role: Role.STAFF
+                        role: Role.STAFF,
                     });
-                    this.logger.log(`Staff login successful for: ${loginData.username}`);
+                    this.logger.log(
+                        `Staff login successful for: ${loginData.username}`,
+                    );
                     return result;
                 }
             } catch (staffError) {
                 // Not staff, continue to customer check
                 this.logger.debug(`Not staff: ${staffError.message}`);
             }
-            
+
             // Try to authenticate as customer
             try {
-                const customer = await this.customerService.validateCustomer(loginData.username, loginData.password);
+                const customer = await this.customerService.validateCustomer(
+                    loginData.username,
+                    loginData.password,
+                );
                 if (customer) {
                     const result = this.authService.login({
                         ...customer,
-                        role: Role.CUSTOMER
+                        role: Role.CUSTOMER,
                     });
-                    this.logger.log(`Customer login successful for: ${loginData.username}`);
+                    this.logger.log(
+                        `Customer login successful for: ${loginData.username}`,
+                    );
                     return result;
                 }
             } catch (customerError) {
                 // Not a customer
                 this.logger.debug(`Not a customer: ${customerError.message}`);
             }
-            
+
             // If we reached here, authentication failed for all roles
             throw new UnauthorizedException('Invalid credentials');
         } catch (error) {
-            this.logger.error(`Login error for ${loginData.username}: ${error.message}`);
+            this.logger.error(
+                `Login error for ${loginData.username}: ${error.message}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
     }
@@ -201,15 +242,13 @@ export class AuthController {
     }
 
     @Post('verify-email')
-    async verifyEmail(
-        @Body() verifyData: { email: string; otpCode: string }
-    ) {
+    async verifyEmail(@Body() verifyData: { email: string; otpCode: string }) {
         try {
             const verifiedUser = await this.customerService.verifyEmail(
                 verifyData.email,
-                verifyData.otpCode
+                verifyData.otpCode,
             );
-            
+
             return {
                 success: true,
                 message: 'Email verified successfully',
@@ -217,8 +256,8 @@ export class AuthController {
                     id: verifiedUser.id,
                     email: verifiedUser.email,
                     status: verifiedUser.status,
-                    isEmailVerified: verifiedUser.isEmailVerified
-                }
+                    isEmailVerified: verifiedUser.isEmailVerified,
+                },
             };
         } catch (error) {
             if (error instanceof NotFoundException) {
@@ -356,7 +395,9 @@ export class AuthController {
     @Get('profile')
     getProfile(@Request() req) {
         // Log the role for debugging
-        this.logger.debug(`User ${req.user.id} with role ${req.user.role} accessed profile`);
+        this.logger.debug(
+            `User ${req.user.id} with role ${req.user.role} accessed profile`,
+        );
         return req.user;
     }
 
@@ -388,7 +429,9 @@ export class AuthController {
     @Get('verify-token')
     async verifyToken(@Request() req) {
         // If the guard passes, the token is valid and user exists
-        this.logger.debug(`Token verification successful for user: ${req.user.id} with role: ${req.user.role}`);
+        this.logger.debug(
+            `Token verification successful for user: ${req.user.id} with role: ${req.user.role}`,
+        );
         return {
             valid: true,
             userId: req.user.id,
@@ -400,7 +443,9 @@ export class AuthController {
     async refreshToken(@Body() body: { refreshToken: string }) {
         try {
             this.logger.debug('Token refresh requested');
-            const result = await this.authService.refreshToken(body.refreshToken);
+            const result = await this.authService.refreshToken(
+                body.refreshToken,
+            );
             this.logger.debug('Token refresh successful');
             return result;
         } catch (error) {
@@ -417,8 +462,10 @@ export class AuthController {
             // Decode without verification
             const decoded = this.jwtService.decode(body.token);
             // Don't log the entire token in production!
-            this.logger.debug(`Token decode result: ${JSON.stringify(decoded)}`);
-            
+            this.logger.debug(
+                `Token decode result: ${JSON.stringify(decoded)}`,
+            );
+
             return {
                 success: true,
                 decoded: decoded,
@@ -441,15 +488,17 @@ export class AuthController {
             if (!customer) {
                 return { exists: false, isVerified: false };
             }
-            
-            return { 
-                exists: true, 
+
+            return {
+                exists: true,
                 isVerified: customer.isEmailVerified,
-                status: customer.status 
+                status: customer.status,
             };
         } catch (error) {
-            this.logger.error(`Error checking verification status: ${error.message}`);
-            return { error: "Failed to check verification status" };
+            this.logger.error(
+                `Error checking verification status: ${error.message}`,
+            );
+            return { error: 'Failed to check verification status' };
         }
     }
 }

@@ -9,14 +9,14 @@ import { PaymentModule } from '../payment/payment.module';
 import { CustomerModule } from '../customer/customer.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Order, OrderItem]),
-    forwardRef(() => PaymentModule),
-    CustomerModule,
-    forwardRef(() => OrderModule)
-  ],
-  controllers: [CheckoutController],
-  providers: [CheckoutService],
-  exports: [CheckoutService]
+    imports: [
+        TypeOrmModule.forFeature([Order, OrderItem]),
+        forwardRef(() => PaymentModule),
+        CustomerModule,
+        forwardRef(() => OrderModule),
+    ],
+    controllers: [CheckoutController],
+    providers: [CheckoutService],
+    exports: [CheckoutService],
 })
 export class CheckoutModule {}

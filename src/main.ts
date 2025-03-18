@@ -40,7 +40,7 @@ async function bootstrap() {
             transform: true, // Enable automatic type transformation
             whitelist: true,
             forbidNonWhitelisted: true,
-        })
+        }),
     );
 
     // Configure file size limits for uploads

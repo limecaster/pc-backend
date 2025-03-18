@@ -5,24 +5,34 @@ import { ProductService } from './product.service';
 import { ConfigModule } from '@nestjs/config';
 import { PostgresConfigService } from '../../config/postgres.config';
 import { Neo4jConfigService } from 'config/neo4j.config';
+import { ElasticsearchConfigService } from 'config/elasticsearch.config';
 import { UtilsService } from 'service/utils.service';
 import { Product } from './product.entity';
-import { CloudinaryConfigService } from '../config/cloudinary.config';
-import { CloudinaryModule } from '../config/cloudinary.module';
+import { CloudinaryConfigService } from '../../config/cloudinary.config';
+import { CloudinaryModule } from '../../config/cloudinary.module';
+import { ProductQueryService } from './services/product-query.service';
+import { ProductSpecificationService } from './services/product-specification.service';
+import { ProductRatingService } from './services/product-rating.service';
+import { ProductElasticsearchService } from './services/product-elasticsearch.service';
 
 @Module({
     imports: [
         ConfigModule,
         TypeOrmModule.forFeature([Product]),
-        CloudinaryModule, // Import CloudinaryModule here
+        CloudinaryModule,
     ],
     controllers: [ProductController],
     providers: [
         ProductService,
         PostgresConfigService,
         Neo4jConfigService,
+        ElasticsearchConfigService,
         UtilsService,
         CloudinaryConfigService,
+        ProductQueryService,
+        ProductSpecificationService,
+        ProductRatingService,
+        ProductElasticsearchService,
     ],
     exports: [ProductService],
 })

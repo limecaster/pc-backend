@@ -1,27 +1,34 @@
-import { IsNotEmpty, IsNumber, IsString, IsUUID, Max, Min } from 'class-validator';
+import {
+    IsNotEmpty,
+    IsNumber,
+    IsString,
+    IsUUID,
+    Max,
+    Min,
+} from 'class-validator';
 
 export class CreateRatingCommentDto {
-  @IsUUID()
-  @IsNotEmpty()
-  productId: string;
+    @IsUUID()
+    @IsNotEmpty()
+    productId: string;
 
-  @IsNumber()
-  @Min(1)
-  @Max(5)
-  @IsNotEmpty()
-  stars: number;
+    @IsNumber()
+    @Min(1)
+    @Max(5)
+    @IsNotEmpty()
+    stars: number;
 
-  @IsString()
-  @IsNotEmpty()
-  comment: string;
+    @IsString()
+    @IsNotEmpty()
+    comment: string;
 }
 
 export class RatingCommentResponseDto {
-  id: number;
-  username: string;
-  rating: number;
-  date: string;
-  content: string;
-  avatar?: string;
-  customerId: number;
+    id: number;
+    username: string;
+    rating: number;
+    date: string;
+    content: string;
+    avatar?: string;
+    customerId: number;
 }

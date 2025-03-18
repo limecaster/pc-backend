@@ -3,13 +3,13 @@ import { Product } from '../product/product.entity';
 
 @Entity('Wishlist')
 export class Wishlist {
-  @PrimaryColumn()
-  customer_id: number;
+    @PrimaryColumn()
+    customer_id: number;
 
-  @PrimaryColumn()
-  product_id: string;
+    @PrimaryColumn()
+    product_id: string;
 
-  @ManyToOne(() => Product, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'product_id' })
-  product: Product;
+    @ManyToOne(() => Product, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'product_id' })
+    product: Product;
 }

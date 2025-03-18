@@ -65,7 +65,10 @@ export class CheckCompatibilityService {
         const session = this.neo4jConfigService.getDriver().session();
         try {
             for (const partType of Object.keys(pcConfiguration)) {
-                if (!pcConfiguration[partType] || !pcConfiguration[partType].name) {
+                if (
+                    !pcConfiguration[partType] ||
+                    !pcConfiguration[partType].name
+                ) {
                     return false;
                 }
                 const cacheKey = `${part.label}:${part.name}|${partType}:${pcConfiguration[partType].name}`;
@@ -219,7 +222,6 @@ export class CheckCompatibilityService {
         const m2Slots =
             (partData['m2Slots']?.length || 0) -
             this.countUsedM2Slots(pcConfiguration, partData['m2Slots']);
-
 
         const isEnoughGraphicsCardSlots =
             pciSlots >= 0 &&
@@ -467,7 +469,10 @@ export class CheckCompatibilityService {
         skipNeo4j: boolean = false,
     ): Promise<boolean> {
         this.updateTotalWattage(pcConfiguration); // Update total wattage
-        const isDynamicCompatible = await this.dynamicCheckCompatibility({ partData, label }, pcConfiguration);
+        const isDynamicCompatible = await this.dynamicCheckCompatibility(
+            { partData, label },
+            pcConfiguration,
+        );
         if (!isDynamicCompatible) {
             return false;
         }
@@ -475,7 +480,10 @@ export class CheckCompatibilityService {
         if (skipNeo4j) {
             return true;
         }
-        const isNeo4jCompatible = await this.neo4jCheckCompatibility({ name: partData['name'], label }, pcConfiguration);
+        const isNeo4jCompatible = await this.neo4jCheckCompatibility(
+            { name: partData['name'], label },
+            pcConfiguration,
+        );
         if (!isNeo4jCompatible) {
             return false;
         }

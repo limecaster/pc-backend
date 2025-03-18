@@ -5,10 +5,10 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @Controller('dashboard/overview')
 @UseGuards(JwtAuthGuard)
 export class OverviewController {
-  constructor(private readonly overviewService: OverviewService) {}
+    constructor(private readonly overviewService: OverviewService) {}
 
-  @Get()
-  async getDashboardOverview(@Request() req) {
-    return this.overviewService.getDashboardOverview(req.user.id);
-  }
+    @Get()
+    async getDashboardOverview(@Request() req) {
+        return this.overviewService.getDashboardOverview(req.user.id);
+    }
 }

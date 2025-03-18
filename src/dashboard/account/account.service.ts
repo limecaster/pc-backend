@@ -33,7 +33,9 @@ export class AccountService {
         let formattedBirthday = '';
         if (customer.birthday) {
             try {
-                formattedBirthday = customer.birthday.toISOString().split('T')[0];
+                formattedBirthday = customer.birthday
+                    .toISOString()
+                    .split('T')[0];
             } catch (error) {
                 console.error('Error formatting birthday:', error);
             }

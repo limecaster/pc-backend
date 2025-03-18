@@ -9,9 +9,9 @@ import { Customer } from '../customer/customer.entity';
 import { Neo4jConfigService } from 'config/neo4j.config';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Cart, CartItem, Product, Customer])],
-  controllers: [CartController],
-  providers: [CartService, Neo4jConfigService],
-  exports: [CartService],
+    imports: [TypeOrmModule.forFeature([Cart, CartItem, Product, Customer])],
+    controllers: [CartController],
+    providers: [CartService, Neo4jConfigService],
+    exports: [CartService],
 })
 export class CartModule {}

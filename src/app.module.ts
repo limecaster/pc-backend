@@ -25,7 +25,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { OrderModule } from './order/order.module';
-import { CloudinaryModule } from './config/cloudinary.module';
+import { CloudinaryModule } from '../config/cloudinary.module';
 import { RatingModule } from './rating/rating.module';
 
 @Module({
@@ -42,7 +42,9 @@ import { RatingModule } from './rating/rating.module';
                 username: configService.get('POSTGRES_USER', 'postgres'),
                 password: configService.get('POSTGRES_PASSWORD', 'postgres'),
                 database: configService.get('POSTGRES_NAME', 'pc_ecommerce'),
-                entities: [/* Manually specify entities here if autoLoadEntities is false */],
+                entities: [
+                    /* Manually specify entities here if autoLoadEntities is false */
+                ],
                 autoLoadEntities: true,
                 synchronize: true, // Set to false in production
             }),

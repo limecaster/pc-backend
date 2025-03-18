@@ -5,7 +5,7 @@ import {
     ManyToOne,
     CreateDateColumn,
     UpdateDateColumn,
-    JoinColumn
+    JoinColumn,
 } from 'typeorm';
 import { Customer } from './customer.entity';
 
@@ -35,7 +35,9 @@ export class Address {
     @Column({ default: false })
     isDefault: boolean;
 
-    @ManyToOne(() => Customer, customer => customer.addresses, { onDelete: 'CASCADE' })
+    @ManyToOne(() => Customer, (customer) => customer.addresses, {
+        onDelete: 'CASCADE',
+    })
     @JoinColumn({ name: 'customer_id' })
     customer: Customer;
 

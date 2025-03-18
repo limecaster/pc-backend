@@ -42,7 +42,7 @@ export class CartService {
         params: { [key: string]: any },
     ): Promise<any> {
         const result = await session.run(query, params);
-        return result
+        return result;
     }
 
     async getCart(userId: number): Promise<CartResponseDto> {
@@ -252,7 +252,9 @@ export class CartService {
         productId: string,
         quantity: number,
     ): Promise<CartResponseDto> {
-        this.logger.debug(`Updating cart item for user ${userId}, product ${productId}, quantity ${quantity}`);
+        this.logger.debug(
+            `Updating cart item for user ${userId}, product ${productId}, quantity ${quantity}`,
+        );
 
         // Validate userId
         if (!userId) {
@@ -268,7 +270,9 @@ export class CartService {
             where: { id: productId },
         });
         if (!product) {
-            throw new NotFoundException(`Product with ID ${productId} not found`);
+            throw new NotFoundException(
+                `Product with ID ${productId} not found`,
+            );
         }
 
         // Find cart
@@ -282,9 +286,13 @@ export class CartService {
         }
 
         // Find item in cart
-        const existingItem = cart.items.find(item => item.productId === productId);
+        const existingItem = cart.items.find(
+            (item) => item.productId === productId,
+        );
         if (!existingItem) {
-            throw new NotFoundException(`Item with product ID ${productId} not found in cart`);
+            throw new NotFoundException(
+                `Item with product ID ${productId} not found in cart`,
+            );
         }
 
         // Update quantity and subprice
@@ -305,7 +313,9 @@ export class CartService {
         userId: number,
         productId: string,
     ): Promise<CartResponseDto> {
-        this.logger.debug(`Removing item from cart for user ${userId}, product ${productId}`);
+        this.logger.debug(
+            `Removing item from cart for user ${userId}, product ${productId}`,
+        );
 
         // Validate userId
         if (!userId) {
@@ -323,9 +333,13 @@ export class CartService {
         }
 
         // Find the item to remove
-        const itemToRemove = cart.items.find(item => item.productId === productId);
+        const itemToRemove = cart.items.find(
+            (item) => item.productId === productId,
+        );
         if (!itemToRemove) {
-            throw new NotFoundException(`Item with product ID ${productId} not found in cart`);
+            throw new NotFoundException(
+                `Item with product ID ${productId} not found in cart`,
+            );
         }
 
         // Remove the item
@@ -387,7 +401,9 @@ export class CartService {
             items: await Promise.all(
                 cart.items.map(async (item) => {
                     // Get image URL from Neo4j map or use default/fallback
-                    let imageUrl = imageUrlMap.get(item.productId) || '/images/image-placeholder.webp';
+                    let imageUrl =
+                        imageUrlMap.get(item.productId) ||
+                        '/images/image-placeholder.webp';
                     if (imageUrl.includes('pcbuilderus')) {
                         imageUrl = '/images/image-placeholder.webp';
                     }

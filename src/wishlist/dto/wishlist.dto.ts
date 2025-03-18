@@ -1,10 +1,10 @@
 export class AddToWishlistDto {
-  productId: string;
+    productId: string;
 }
 
 export class WishlistItemDto {
-  product_id: string;
-  name: string;
-  price: number;
-  imageUrl: string;
+    product_id: string;
+    name: string;
+    price: number;
+    imageUrl: string;
 }

@@ -1,15 +1,13 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, In, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Product } from './product.entity';
-import { PostgresConfigService } from '../../config/postgres.config';
-import { Neo4jConfigService } from '../../config/neo4j.config';
-import {
-    ProductDetailsDto,
-    ProductSpecDto,
-    ReviewDto,
-} from './dto/product-response.dto';
+import { ProductDetailsDto } from './dto/product-response.dto';
 import { UtilsService } from 'service/utils.service';
+import { ProductQueryService } from './services/product-query.service';
+import { ProductSpecificationService } from './services/product-specification.service';
+import { ProductRatingService } from './services/product-rating.service';
+import { ProductElasticsearchService } from './services/product-elasticsearch.service';
 
 @Injectable()
 export class ProductService {
@@ -18,91 +16,43 @@ export class ProductService {
     constructor(
         @InjectRepository(Product)
         private readonly productRepository: Repository<Product>,
-        private readonly postgresConfigService: PostgresConfigService,
-        private readonly neo4jConfigService: Neo4jConfigService,
+        private readonly productQueryService: ProductQueryService,
+        private readonly productSpecService: ProductSpecificationService,
+        private readonly productRatingService: ProductRatingService,
+        private readonly productElasticsearchService: ProductElasticsearchService,
         private readonly utilsService: UtilsService,
     ) {}
 
     async findBySlug(slug: string): Promise<ProductDetailsDto> {
-        const pool = this.postgresConfigService.getPool();
-        const driver = this.neo4jConfigService.getDriver();
-        const session = driver.session();
         try {
-            // Extract product ID from slug
-            const id = slug;
-            
-            // Use TypeORM to fetch product - add status filter
+            // Check if id is a valid UUID
+            if (!this.utilsService.isValidUUID(slug)) {
+                throw new NotFoundException(
+                    `Product with ID ${slug} not found`,
+                );
+            }
+
+            // Use TypeORM to fetch product
             const product = await this.productRepository.findOne({
-                where: { id, status: "active" }
+                where: { id: slug, status: 'active' },
             });
 
             if (!product) {
-                throw new NotFoundException(`Product with ID ${id} not found`);
+                throw new NotFoundException(
+                    `Product with ID ${slug} not found`,
+                );
             }
 
-            // Query to get product specifications
-            const specificationsQuery = `
-                MATCH (p {id: $id}) RETURN p AS product
-            `;
+            // Get specifications from Neo4j
+            const specifications =
+                await this.productSpecService.getSpecifications(slug);
 
-            const specificationsResult = await session.run(
-                specificationsQuery,
-                {
-                    id: id,
-                },
-            );
-            const specifications = specificationsResult.records.map(
-                (record) => {
-                    const properties = record.get('product').properties;
-                    for (const key in properties) {
-                        if (
-                        properties[key] &&
-                        typeof properties[key] === 'object' &&
-                        'low' in properties[key] &&
-                        'high' in properties[key]
-                        ) {
-                        properties[key] = this.utilsService.combineLowHigh(
-                            properties[key].low,
-                            properties[key].high,
-                        );
-                        }
-                    }
-                    return properties;
-                },
-            )[0] as ProductSpecDto;
+            // Get reviews
+            const reviews = await this.productRatingService.getReviews(slug);
 
-            // Query to get product reviews
-            const reviewsQuery = `
-                SELECT 
-                rc.id, 
-                CONCAT(c.firstname, ' ', c.lastname) as username,
-                rc.stars as rating,
-                TO_CHAR(rc.created_at, 'DD/MM/YYYY') as date,
-                rc.comment as content,
-                c.avatar
-                FROM 
-                "Rating_Comment" rc
-                JOIN 
-                "Customer" c ON rc.customer_id = c.id
-                WHERE 
-                rc.product_id = $1
-                ORDER BY 
-                rc.created_at DESC
-            `;
-
-            const reviewsResult = await pool.query(reviewsQuery, [id]);
-            const reviews = reviewsResult.rows as ReviewDto[];
-
-            // Calculate average rating
-            const avgRatingQuery = `
-                SELECT AVG(stars) as avg_rating, COUNT(*) as count
-                FROM "Rating_Comment"
-                WHERE product_id = $1
-            `;
-
-            const ratingResult = await pool.query(avgRatingQuery, [id]);
-            const rating = ratingResult.rows[0].avg_rating || 0;
-            const reviewCount = parseInt(ratingResult.rows[0].count) || 0;
+            // Get rating
+            const { rating, reviewCount } =
+                await this.productRatingService.getRating(slug);
 
             // Parse additional images if they exist
             let additionalImages = [];
@@ -110,12 +60,12 @@ export class ProductService {
                 try {
                     additionalImages = JSON.parse(product.additional_images);
                 } catch (e) {
-                    console.error('Error parsing additional images:', e);
+                    this.logger.error('Error parsing additional images:', e);
                 }
             }
-            
+
             // Map database result to DTO
-            const productDetails: ProductDetailsDto = {
+            return {
                 id: product.id.toString(),
                 name: product.name,
                 price: parseFloat(product.price.toString()),
@@ -125,7 +75,7 @@ export class ProductService {
                 discount: product.discount
                     ? parseFloat(product.discount.toString())
                     : undefined,
-                rating: parseFloat(rating) || 0,
+                rating: rating,
                 reviewCount: reviewCount,
                 description: product.description || '',
                 additionalInfo: product.additionalInfo || undefined,
@@ -140,219 +90,144 @@ export class ProductService {
                 color: product.color || undefined,
                 size: product.size || undefined,
             };
-
-            return productDetails;
         } catch (error) {
             if (error instanceof NotFoundException) {
                 throw error;
             }
-            console.error('Error fetching product:', error);
+            this.logger.error(`Error fetching product: ${error.message}`);
             throw new Error('Failed to fetch product details');
-        } finally {
-            if (session) await session.close();
         }
     }
 
     async findByCategory(
-        category?: string, 
-        page: number = 1, 
+        category?: string,
+        page: number = 1,
         limit: number = 12,
         brands?: string[],
         minPrice?: number,
         maxPrice?: number,
-        minRating?: number
+        minRating?: number,
+        subcategoryFilters?: Record<string, string[]>,
     ): Promise<{
-        products: ProductDetailsDto[],
-        total: number,
-        pages: number,
-        page: number
+        products: ProductDetailsDto[];
+        total: number;
+        pages: number;
+        page: number;
     }> {
-        const pool = this.postgresConfigService.getPool();
-        const driver = this.neo4jConfigService.getDriver();
-        const session = driver.session();
-        
         try {
-            // Calculate offset for pagination
-            const offset = (page - 1) * limit;
-            
-            // Get product IDs that meet the rating filter if a minimum rating is specified
+            // Get product IDs that meet the rating filter if specified
             let ratingFilteredIds: string[] | null = null;
             if (minRating !== undefined && minRating > 0) {
-                const ratingQuery = `
-                    SELECT product_id, AVG(stars) as avg_rating
-                    FROM "Rating_Comment"
-                    GROUP BY product_id
-                    HAVING AVG(stars) >= $1
-                `;
-                const ratingResult = await pool.query(ratingQuery, [minRating]);
-                ratingFilteredIds = ratingResult.rows.map(row => row.product_id);
-                
-                // If no products meet the rating criteria, return empty results
+                ratingFilteredIds =
+                    await this.productRatingService.getProductIdsByMinRating(
+                        minRating,
+                    );
+
                 if (ratingFilteredIds.length === 0) {
-                    return {
-                        products: [],
-                        total: 0,
-                        pages: 0,
-                        page: page
-                    };
+                    return { products: [], total: 0, pages: 0, page };
                 }
             }
-            
-            // If no brand filter, use standard category filtering
-            if (!brands || brands.length === 0) {
-                // Build where clause with category and price filters
-                const whereClause: any = category ? { category, status: "active" } : { status: "active" };
-                
-                // Add price filtering if provided
-                if (minPrice !== undefined && maxPrice !== undefined) {
-                    whereClause.price = Between(minPrice, maxPrice);
-                } else if (minPrice !== undefined) {
-                    whereClause.price = MoreThanOrEqual(minPrice);
-                } else if (maxPrice !== undefined) {
-                    whereClause.price = LessThanOrEqual(maxPrice);
-                }
-                
-                // Add rating filter if provided
-                if (ratingFilteredIds) {
-                    whereClause.id = In(ratingFilteredIds);
-                }
-                
-                // Get total count for pagination
-                const totalCount = await this.productRepository.count({
-                    where: whereClause
-                });
-                
-                // Get paginated products from PostgreSQL
-                const products = await this.productRepository.find({
-                    where: whereClause,
-                    order: { createdAt: 'DESC' },
-                    skip: offset,
-                    take: limit
-                });
-                
-                const productDetails = await this.enrichProductsWithDetails(products, session, pool);
-                
-                return {
-                    products: productDetails,
-                    total: totalCount,
-                    pages: Math.ceil(totalCount / limit),
-                    page: page
-                };
-            }
-            
-            // If we have brand filters, use a more efficient approach
-            // First, get product IDs from Neo4j that match the brand filter
-            const brandsParam = brands.map(brand => `"${brand}"`).join(', ');
-            const neo4jQuery = `
-                MATCH (p)
-                WHERE p.manufacturer IN [${brandsParam}]
-                ${category ? 'AND $category IN labels(p)' : ''}
-                RETURN p.id AS id
-            `;
-            
-            const neo4jResult = await session.run(
-                neo4jQuery,
-                { category: category }
-            );
-            
-            // Extract IDs from Neo4j result
-            const matchingIds = neo4jResult.records.map(record => record.get('id'));
-            
-            // If no matching products found
-            if (matchingIds.length === 0) {
-                return {
-                    products: [],
-                    total: 0,
-                    pages: 0,
-                    page: page
-                };
-            }
-            
-            // Query PostgreSQL with these IDs
-            const whereClause: any = { id: In(matchingIds), status: "active" };
-            if (category) {
-                whereClause.category = category;
-            }
-            
+
+            // Build price filter
+            const whereClause: any = {};
+
             // Add price filtering if provided
-            if (minPrice !== undefined && maxPrice !== undefined) {
-                whereClause.price = Between(minPrice, maxPrice);
-            } else if (minPrice !== undefined) {
-                whereClause.price = MoreThanOrEqual(minPrice);
-            } else if (maxPrice !== undefined) {
-                whereClause.price = LessThanOrEqual(maxPrice);
+            if (minPrice !== undefined) {
+                whereClause.price_gte = minPrice;
             }
-            
-            // Add rating filter if provided
-            if (ratingFilteredIds) {
-                // We need to ensure products match both brand and rating criteria
-                whereClause.id = In(matchingIds.filter(id => ratingFilteredIds.includes(id)));
+
+            if (maxPrice !== undefined) {
+                whereClause.price_lte = maxPrice;
             }
-            
-            const totalCount = await this.productRepository.count({
-                where: whereClause
-            });
-            
-            const products = await this.productRepository.find({
-                where: whereClause,
-                order: { createdAt: 'DESC' },
-                skip: offset,
-                take: limit
-            });
-            
-            const productDetails = await this.enrichProductsWithDetails(products, session, pool);
-            
+
+            // Handle subcategory filters if provided
+            let subcategoryFilteredIds: string[] | undefined;
+            if (
+                subcategoryFilters &&
+                Object.keys(subcategoryFilters).length > 0
+            ) {
+                subcategoryFilteredIds =
+                    await this.productSpecService.getProductIdsBySubcategoryFilters(
+                        category,
+                        subcategoryFilters,
+                        brands,
+                    );
+
+                if (subcategoryFilteredIds.length === 0) {
+                    return { products: [], total: 0, pages: 0, page };
+                }
+            }
+            // Handle brand filters if provided
+            else if (brands && brands.length > 0) {
+                const brandFilteredIds =
+                    await this.productSpecService.getProductIdsByBrands(
+                        brands,
+                        category,
+                    );
+
+                if (brandFilteredIds.length === 0) {
+                    return { products: [], total: 0, pages: 0, page };
+                }
+
+                // If we also have rating filter, ensure products match both criteria
+                if (ratingFilteredIds) {
+                    whereClause.id_in = brandFilteredIds.filter((id) =>
+                        ratingFilteredIds.includes(id),
+                    );
+                } else {
+                    whereClause.id_in = brandFilteredIds;
+                }
+            }
+            // If only rating filter is provided
+            else if (ratingFilteredIds) {
+                whereClause.id_in = ratingFilteredIds;
+            }
+
+            // Query for products with filters
+            const result = await this.productQueryService.findByCategory(
+                category,
+                page,
+                limit,
+                whereClause,
+                subcategoryFilteredIds,
+            );
+
+            // Enrich products with details
+            const productDetails = await this.enrichProductsWithDetails(
+                result.products,
+            );
+
             return {
                 products: productDetails,
-                total: totalCount,
-                pages: Math.ceil(totalCount / limit),
-                page: page
+                total: result.total,
+                pages: result.pages,
+                page: result.page,
             };
         } catch (error) {
-            console.error('Error fetching products by category:', error);
-            throw new Error('Failed to fetch products by category');
-        } finally {
-            if (session) await session.close();
+            this.logger.error(
+                `Error finding products by category: ${error.message}`,
+            );
+            throw new Error('Failed to find products by category');
         }
     }
-    
+
     // Helper to enrich products with Neo4j details and ratings
     private async enrichProductsWithDetails(
-        products: Product[], 
-        session: any, 
-        pool: any
+        products: Product[],
     ): Promise<ProductDetailsDto[]> {
         const productDetails: ProductDetailsDto[] = [];
-        
+
         for (const product of products) {
-            const specificationsQuery = `
-                MATCH (p {id: $id}) RETURN p AS product
-            `;
-
-            const specificationsResult = await session.run(
-                specificationsQuery,
-                { id: product.id }
-            );
-            
-            const specifications = specificationsResult.records.map(
-                (record) => record.get('product').properties
-            )[0] as ProductSpecDto;
-
-            const avgRatingQuery = `
-                SELECT AVG(stars) as avg_rating, COUNT(*) as count
-                FROM "Rating_Comment"
-                WHERE product_id = $1
-            `;
-
-            const ratingResult = await pool.query(avgRatingQuery, [product.id]);
-            const rating = ratingResult.rows[0].avg_rating || 0;
-            const reviewCount = parseInt(ratingResult.rows[0].count) || 0;
+            const specifications =
+                await this.productSpecService.getSpecifications(product.id);
+            const { rating, reviewCount } =
+                await this.productRatingService.getRating(product.id);
 
             productDetails.push({
                 id: product.id.toString(),
                 name: product.name,
                 price: parseFloat(product.price.toString()),
-                rating: parseFloat(rating) || 0,
+                rating: rating,
                 reviewCount: reviewCount,
                 imageUrl: specifications['imageUrl'] || '',
                 description: product.description || '',
@@ -360,599 +235,466 @@ export class ProductService {
                 brand: specifications['manufacturer'] || '',
                 sku: product.id || '',
                 stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
-                category: product.category || ''
+                category: product.category || '',
             });
         }
-        
+
         return productDetails;
     }
 
-    async findByName(name: string): Promise<ProductDetailsDto[]> {
-        const pool = this.postgresConfigService.getPool();
-        const driver = this.neo4jConfigService.getDriver();
-        const session = driver.session();
-        try {
-            // Use TypeORM to fetch products by exact name - add status filter
-            const products = await this.productRepository.find({
-                where: { name, status: "active" },
-                order: { createdAt: 'DESC' }
-            });
-
-            const productDetails: ProductDetailsDto[] = [];
-
-            for (const product of products) {
-                const specificationsQuery = `
-                    MATCH (p {id: $id}) RETURN p AS product
-                `;
-
-                const specificationsResult = await session.run(
-                    specificationsQuery,
-                    { id: product.id }
-                );
-
-                const specifications = specificationsResult.records.map(
-                    (record) => record.get('product').properties,
-                )[0] as ProductSpecDto;
-
-                const avgRatingQuery = `
-                    SELECT AVG(stars) as avg_rating, COUNT(*) as count
-                    FROM "Rating_Comment"
-                    WHERE product_id = $1
-                `;
-
-                const ratingResult = await pool.query(avgRatingQuery, [product.id]);
-                const rating = ratingResult.rows[0].avg_rating || 0;
-                const reviewCount = parseInt(ratingResult.rows[0].count) || 0;
-
-                productDetails.push({
-                    id: product.id.toString(),
-                    name: product.name,
-                    price: parseFloat(product.price.toString()),
-                    rating: parseFloat(rating) || 0,
-                    reviewCount: reviewCount,
-                    imageUrl: specifications['imageUrl'] || '',
-                    description: product.description || '',
-                    specifications: specifications || undefined,
-                    sku: product.id || '',
-                    stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
-                    brand: specifications['manufacturer'] || '',
-                    category: product.category || ''
-                });
-            }
-
-            return productDetails;
-        } catch (error) {
-            console.error('Error fetching products by name:', error);
-            throw new Error('Failed to fetch products by name');
-        } finally {
-            if (session) await session.close();
-        }
+    // Delegate methods to specialized services
+    async getAllBrands(): Promise<string[]> {
+        return this.productSpecService.getAllBrands();
     }
 
-    async importProductsFromNeo4j(): Promise<{
-        success: boolean;
-        count: number;
-        message: string;
-    }> {
-        const neo4jDriver = this.neo4jConfigService.getDriver();
-        const session = neo4jDriver.session();
-        let importedCount = 0;
-        try {
-            // Query Neo4j for product data (id, name, price, category)
-            const result = await session.run(
-                'MATCH (p) RETURN p.id AS id, p.name AS name, p.price AS price, labels(p) AS category',
-            );
+    async getAllCategories(): Promise<string[]> {
+        return this.productQueryService.getAllCategories();
+    }
 
-            // Check if products were found
-            if (result.records.length === 0) {
-                return {
-                    success: false,
-                    count: 0,
-                    message: 'No products found in Neo4j database',
-                };
-            }
-
-            for (const record of result.records) {
-                const id = record.get('id');
-                const name = record.get('name');
-                const price = parseFloat(record.get('price'));
-                const category = record.get('category')[0]; // Assuming the first label is the category
-
-                // Check if product already exists in PostgreSQL by ID
-                const existingProduct = await this.productRepository.findOne({
-                    where: { id }
-                });
-
-                if (existingProduct) {
-                    // Update existing product
-                    existingProduct.name = name;
-                    existingProduct.price = price;
-                    existingProduct.category = category;
-                    await this.productRepository.save(existingProduct);
-                } else {
-                    // Create new product
-                    const newProduct = this.productRepository.create({
-                        id,
-                        name,
-                        price,
-                        stockQuantity: 0,
-                        status: 'active',
-                        category
-                    });
-                    await this.productRepository.save(newProduct);
-                }
-                importedCount++;
-            }
-
-            return {
-                success: true,
-                count: importedCount,
-                message: `Successfully imported ${importedCount} products from Neo4j to PostgreSQL`,
-            };
-        } catch (error) {
-            console.error('Error importing products from Neo4j:', error);
-            throw new Error('Failed to import products from Neo4j');
-        } finally {
-            await session.close();
-        }
+    async getSubcategoryValues(
+        category: string,
+        subcategory: string,
+    ): Promise<string[]> {
+        return this.productSpecService.getSubcategoryValues(
+            category,
+            subcategory,
+        );
     }
 
     async getLandingPageProducts(): Promise<ProductDetailsDto[]> {
-        const pool = this.postgresConfigService.getPool();
-        const driver = this.neo4jConfigService.getDriver();
-        const session = driver.session();
-        try {
-            // Use TypeORM to fetch products - add status filter
-            const products = await this.productRepository.find({
-                where: { status: "active" },
-                order: { createdAt: 'DESC' },
-                take: 8
-            });
-            const productDetails: ProductDetailsDto[] = [];
-            for (const product of products) {
-                const specificationsQuery = `
-                    MATCH (p {id: $id}) RETURN p AS product
-                `;
+        const products =
+            await this.productQueryService.getLandingPageProducts();
+        return this.enrichProductsWithDetails(products);
+    }
 
-                const specificationsResult = await session.run(
-                    specificationsQuery,
-                    { id: product.id }
-                );
+    async findAllProductsForAdmin(
+        page: number = 1,
+        limit: number = 12,
+        sortBy: string = 'createdAt',
+        sortOrder: 'ASC' | 'DESC' = 'DESC',
+    ): Promise<{
+        products: ProductDetailsDto[];
+        total: number;
+        pages: number;
+        page: number;
+    }> {
+        const result = await this.productQueryService.findAllProductsForAdmin(
+            page,
+            limit,
+            sortBy,
+            sortOrder,
+        );
 
-                const specifications = specificationsResult.records.map(
-                    (record) => record.get('product').properties,
-                )[0] as ProductSpecDto;
+        const productDetails = await this.enrichProductsWithDetails(
+            result.products,
+        );
 
-                const avgRatingQuery = `
-                    SELECT AVG(stars) as avg_rating, COUNT(*) as count
-                    FROM "Rating_Comment"
-                    WHERE product_id = $1
-                `;
-
-                const ratingResult = await pool.query(avgRatingQuery, [product.id]);
-                const rating = ratingResult.rows[0].avg_rating || 0;
-                const reviewCount = parseInt(ratingResult.rows[0].count) || 0;
-                productDetails.push({
-                    id: product.id.toString(),
-                    name: product.name,
-                    price: parseFloat(product.price.toString()),
-                    rating: parseFloat(rating) || 0,
-                    reviewCount: reviewCount,
-                    imageUrl: specifications['imageUrl'] || '',
-                    description: product.description || '',
-                    specifications: specifications || undefined,
-                    sku: product.id || '',
-                    stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
-                    brand: specifications['manufacturer'] || '',
-                    category: product.category || ''
-                });
-            }
-            return productDetails;
-        } catch (error) {
-            console.error('Error fetching landing page products:', error);
-            throw new Error('Failed to fetch landing page products');
-        } finally {
-            if (session) await session.close();
-        }
+        return {
+            products: productDetails,
+            total: result.total,
+            pages: result.pages,
+            page: result.page,
+        };
     }
 
     async searchByName(
-        query: string, 
-        page: number = 1, 
+        query: string,
+        page: number = 1,
         limit: number = 12,
         brands?: string[],
         minPrice?: number,
         maxPrice?: number,
-        minRating?: number
+        minRating?: number,
     ): Promise<{
-        products: ProductDetailsDto[],
-        total: number,
-        pages: number,
-        page: number
+        products: ProductDetailsDto[];
+        total: number;
+        pages: number;
+        page: number;
     }> {
         try {
             if (!query || query.trim() === '') {
-                return {
-                    products: [],
-                    total: 0,
-                    pages: 0,
-                    page: page
-                };
+                return { products: [], total: 0, pages: 0, page };
             }
-            
-            const pool = this.postgresConfigService.getPool();
-            const driver = this.neo4jConfigService.getDriver();
-            const session = driver.session();
-            
-            try {
-                // Get product IDs that meet the rating filter if a minimum rating is specified
-                let ratingFilteredIds: string[] | null = null;
+
+            // Try special pattern matching first (RTX 3050, etc)
+            const enhancedSearchResults = await this.handleEnhancedSearch(
+                query,
+                page,
+                limit,
+            );
+            if (enhancedSearchResults) {
+                return enhancedSearchResults;
+            }
+
+            // Fall back to Elasticsearch for general searches
+            const esResults = await this.productElasticsearchService.search(
+                query,
+                {
+                    page,
+                    limit,
+                    minPrice,
+                    maxPrice,
+                    brands,
+                },
+            );
+
+            if (esResults.total > 0) {
+                // Get product IDs from Elasticsearch results
+                const productIds = esResults.hits.map((hit) => hit.id);
+
+                // Fetch full products from database
+                const whereClause = { id: In(productIds) };
+
+                // If minRating is provided, apply as additional filter
                 if (minRating !== undefined && minRating > 0) {
-                    const ratingQuery = `
-                        SELECT product_id, AVG(stars) as avg_rating
-                        FROM "Rating_Comment"
-                        GROUP BY product_id
-                        HAVING AVG(stars) >= $1
-                    `;
-                    const ratingResult = await pool.query(ratingQuery, [minRating]);
-                    ratingFilteredIds = ratingResult.rows.map(row => row.product_id);
-                    
-                    // If no products meet the rating criteria, return empty results
+                    const ratingFilteredIds =
+                        await this.productRatingService.getProductIdsByMinRating(
+                            minRating,
+                        );
+
                     if (ratingFilteredIds.length === 0) {
-                        return {
-                            products: [],
-                            total: 0,
-                            pages: 0,
-                            page: page
-                        };
+                        return { products: [], total: 0, pages: 0, page };
                     }
+
+                    // Only include products that meet rating threshold
+                    whereClause.id = In(
+                        productIds.filter((id) =>
+                            ratingFilteredIds.includes(id),
+                        ),
+                    );
                 }
-                
-                // If no brand filter, use standard search
-                if (!brands || brands.length === 0) {
-                    const whereClause: any = { name: ILike(`%${query}%`), status: "active" };
-                    
-                    // Add rating filter if provided
-                    if (ratingFilteredIds) {
-                        whereClause.id = In(ratingFilteredIds);
-                    }
-                    
-                    const totalCount = await this.productRepository.count({
-                        where: whereClause
-                    });
-                    
-                    const products = await this.productRepository.find({
-                        where: whereClause,
-                        order: { createdAt: 'DESC' },
-                        skip: (page - 1) * limit,
-                        take: limit
-                    });
-                    
-                    const productDetails = await this.enrichProductsWithDetails(products, session, pool);
-                    
-                    return {
-                        products: productDetails,
-                        total: totalCount,
-                        pages: Math.ceil(totalCount / limit),
-                        page: page
-                    };
-                }
-                
-                // If we have brand filters, optimize the query
-                // First, get all matching product IDs from Neo4j by brand
-                const brandsParam = brands.map(brand => `"${brand}"`).join(', ');
-                const neo4jQuery = `
-                    MATCH (p)
-                    WHERE p.manufacturer IN [${brandsParam}]
-                    RETURN p.id AS id
-                `;
-                
-                const neo4jResult = await session.run(neo4jQuery);
-                const matchingIds = neo4jResult.records.map(record => record.get('id'));
-                
-                // If no matching products found
-                if (matchingIds.length === 0) {
-                    return {
-                        products: [],
-                        total: 0,
-                        pages: 0,
-                        page: page
-                    };
-                }
-                
-                // Now query PostgreSQL with these IDs and the search term
-                const whereClause: any = {
-                    id: In(matchingIds),
-                    name: ILike(`%${query}%`),
-                    status: "active"
-                };
-                
-                // Add price filtering if provided
-                if (minPrice !== undefined && maxPrice !== undefined) {
-                    whereClause.price = Between(minPrice, maxPrice);
-                } else if (minPrice !== undefined) {
-                    whereClause.price = MoreThanOrEqual(minPrice);
-                } else if (maxPrice !== undefined) {
-                    whereClause.price = LessThanOrEqual(maxPrice);
-                }
-                
-                // Add rating filter if provided
-                if (ratingFilteredIds) {
-                    // We need to ensure products match both brand and rating criteria
-                    whereClause.id = In(matchingIds.filter(id => ratingFilteredIds.includes(id)));
-                }
-                
-                const totalCount = await this.productRepository.count({
-                    where: whereClause
-                });
-                
+
+                // Get products from DB in the same order as Elasticsearch results
                 const products = await this.productRepository.find({
                     where: whereClause,
-                    order: { createdAt: 'DESC' },
-                    skip: (page - 1) * limit,
-                    take: limit
                 });
-                
-                const productDetails = await this.enrichProductsWithDetails(products, session, pool);
-                
+
+                // Sort products in the same order as Elasticsearch results
+                const sortedProducts = productIds
+                    .map((id) => products.find((product) => product.id === id))
+                    .filter(Boolean);
+
+                // Enrich with details
+                const productDetails =
+                    await this.enrichProductsWithDetails(sortedProducts);
+
                 return {
                     products: productDetails,
-                    total: totalCount,
-                    pages: Math.ceil(totalCount / limit),
-                    page: page
+                    total: esResults.total,
+                    pages: Math.ceil(esResults.total / limit),
+                    page,
                 };
-            } finally {
-                if (session) await session.close();
-            }
-        } catch (error) {
-            throw new Error(`Failed to search products: ${error.message}`);
-        }
-    }
-
-    async getAllBrands(): Promise<string[]> {
-        const driver = this.neo4jConfigService.getDriver();
-        const session = driver.session();
-        
-        try {
-            const result = await session.run(`
-                MATCH (p) 
-                WHERE p.manufacturer IS NOT NULL
-                RETURN DISTINCT p.manufacturer AS brand
-                ORDER BY brand
-            `);
-            
-            return result.records.map(record => record.get('brand'));
-        } catch (error) {
-            console.error('Error fetching brands:', error);
-            throw new Error('Failed to fetch brands');
-        } finally {
-            await session.close();
-        }
-    }
-
-    async createProduct(productData: any): Promise<any> {
-        try {
-            // Create product in PostgreSQL database - fix property naming to match entity definition
-            const product = this.productRepository.create({
-                id: productData.id, // Make sure ID is properly handled
-                name: productData.name,
-                description: productData.description,
-                price: productData.price,
-                stockQuantity: productData.stock_quantity, // Ensure this matches entity
-                status: productData.status || 'active',
-                category: productData.category,
-                // These properties might need to be adjusted based on your actual entity definition
-                // Remove properties that don't exist in your Product entity
-                // Add any required properties that might be missing
-            });
-        
-            const savedProduct = await this.productRepository.save(product);
-        
-            // If Neo4j integration is being used, store the product there too
-            try {
-                // Store the product in Neo4j with the Cloudinary image URLs
-                await this.storeProductInNeo4j({
-                    ...savedProduct,
-                    images: productData.images || [],
-                    thumbnail: productData.thumbnail || null,
-                    specifications: productData.specifications || {},
-                });
-            } catch (neoError) {
-                console.error(`Failed to save product in Neo4j: ${neoError.message}`);
-                // Continue even if Neo4j storage fails
-            }
-        
-            return {
-                success: true,
-                product: savedProduct,
-            };
-        } catch (error) {
-            console.error(`Failed to create product: ${error.message}`);
-            throw error;
-        }
-    }
-    
-    // Add a method to store product in Neo4j
-    private async storeProductInNeo4j(product: any): Promise<void> {
-        // This is a placeholder for your actual Neo4j integration code
-        // You would need to inject your Neo4j service and call the appropriate methods
-        
-        // Example pseudo-code:
-        // const cypher = `
-        //   MERGE (p:Product {id: $id})
-        //   SET p.name = $name, 
-        //       p.description = $description,
-        //       p.price = $price,
-        //       p.category = $category,
-        //       p.thumbnail = $thumbnail,
-        //       p.images = $images,
-        //       p.specifications = $specifications
-        // `;
-        // await this.neo4jService.write(cypher, {
-        //   id: product.id,
-        //   name: product.name,
-        //   description: product.description,
-        //   price: product.price,
-        //   category: product.category,
-        //   thumbnail: product.thumbnail,
-        //   images: product.images,
-        //   specifications: product.specifications
-        // });
-        
-        // For now, just log the attempt
-        this.logger.log(`Storing product ${product.id} in Neo4j with images: ${product.images?.length || 0}`);
-    }
-
-    async getAllCategories(): Promise<string[]> {
-        try {
-            const result = await this.productRepository
-                .createQueryBuilder('product')
-                .select('DISTINCT product.category', 'category')
-                .where('product.category IS NOT NULL')
-                .orderBy('category', 'ASC')
-                .getRawMany();
-            
-            return result.map(item => item.category);
-        } catch (error) {
-            this.logger.error('Error fetching categories:', error);
-            throw new Error('Failed to fetch categories');
-        }
-    }
-
-    async findAllProductsForAdmin(
-        page: number = 1, 
-        limit: number = 12,
-        sortBy: string = 'createdAt',
-        sortOrder: 'ASC' | 'DESC' = 'DESC'
-    ): Promise<{
-        products: ProductDetailsDto[],
-        total: number,
-        pages: number,
-        page: number
-    }> {
-        const pool = this.postgresConfigService.getPool();
-        const driver = this.neo4jConfigService.getDriver();
-        const session = driver.session();
-        
-        try {
-            // Calculate offset for pagination
-            const offset = (page - 1) * limit;
-            
-            // Get total count for pagination - no status filter
-            const totalCount = await this.productRepository.count();
-            
-            // Get paginated products from PostgreSQL - no status filter
-            const products = await this.productRepository.find({
-                order: { [sortBy]: sortOrder },
-                skip: offset,
-                take: limit
-            });
-            
-            const productDetails = await this.enrichProductsWithDetails(products, session, pool);
-            
-            return {
-                products: productDetails,
-                total: totalCount,
-                pages: Math.ceil(totalCount / limit),
-                page: page
-            };
-        } catch (error) {
-            this.logger.error('Error fetching products for admin:', error);
-            throw new Error('Failed to fetch products for admin');
-        } finally {
-            if (session) await session.close();
-        }
-    }
-
-    async findByIdForAdmin(id: string): Promise<ProductDetailsDto> {
-        const pool = this.postgresConfigService.getPool();
-        const driver = this.neo4jConfigService.getDriver();
-        const session = driver.session();
-        try {
-            // Get product without status filter for admin view
-            const product = await this.productRepository.findOne({
-                where: { id }
-            });
-
-            if (!product) {
-                throw new NotFoundException(`Product with ID ${id} not found`);
             }
 
-            // Query to get product specifications
-            const specificationsQuery = `
-                MATCH (p {id: $id}) RETURN p AS product
-            `;
-
-            const specificationsResult = await session.run(
-                specificationsQuery,
-                { id }
+            // No results from Elasticsearch, fall back to database search
+            return await this.legacySearchByName(
+                query,
+                page,
+                limit,
+                brands,
+                minPrice,
+                maxPrice,
+                minRating,
             );
-            
-            const specifications = specificationsResult.records.map(
-                (record) => {
-                    const properties = record.get('product').properties;
-                    for (const key in properties) {
-                        if (
-                        properties[key] &&
-                        typeof properties[key] === 'object' &&
-                        'low' in properties[key] &&
-                        'high' in properties[key]
-                        ) {
-                        properties[key] = this.utilsService.combineLowHigh(
-                            properties[key].low,
-                            properties[key].high,
-                        );
-                        }
-                    }
-                    return properties;
-                },
-            )[0] as ProductSpecDto;
+        } catch (error) {
+            this.logger.error(
+                `Error searching products by name: ${error.message}`,
+            );
+            // Fall back to legacy search if Elasticsearch fails
+            return await this.legacySearchByName(
+                query,
+                page,
+                limit,
+                brands,
+                minPrice,
+                maxPrice,
+                minRating,
+            );
+        }
+    }
 
-            // Parse additional images if they exist
-            let additionalImages = [];
-            if (product.additional_images) {
-                try {
-                    additionalImages = JSON.parse(product.additional_images);
-                } catch (e) {
-                    console.error('Error parsing additional images:', e);
+    // Legacy search method using database directly
+    private async legacySearchByName(
+        query: string,
+        page: number = 1,
+        limit: number = 12,
+        brands?: string[],
+        minPrice?: number,
+        maxPrice?: number,
+        minRating?: number,
+    ): Promise<{
+        products: ProductDetailsDto[];
+        total: number;
+        pages: number;
+        page: number;
+    }> {
+        try {
+            // Build standard filters
+            const whereClause: any = {};
+
+            // Add price filtering if provided
+            if (minPrice !== undefined) {
+                whereClause.price_gte = minPrice;
+            }
+
+            if (maxPrice !== undefined) {
+                whereClause.price_lte = maxPrice;
+            }
+
+            // Handle brand filters if provided
+            if (brands && brands.length > 0) {
+                const brandFilteredIds =
+                    await this.productSpecService.getProductIdsByBrands(brands);
+
+                if (brandFilteredIds.length === 0) {
+                    return { products: [], total: 0, pages: 0, page };
+                }
+
+                // If we also have rating filter, ensure products match both criteria
+                if (minRating !== undefined && minRating > 0) {
+                    const ratingFilteredIds =
+                        await this.productRatingService.getProductIdsByMinRating(
+                            minRating,
+                        );
+
+                    if (ratingFilteredIds.length === 0) {
+                        return { products: [], total: 0, pages: 0, page };
+                    }
+
+                    whereClause.id_in = brandFilteredIds.filter((id) =>
+                        ratingFilteredIds.includes(id),
+                    );
+                } else {
+                    whereClause.id_in = brandFilteredIds;
                 }
             }
-            
-            // Return with stock_quantity for admin editing
-            const productDetails: ProductDetailsDto = {
-                id: product.id.toString(),
-                name: product.name,
-                price: parseFloat(product.price.toString()),
-                originalPrice: product.originalPrice
-                    ? parseFloat(product.originalPrice.toString())
-                    : undefined,
-                discount: product.discount
-                    ? parseFloat(product.discount.toString())
-                    : undefined,
-                rating: 0, // Admin view doesn't need ratings computation
-                reviewCount: 0,
-                status: product.status,
-                stockQuantity: product.stockQuantity,
-                description: product.description || '',
-                additionalInfo: product.additionalInfo || undefined,
-                imageUrl: specifications['imageUrl'] || '',
-                additionalImages: additionalImages,
-                specifications: specifications || undefined,
-                sku: product.id || '',
-                brand: specifications['manufacturer'] || '',
-                category: product.category || '',
-                stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
-            };
+            // If only rating filter is provided
+            else if (minRating !== undefined && minRating > 0) {
+                const ratingFilteredIds =
+                    await this.productRatingService.getProductIdsByMinRating(
+                        minRating,
+                    );
 
-            return productDetails;
-        } catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
+                if (ratingFilteredIds.length === 0) {
+                    return { products: [], total: 0, pages: 0, page };
+                }
+
+                whereClause.id_in = ratingFilteredIds;
             }
-            this.logger.error(`Error fetching product for admin: ${error.message}`);
-            throw new Error('Failed to fetch product details');
-        } finally {
-            if (session) await session.close();
+
+            // Query for products with filters
+            const result = await this.productQueryService.searchByName(
+                query,
+                page,
+                limit,
+                whereClause,
+            );
+
+            // Enrich products with details
+            const productDetails = await this.enrichProductsWithDetails(
+                result.products,
+            );
+
+            return {
+                products: productDetails,
+                total: result.total,
+                pages: result.pages,
+                page: result.page,
+            };
+        } catch (error) {
+            this.logger.error(`Error in legacy search: ${error.message}`);
+            throw new Error('Failed to search products by name');
+        }
+    }
+
+    // Add a new method to get search suggestions
+    async getSearchSuggestions(query: string): Promise<string[]> {
+        if (!query || query.trim().length < 2) {
+            return [];
+        }
+
+        try {
+            return await this.productElasticsearchService.getSuggestions(
+                query.trim(),
+            );
+        } catch (error) {
+            this.logger.error(
+                `Error getting search suggestions: ${error.message}`,
+            );
+            return [];
+        }
+    }
+
+    // Method to manually trigger reindexing (useful for admin panel)
+    async reindexProducts(): Promise<void> {
+        return this.productElasticsearchService.reindexAllProducts();
+    }
+
+    /**
+     * Handle enhanced search with product-specific terms
+     * This recognizes special search patterns like GPU models, CPU models, etc.
+     */
+    private async handleEnhancedSearch(
+        query: string,
+        page: number,
+        limit: number,
+    ): Promise<{
+        products: ProductDetailsDto[];
+        total: number;
+        pages: number;
+        page: number;
+    } | null> {
+        try {
+            // Normalize query to lowercase for case-insensitive matching
+            const normalizedQuery = query.toLowerCase();
+            this.logger.debug(`Enhanced search for query: ${normalizedQuery}`);
+
+            // GPU specific search patterns
+            const gpuRegex = /\b(rtx|gtx|rx)\s*(\d{4})\b/i;
+            const gpuMatch = normalizedQuery.match(gpuRegex);
+
+            if (gpuMatch) {
+                this.logger.debug(
+                    `GPU match found: ${JSON.stringify(gpuMatch)}`,
+                );
+                const gpuSeries = gpuMatch[1].toUpperCase(); // RTX, GTX, RX
+                const gpuModel = gpuMatch[2]; // Model number (e.g., 3050, 4070)
+
+                // We'll search for both patterns in chipset:
+                // 1. The exact model number (3050)
+                // 2. The series and model together (RTX 3050)
+                const searchPattern = `${gpuSeries}.*${gpuModel}`;
+                this.logger.debug(
+                    `Searching for GPU pattern: ${searchPattern}`,
+                );
+
+                try {
+                    // Get product IDs from Neo4j that match this chipset
+                    const matchingIds =
+                        await this.productSpecService.getProductIdsBySubcategoryFilters(
+                            'GraphicsCard',
+                            { chipset: [searchPattern] },
+                            undefined,
+                            true, // Enable pattern matching
+                        );
+
+                    this.logger.debug(
+                        `Found ${matchingIds.length} matching GPU IDs`,
+                    );
+
+                    if (matchingIds && matchingIds.length > 0) {
+                        // Use these IDs to fetch products from relational DB
+                        const whereClause = { id: In(matchingIds) };
+                        const result =
+                            await this.productQueryService.findByCategory(
+                                'GraphicsCard',
+                                page,
+                                limit,
+                                whereClause,
+                            );
+
+                        // Enrich products with details
+                        const productDetails =
+                            await this.enrichProductsWithDetails(
+                                result.products,
+                            );
+
+                        return {
+                            products: productDetails,
+                            total: result.total,
+                            pages: result.pages,
+                            page: result.page,
+                        };
+                    }
+                } catch (gpuError) {
+                    this.logger.error(
+                        `Error in GPU enhanced search: ${gpuError.message}`,
+                    );
+                }
+            }
+
+            // CPU specific search patterns
+            const cpuRegex =
+                /\b(ryzen|core)\s*(\d)\s*(\d{4}|[a-zA-Z]\d{3,4})\b/i;
+            const cpuMatch = normalizedQuery.match(cpuRegex);
+
+            if (cpuMatch) {
+                this.logger.debug(
+                    `CPU match found: ${JSON.stringify(cpuMatch)}`,
+                );
+
+                try {
+                    const cpuBrand =
+                        cpuMatch[1].toLowerCase() === 'ryzen' ? 'AMD' : 'Intel';
+                    let searchPattern = '';
+
+                    if (cpuMatch[1].toLowerCase() === 'ryzen') {
+                        // For Ryzen (example: "Ryzen 7 5800X")
+                        searchPattern = `${cpuMatch[1]}.*${cpuMatch[2]}.*${cpuMatch[3]}`;
+                    } else {
+                        // For Intel Core (example: "Core i7 12700K")
+                        searchPattern = `${cpuMatch[1]}.*${cpuMatch[2]}.*${cpuMatch[3]}`;
+                    }
+
+                    this.logger.debug(
+                        `Searching for CPU pattern: ${searchPattern}`,
+                    );
+
+                    // Get product IDs from Neo4j that match this CPU model
+                    const matchingIds =
+                        await this.productSpecService.getProductIdsBySubcategoryFilters(
+                            'CPU',
+                            {
+                                manufacturer: [cpuBrand],
+                                series: [searchPattern],
+                            },
+                            undefined,
+                            true, // Enable pattern matching
+                        );
+
+                    this.logger.debug(
+                        `Found ${matchingIds.length} matching CPU IDs`,
+                    );
+
+                    if (matchingIds && matchingIds.length > 0) {
+                        // Use these IDs to fetch products from relational DB
+                        const whereClause = { id: In(matchingIds) };
+                        const result =
+                            await this.productQueryService.findByCategory(
+                                'CPU',
+                                page,
+                                limit,
+                                whereClause,
+                            );
+
+                        // Enrich products with details
+                        const productDetails =
+                            await this.enrichProductsWithDetails(
+                                result.products,
+                            );
+
+                        return {
+                            products: productDetails,
+                            total: result.total,
+                            pages: result.pages,
+                            page: result.page,
+                        };
+                    }
+                } catch (cpuError) {
+                    this.logger.error(
+                        `Error in CPU enhanced search: ${cpuError.message}`,
+                    );
+                }
+            }
+
+            // No special pattern matched or no results found
+            this.logger.debug(
+                'No specific hardware pattern matched in enhanced search',
+            );
+            return null; // Fall back to standard search
+        } catch (error) {
+            this.logger.error(`Error in enhanced search: ${error.message}`);
+            return null; // Fall back to standard search on error
         }
     }
 }

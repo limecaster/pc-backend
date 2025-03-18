@@ -10,7 +10,7 @@ import { Role } from './enums/role.enum';
 @Injectable()
 export class AuthService {
     private readonly logger = new Logger(AuthService.name);
-    
+
     constructor(
         private customerService: CustomerService,
         private jwtService: JwtService,
@@ -57,37 +57,43 @@ export class AuthService {
     async login(user: any) {
         // Ensure role is included in the payload and user has an ID
         const role = user.role || Role.CUSTOMER;
-        
+
         if (!user.id) {
             this.logger.error('Login attempted with user object missing ID');
             throw new Error('Invalid user data - missing ID');
         }
-        
-        this.logger.debug(`Creating token for user ID: ${user.id} with role: ${role}`);
-        
-        const payload = { 
-            email: user.email, 
+
+        this.logger.debug(
+            `Creating token for user ID: ${user.id} with role: ${role}`,
+        );
+
+        const payload = {
+            email: user.email,
             sub: user.id, // Make sure to use 'sub' for the ID as expected by the JWT strategy
             role: role,
             // Include username if available
             ...(user.username && { username: user.username }),
         };
-        
+
         // Create standard JWT token
         const token = this.jwtService.sign(payload);
-        
+
         // Generate refresh token as well
         const refreshToken = this.jwtService.sign(
             { ...payload },
-            { 
+            {
                 expiresIn: '7d',
-                secret: this.configService.get<string>('JWT_SECRET') || 'refreshSecret'
-            }
+                secret:
+                    this.configService.get<string>('JWT_SECRET') ||
+                    'refreshSecret',
+            },
         );
-        
+
         // Log what we're returning
-        this.logger.debug(`Auth login response includes: access_token and user data with role ${role}`);
-        
+        this.logger.debug(
+            `Auth login response includes: access_token and user data with role ${role}`,
+        );
+
         return {
             access_token: token,
             refresh_token: refreshToken,
@@ -99,7 +105,7 @@ export class AuthService {
                 username: user.username,
                 avatar: user.avatar,
                 phoneNumber: user.phoneNumber,
-                role: role,  // Include role in the response
+                role: role, // Include role in the response
             },
         };
     }
@@ -136,30 +142,38 @@ export class AuthService {
         password: string,
     ): Promise<any> {
         this.logger.debug(`Validating user login with ID: ${loginId}`);
-        
+
         // Use the enhanced flexible lookup method
         const customer = await this.customerService.findByLoginId(loginId);
 
         if (!customer) {
-            this.logger.warn(`Login failed: No user found with loginId: ${loginId}`);
+            this.logger.warn(
+                `Login failed: No user found with loginId: ${loginId}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        this.logger.debug(`Found user with ID: ${customer.id}, verifying password`);
-        
+        this.logger.debug(
+            `Found user with ID: ${customer.id}, verifying password`,
+        );
+
         const isPasswordValid = await bcrypt.compare(
             password,
             customer.password,
         );
-        
+
         if (!isPasswordValid) {
-            this.logger.warn(`Login failed: Invalid password for user ${customer.id}`);
+            this.logger.warn(
+                `Login failed: Invalid password for user ${customer.id}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
 
         // Check if email is verified
         if (!customer.isEmailVerified) {
-            this.logger.warn(`Login failed: Unverified email for user ${customer.id}`);
+            this.logger.warn(
+                `Login failed: Unverified email for user ${customer.id}`,
+            );
             throw new UnauthorizedException(
                 'Please verify your email before logging in',
             );
@@ -167,7 +181,9 @@ export class AuthService {
 
         // Check if customer status is active
         if (customer.status !== 'active') {
-            this.logger.warn(`Login failed: Inactive account for user ${customer.id}, status: ${customer.status}`);
+            this.logger.warn(
+                `Login failed: Inactive account for user ${customer.id}, status: ${customer.status}`,
+            );
             throw new UnauthorizedException(
                 'Your account has been deactivated. Please contact support.',
             );
@@ -175,9 +191,9 @@ export class AuthService {
 
         // Update login timestamp
         await this.customerService.updateLoginTimestamp(customer.id);
-        
+
         this.logger.debug(`Successful authentication for user ${customer.id}`);
-        
+
         const { password: _, ...result } = customer;
         return result;
     }
@@ -185,51 +201,57 @@ export class AuthService {
     // Add this method if not already present
     async validateAdmin(credentials: { username: string; password: string }) {
         const { username, password } = credentials;
-        
+
         this.logger.debug(`Validating admin: ${username}`);
-        
+
         const admin = await this.adminService.findByUsername(username);
         if (!admin) {
             this.logger.warn(`Admin not found: ${username}`);
             throw new UnauthorizedException('Invalid credentials');
         }
-        
-        const passwordValid = await this.comparePasswords(password, admin.password);
+
+        const passwordValid = await this.comparePasswords(
+            password,
+            admin.password,
+        );
         if (!passwordValid) {
             this.logger.warn(`Invalid password for admin: ${username}`);
             throw new UnauthorizedException('Invalid credentials');
         }
-        
+
         // Generate tokens with explicit role claim
-        const payload = { 
-            sub: admin.id, 
-            username: admin.username, 
+        const payload = {
+            sub: admin.id,
+            username: admin.username,
             email: admin.email,
-            role: 'admin'  // Explicitly include the role
+            role: 'admin', // Explicitly include the role
         };
-        
+
         const accessToken = this.jwtService.sign(payload);
         const refreshToken = this.jwtService.sign(payload, {
             expiresIn: '7d',
-            secret: this.configService.get<string>('JWT_REFRESH_SECRET')
+            secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         });
-        
+
         // Save the refresh token if you track them
         // await this.tokenService.saveRefreshToken(admin.id, refreshToken);
-        
+
         this.logger.debug(`Admin ${username} authenticated successfully`);
-        
+
         return {
             accessToken,
             refreshToken,
-            admin
+            admin,
         };
     }
 
     /**
      * Compare a plain text password with a hashed one
      */
-    async comparePasswords(plainTextPassword: string, hashedPassword: string): Promise<boolean> {
+    async comparePasswords(
+        plainTextPassword: string,
+        hashedPassword: string,
+    ): Promise<boolean> {
         return bcrypt.compare(plainTextPassword, hashedPassword);
     }
 
@@ -239,12 +261,12 @@ export class AuthService {
     async refreshToken(refreshToken: string) {
         try {
             this.logger.debug('Attempting to refresh token');
-            
+
             // Verify the refresh token with the refresh token secret
             const payload = this.jwtService.verify(refreshToken, {
                 secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
             });
-            
+
             if (!payload) {
                 this.logger.warn('Invalid refresh token format');
                 throw new UnauthorizedException('Invalid refresh token');
@@ -252,9 +274,11 @@ export class AuthService {
 
             // Extract user information from payload
             const { sub, email, role } = payload;
-            
-            this.logger.debug(`Refreshing token for user: ${sub} with role: ${role}`);
-            
+
+            this.logger.debug(
+                `Refreshing token for user: ${sub} with role: ${role}`,
+            );
+
             // Create a new access token
             const newAccessToken = this.jwtService.sign({
                 email,
@@ -264,7 +288,7 @@ export class AuthService {
 
             // Create a new refresh token if needed (optional)
             // You may want to limit how many times a refresh token can be used
-            
+
             return {
                 access_token: newAccessToken,
                 // Return a new refresh token if you want to rotate them

@@ -11,14 +11,18 @@ import {
     Logger,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
-import { AddToCartDto, AddMultipleToCartDto, UpdateCartItemDto } from './dto/cart.dto';
+import {
+    AddToCartDto,
+    AddMultipleToCartDto,
+    UpdateCartItemDto,
+} from './dto/cart.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('cart')
 @UseGuards(JwtAuthGuard)
 export class CartController {
     private readonly logger = new Logger(CartController.name);
-    
+
     constructor(private readonly cartService: CartService) {}
 
     @Post('add')
@@ -51,15 +55,17 @@ export class CartController {
     ) {
         const userId = req.user?.id;
         this.logger.debug(`Add multiple to cart request for user: ${userId}`);
-        
+
         if (!userId) {
             this.logger.error('Missing user ID in authenticated request');
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
         }
-        
-        this.logger.debug(`Adding ${addMultipleDto.productIds.length} products to cart for user ${userId}`);
+
+        this.logger.debug(
+            `Adding ${addMultipleDto.productIds.length} products to cart for user ${userId}`,
+        );
 
         const cart = await this.cartService.addMultipleToCart(
             userId,
@@ -74,9 +80,14 @@ export class CartController {
     }
 
     @Put('update-item')
-    async updateCartItem(@Request() req, @Body() updateCartItemDto: UpdateCartItemDto) {
+    async updateCartItem(
+        @Request() req,
+        @Body() updateCartItemDto: UpdateCartItemDto,
+    ) {
         const userId = req.user?.id;
-        this.logger.debug(`Update cart item for user ${userId}, product ${updateCartItemDto.productId}`);
+        this.logger.debug(
+            `Update cart item for user ${userId}, product ${updateCartItemDto.productId}`,
+        );
 
         if (!userId) {
             throw new BadRequestException(
@@ -98,9 +109,14 @@ export class CartController {
     }
 
     @Delete('remove-item')
-    async removeCartItem(@Request() req, @Body() removeItemDto: { productId: string }) {
+    async removeCartItem(
+        @Request() req,
+        @Body() removeItemDto: { productId: string },
+    ) {
         const userId = req.user?.id;
-        this.logger.debug(`Remove item from cart for user ${userId}, product ${removeItemDto.productId}`);
+        this.logger.debug(
+            `Remove item from cart for user ${userId}, product ${removeItemDto.productId}`,
+        );
 
         if (!userId) {
             throw new BadRequestException(

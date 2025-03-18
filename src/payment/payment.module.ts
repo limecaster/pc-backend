@@ -5,10 +5,7 @@ import { HttpModule } from '@nestjs/axios';
 import { CheckoutModule } from '../checkout/checkout.module';
 
 @Module({
-    imports: [
-        HttpModule,
-        forwardRef(() => CheckoutModule),
-    ],
+    imports: [HttpModule, forwardRef(() => CheckoutModule)],
     controllers: [PaymentController],
     providers: [PaymentService],
     exports: [PaymentService],

@@ -30,43 +30,54 @@ export class PaymentController {
             this.logger.log('Creating payment for order data:', orderData);
 
             let orderId: number | null = null;
-            
+
             // First, check if the order exists and can be processed for payment
             if (orderData.orderId) {
                 console.log('Order ID from request:', orderData.orderId);
-                
+
                 // Handle different order ID formats:
                 // 1. If numeric, use directly
                 // 2. If "ORDER-123456" format, extract number part
                 // 3. If neither, we may need to create a new order
 
                 // Try to extract numeric order ID if in "ORDER-123456" format
-                if (typeof orderData.orderId === 'string' && orderData.orderId.startsWith('ORDER-')) {
+                if (
+                    typeof orderData.orderId === 'string' &&
+                    orderData.orderId.startsWith('ORDER-')
+                ) {
                     // This is a frontend-generated ID, not a real order ID
                     // We'll check if we have an actual order ID from the database to use instead
-                    this.logger.log('Order ID has ORDER- prefix, checking if we have a real order ID');
-                    
+                    this.logger.log(
+                        'Order ID has ORDER- prefix, checking if we have a real order ID',
+                    );
+
                     // If we don't have an actual order ID, we need to create the order first
                     // This can be done through the checkout service or directly here
                     if (!orderData.actualOrderId) {
-                        this.logger.log('No actual order ID provided, skipping order validation');
+                        this.logger.log(
+                            'No actual order ID provided, skipping order validation',
+                        );
                         // Skip order validation in this case, proceed with payment creation
                     }
                 } else {
                     // Try to parse as integer
                     orderId = parseInt(orderData.orderId);
-                    
+
                     // If parsed successfully, validate the order
                     if (!isNaN(orderId)) {
                         try {
                             // Find order by ID to verify it exists
-                            const order = await this.checkoutService.findOrderById(orderId);
-                            
+                            const order =
+                                await this.checkoutService.findOrderById(
+                                    orderId,
+                                );
+
                             // Only allow payment for approved orders
-                            const updatedOrder = await this.checkoutService.updateOrderStatus(
-                                orderId,
-                                OrderStatus.APPROVED,
-                            );
+                            const updatedOrder =
+                                await this.checkoutService.updateOrderStatus(
+                                    orderId,
+                                    OrderStatus.APPROVED,
+                                );
 
                             if (updatedOrder.status !== OrderStatus.APPROVED) {
                                 throw new HttpException(
@@ -77,7 +88,7 @@ export class PaymentController {
                                     HttpStatus.BAD_REQUEST,
                                 );
                             }
-                            
+
                             // Set description for payment with the real order ID
                             if (!orderData.description) {
                                 orderData.description = `Order #${orderId} Thanh toan B Store`;
@@ -92,7 +103,9 @@ export class PaymentController {
                             );
                         }
                     } else {
-                        this.logger.warn(`Invalid order ID format: ${orderData.orderId}`);
+                        this.logger.warn(
+                            `Invalid order ID format: ${orderData.orderId}`,
+                        );
                     }
                 }
             }

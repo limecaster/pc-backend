@@ -9,7 +9,7 @@ export class ManualBuildService {
     private readonly logger = new Logger(ManualBuildService.name);
 
     constructor(
-        private readonly neo4jConfigService: Neo4jConfigService, 
+        private readonly neo4jConfigService: Neo4jConfigService,
         private readonly utilsService: UtilsService,
         private readonly checkCompatibilityService: CheckCompatibilityService,
     ) {}
@@ -113,7 +113,7 @@ export class ManualBuildService {
     }
 
     async getSpecificPartTypeCompatibleWithSelectedParts(
-        selectedParts: { name: string; label: string, neo4jLabels: string[] }[],
+        selectedParts: { name: string; label: string; neo4jLabels: string[] }[],
         targetLabel: string[],
     ): Promise<any[]> {
         const filteredSelectedParts = await Promise.all(
@@ -122,40 +122,48 @@ export class ManualBuildService {
                 let query = `
                 CALL db.index.fulltext.queryNodes($indexName, $partname)
                 YIELD node, score
-                MATCH (node)-[:COMPATIBLE_WITH]-(b:${targetLabel.map(lbl => `\`${lbl}\``).join(':')})
+                MATCH (node)-[:COMPATIBLE_WITH]-(b:${targetLabel.map((lbl) => `\`${lbl}\``).join(':')})
                 RETURN count(b) > 0 AS isRelated
                 `;
-                const sanitizedPartname = part.name.replace(/[+\-\/():"]/g, '\\$&');
-                const result = await this.runQuery(query, { indexName, partname: sanitizedPartname });
+                const sanitizedPartname = part.name.replace(
+                    /[+\-\/():"]/g,
+                    '\\$&',
+                );
+                const result = await this.runQuery(query, {
+                    indexName,
+                    partname: sanitizedPartname,
+                });
                 const isRelated = result.records[0].get('isRelated');
                 return isRelated ? part : null;
-            })
-        ).then((parts: { name: string; label: string; neo4jLabels: string[] }[] ) => parts.filter((part) => part !== null));
+            }),
+        ).then(
+            (parts: { name: string; label: string; neo4jLabels: string[] }[]) =>
+                parts.filter((part) => part !== null),
+        );
 
         if (filteredSelectedParts.length === 0) {
             const allPartsQuery = `
-            MATCH (compatible:${targetLabel.map(lbl => `\`${lbl}\``)})
+            MATCH (compatible:${targetLabel.map((lbl) => `\`${lbl}\``)})
             RETURN compatible
             `;
             const result = await this.runQuery(allPartsQuery, {});
             return result.records.map(
-            (record) => record.get('compatible').properties,
+                (record) => record.get('compatible').properties,
             );
         }
 
         const matchStatements = filteredSelectedParts
             .map(
-            (part, index) => `
-            MATCH (selected${index}:${part.neo4jLabels[0]} {name: $selectedId${index}})-[:COMPATIBLE_WITH]-(compatible:${targetLabel.map(lbl => `\`${lbl}\``).join(':')})
+                (part, index) => `
+            MATCH (selected${index}:${part.neo4jLabels[0]} {name: $selectedId${index}})-[:COMPATIBLE_WITH]-(compatible:${targetLabel.map((lbl) => `\`${lbl}\``).join(':')})
             `,
             )
             .join(' ');
 
-
         const params = filteredSelectedParts.reduce(
             (acc, part, index) => ({
-            ...acc,
-            [`selectedId${index}`]: part.name,
+                ...acc,
+                [`selectedId${index}`]: part.name,
             }),
             {},
         );
@@ -166,26 +174,23 @@ export class ManualBuildService {
         `;
 
         const result = await this.runQuery(query, params);
-        return result.records.map(
-            (record) => 
-            {
+        return result.records.map((record) => {
             const properties = record.get('compatible').properties;
             for (const key in properties) {
                 if (
-                properties[key] &&
-                typeof properties[key] === 'object' &&
-                'low' in properties[key] &&
-                'high' in properties[key]
+                    properties[key] &&
+                    typeof properties[key] === 'object' &&
+                    'low' in properties[key] &&
+                    'high' in properties[key]
                 ) {
-                properties[key] = this.utilsService.combineLowHigh(
-                    properties[key].low,
-                    properties[key].high,
-                );
+                    properties[key] = this.utilsService.combineLowHigh(
+                        properties[key].low,
+                        properties[key].high,
+                    );
                 }
             }
             return properties;
-            }
-        );
+        });
     }
 
     async findAllPartsByLabels(labels: string[]): Promise<any[]> {
@@ -195,8 +200,8 @@ export class ManualBuildService {
                 WHERE any(label IN labels(part) WHERE label IN $labels)
                 RETURN part
             `;
-            
-            const result = await this.runQuery(query, { labels })
+
+            const result = await this.runQuery(query, { labels });
             // return result.records.map((record) => record.get('part').properties);
             return result.records.map((record) => {
                 const properties = record.get('part').properties;
@@ -221,7 +226,11 @@ export class ManualBuildService {
         }
     }
 
-    async findAllPartsByLabelsPaginated(labels: string[], page: number, limit: number): Promise<{ items: any[], totalItems: number }> {
+    async findAllPartsByLabelsPaginated(
+        labels: string[],
+        page: number,
+        limit: number,
+    ): Promise<{ items: any[]; totalItems: number }> {
         try {
             const skip = (page - 1) * limit;
             const query = `
@@ -236,7 +245,7 @@ export class ManualBuildService {
                 WHERE any(label IN labels(part) WHERE label IN $labels)
                 RETURN count(part) as totalItems
             `;
-            
+
             const result = await this.runQuery(query, { labels, skip, limit });
             const countResult = await this.runQuery(countQuery, { labels });
 
@@ -258,18 +267,22 @@ export class ManualBuildService {
                 return properties;
             });
 
-            const totalItems = this.utilsService.combineLowHigh
-                (countResult.records[0].get('totalItems').low, countResult.records[0].get('totalItems').high);
-
+            const totalItems = this.utilsService.combineLowHigh(
+                countResult.records[0].get('totalItems').low,
+                countResult.records[0].get('totalItems').high,
+            );
 
             return { items, totalItems };
         } catch (error) {
-            this.logger.error('Error finding parts by labels with pagination:', error);
+            this.logger.error(
+                'Error finding parts by labels with pagination:',
+                error,
+            );
             throw new Error('Failed to find parts by labels with pagination');
         }
     }
     private pcConfigurationForManualBuild: any = {};
-    
+
     async checkPartCompatibilityWithSelected(
         partName: string,
         partLabels: string[],
@@ -284,7 +297,10 @@ export class ManualBuildService {
                 RETURN node
             `;
             const sanitizedPartname = partName.replace(/[+\-\/():"]/g, '\\$&');
-            const result = await this.runQuery(query, { indexName, partname: sanitizedPartname });
+            const result = await this.runQuery(query, {
+                indexName,
+                partname: sanitizedPartname,
+            });
             let partRecord = result.records[0].get('node').properties;
             for (const key in partRecord) {
                 if (
@@ -302,13 +318,14 @@ export class ManualBuildService {
             if (!partRecord) {
                 throw new Error(`Part with name ${partName} not found`);
             }
-            
+
             // Check each label for compatibility
             for (const label of partLabels) {
-                const isCompatible = await this.checkCompatibilityService.checkCompatibility(
-                    { partData: partRecord, label },
-                    this.pcConfigurationForManualBuild,
-                );
+                const isCompatible =
+                    await this.checkCompatibilityService.checkCompatibility(
+                        { partData: partRecord, label },
+                        this.pcConfigurationForManualBuild,
+                    );
                 if (!isCompatible) {
                     return false;
                 }

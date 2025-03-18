@@ -157,7 +157,6 @@ export class AutoBuildService {
             preferredPartsData,
         );
 
-
         // This is a trick to get more parts for the same budget, which is easier to build a PC
         // If there is a preferred part, add 0.15 to all weights
         if (autoBuildDto.preferredParts.length > 0) {
@@ -953,7 +952,10 @@ export class AutoBuildService {
     public async getSinglePCConfiguration(userInput: string) {
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
-        const singleConfig = await this.buildOption(autoBuildDto, 'performance');
+        const singleConfig = await this.buildOption(
+            autoBuildDto,
+            'performance',
+        );
         return singleConfig;
     }
 }

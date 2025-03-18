@@ -9,11 +9,17 @@ import { OrderItem } from '../order/order-item.entity';
 import { Address } from '../customer/address.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Order, Customer, Product, OrderItem, Address]),
-  ],
-  controllers: [DashboardController],
-  providers: [DashboardService],
-  exports: [DashboardService],
+    imports: [
+        TypeOrmModule.forFeature([
+            Order,
+            Customer,
+            Product,
+            OrderItem,
+            Address,
+        ]),
+    ],
+    controllers: [DashboardController],
+    providers: [DashboardService],
+    exports: [DashboardService],
 })
 export class DashboardModule {}

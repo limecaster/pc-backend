@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    NotFoundException,
+    Inject,
+    forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order, OrderStatus } from '../order/order.entity';
@@ -21,7 +27,7 @@ export class CheckoutService {
         private orderItemRepository: Repository<OrderItem>,
 
         private paymentService: PaymentService,
-        
+
         @Inject(forwardRef(() => OrderService))
         private orderService: OrderService,
     ) {}

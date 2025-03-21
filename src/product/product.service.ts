@@ -115,17 +115,11 @@ export class ProductService {
         page: number;
     }> {
         try {
-            // Get product IDs that meet the rating filter if specified
-            let ratingFilteredIds: string[] | null = null;
-            if (minRating !== undefined && minRating > 0) {
-                ratingFilteredIds =
-                    await this.productRatingService.getProductIdsByMinRating(
-                        minRating,
-                    );
-
-                if (ratingFilteredIds.length === 0) {
-                    return { products: [], total: 0, pages: 0, page };
-                }
+            // Debug logging for subcategory filters
+            if (subcategoryFilters && Object.keys(subcategoryFilters).length > 0) {
+                this.logger.log(`Processing subcategory filters: ${JSON.stringify(subcategoryFilters)}`);
+            } else {
+                this.logger.log('No subcategory filters provided');
             }
 
             // Build price filter
@@ -140,57 +134,96 @@ export class ProductService {
                 whereClause.price_lte = maxPrice;
             }
 
-            // Handle subcategory filters if provided
-            let subcategoryFilteredIds: string[] | undefined;
-            if (
-                subcategoryFilters &&
-                Object.keys(subcategoryFilters).length > 0
-            ) {
-                subcategoryFilteredIds =
-                    await this.productSpecService.getProductIdsBySubcategoryFilters(
+            let filteredProductIds: string[] | undefined = undefined;
+
+            // First handle subcategory filters if provided
+            if (subcategoryFilters && Object.keys(subcategoryFilters).length > 0) {
+                this.logger.log(`Getting products with subcategory filters for category: ${category || 'all'}`);
+                
+                try {
+                    const subcategoryFilteredIds = await this.productSpecService.getProductIdsBySubcategoryFilters(
                         category,
                         subcategoryFilters,
-                        brands,
+                        brands
                     );
 
-                if (subcategoryFilteredIds.length === 0) {
-                    return { products: [], total: 0, pages: 0, page };
+                    if (!subcategoryFilteredIds || subcategoryFilteredIds.length === 0) {
+                        this.logger.log('No products match the subcategory filters, returning empty result');
+                        return { products: [], total: 0, pages: 0, page };
+                    }
+                    
+                    this.logger.log(`Found ${subcategoryFilteredIds.length} products matching the subcategory filters`);
+                    if (subcategoryFilteredIds.length > 0) {
+                        this.logger.log(`Sample IDs: ${subcategoryFilteredIds.slice(0, 3).join(', ')}...`);
+                    }
+                    
+                    filteredProductIds = subcategoryFilteredIds;
+                } catch (error) {
+                    this.logger.error(`Error applying subcategory filters: ${error.message}`);
+                    throw error;
                 }
-            }
-            // Handle brand filters if provided
+            } 
+            // If no subcategory filters but we have brand filters, handle those
             else if (brands && brands.length > 0) {
-                const brandFilteredIds =
-                    await this.productSpecService.getProductIdsByBrands(
-                        brands,
-                        category,
-                    );
+                this.logger.debug(`Getting products that match brands: ${brands.join(', ')}`);
+                
+                const brandFilteredIds = await this.productSpecService.getProductIdsByBrands(
+                    brands,
+                    category
+                );
 
-                if (brandFilteredIds.length === 0) {
+                if (!brandFilteredIds || brandFilteredIds.length === 0) {
+                    this.logger.debug('No products match the brand filters, returning empty result');
                     return { products: [], total: 0, pages: 0, page };
                 }
 
-                // If we also have rating filter, ensure products match both criteria
-                if (ratingFilteredIds) {
-                    whereClause.id_in = brandFilteredIds.filter((id) =>
-                        ratingFilteredIds.includes(id),
-                    );
-                } else {
-                    whereClause.id_in = brandFilteredIds;
-                }
-            }
-            // If only rating filter is provided
-            else if (ratingFilteredIds) {
-                whereClause.id_in = ratingFilteredIds;
+                filteredProductIds = brandFilteredIds;
             }
 
+            // Apply rating filter if provided
+            if (minRating !== undefined && minRating > 0) {
+                this.logger.debug(`Applying minimum rating filter: ${minRating}`);
+                
+                const ratingFilteredIds = await this.productRatingService.getProductIdsByMinRating(minRating);
+
+                if (!ratingFilteredIds || ratingFilteredIds.length === 0) {
+                    this.logger.debug('No products match the rating filter, returning empty result');
+                    return { products: [], total: 0, pages: 0, page };
+                }
+
+                // If we already have product IDs from previous filters, we need to find the intersection
+                if (filteredProductIds) {
+                    filteredProductIds = filteredProductIds.filter(id => 
+                        ratingFilteredIds.includes(id)
+                    );
+                    
+                    if (filteredProductIds.length === 0) {
+                        this.logger.debug('No products match all filters, returning empty result');
+                        return { products: [], total: 0, pages: 0, page };
+                    }
+                } else {
+                    filteredProductIds = ratingFilteredIds;
+                }
+            }
+
+            // Make sure filteredProductIds is explicitly undefined if not set
+            this.logger.log(`Final filter contains ${filteredProductIds ? filteredProductIds.length : 'no'} product IDs`);
+            
             // Query for products with filters
+            this.logger.log(`Querying database with ${filteredProductIds ? filteredProductIds.length : 'no'} ID filters`);
+            if (filteredProductIds && filteredProductIds.length > 0) {
+                this.logger.log(`Sample IDs: ${filteredProductIds.slice(0, 3).join(', ')}...`);
+            }
+            
             const result = await this.productQueryService.findByCategory(
                 category,
                 page,
                 limit,
                 whereClause,
-                subcategoryFilteredIds,
+                filteredProductIds || undefined
             );
+
+            this.logger.debug(`Database returned ${result.products.length} products out of ${result.total} total matching products`);
 
             // Enrich products with details
             const productDetails = await this.enrichProductsWithDetails(
@@ -207,7 +240,7 @@ export class ProductService {
             this.logger.error(
                 `Error finding products by category: ${error.message}`,
             );
-            throw new Error('Failed to find products by category');
+            throw new Error(`Failed to find products by category: ${error.message}`);
         }
     }
 

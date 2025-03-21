@@ -20,9 +20,16 @@ export class BuildController {
         'Vỏ case': ['Case'],
         'Quạt tản nhiệt': ['CPUCooler'],
         'Màn hình': ['Monitor'],
-        'Thiết bị ngoại vi': ['Keyboard', 'Mouse', 'Speaker'],
-        'Card mở rộng': ['WiredNetworkCard', 'WiFiCard'],
-        'Phụ kiện khác': ['ThermalPaste'],
+        // Replace generic categories with specific ones
+        'Bàn phím': ['Keyboard'],
+        'Chuột': ['Mouse'],
+        'Card mạng không dây': ['WiFiCard'],
+        'Card mạng có dây': ['WiredNetworkCard'],
+        'Kem tản nhiệt': ['ThermalPaste'],
+        // Remove these generic categories
+        // 'Thiết bị ngoại vi': ['Keyboard', 'Mouse', 'Speaker'],
+        // 'Card mở rộng': ['WiredNetworkCard', 'WiFiCard'],
+        // 'Phụ kiện khác': ['ThermalPaste'],
     };
 
     // @Get()
@@ -61,6 +68,8 @@ export class BuildController {
         @Query('targetLabel') targetLabel: string,
         @Query('page') page: string,
         @Query('limit') limit: string,
+        @Query('search') searchTerm: string,
+        @Query('sort') sortOption: 'name' | 'price-asc' | 'price-desc',
     ) {
         try {
             const parsedSelectedParts = this.parseSelectedParts(selectedParts);
@@ -74,30 +83,25 @@ export class BuildController {
             const pageNumber = parseInt(page, 10) || 1;
             const pageSize = parseInt(limit, 10) || 10;
 
-            const { items, totalItems } =
-                await this.manualBuildService.findAllPartsByLabelsPaginated(
-                    targetLabels,
-                    pageNumber,
-                    pageSize,
-                );
-            const compatibleParts = [];
-            for (const part of items) {
-                const isCompatible =
-                    await this.manualBuildService.checkPartCompatibilityWithSelected(
-                        part.name,
-                        targetLabels,
-                        parsedSelectedParts,
-                    );
-                if (isCompatible) {
-                    compatibleParts.push(part);
-                }
-            }
-
-            const totalPages = Math.ceil(totalItems / pageSize);
-
-            console.log('Total Pages:', totalPages);
-
-            return { items: compatibleParts, totalPages };
+            // Always get compatible parts with filtering first
+            const compatibleParts = await this.manualBuildService.getSpecificPartTypeCompatibleWithSelectedParts(
+                parsedSelectedParts,
+                targetLabels,
+                searchTerm,
+                sortOption,
+            );
+            
+            // Then handle pagination on the already filtered results
+            const startIndex = (pageNumber - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const items = compatibleParts.slice(startIndex, endIndex);
+            const totalPages = Math.ceil(compatibleParts.length / pageSize) || 1; // Ensure at least 1 page
+            
+            return { 
+                items, 
+                totalPages,
+                totalItems: compatibleParts.length 
+            };
         } catch (error) {
             console.error('Error fetching compatible parts:', error);
             throw new Error('Failed to fetch compatible parts');

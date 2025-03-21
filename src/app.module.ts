@@ -27,6 +27,8 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { OrderModule } from './order/order.module';
 import { CloudinaryModule } from '../config/cloudinary.module';
 import { RatingModule } from './rating/rating.module';
+import { PCConfigurationModule } from './pc-configuration/pc-configuration.module';
+import { AccountModule } from './dashboard/account/account.module';
 
 @Module({
     imports: [
@@ -61,6 +63,8 @@ import { RatingModule } from './rating/rating.module';
         OrderModule,
         CloudinaryModule,
         RatingModule,
+        PCConfigurationModule,
+        AccountModule
     ],
     controllers: [
         AppController,

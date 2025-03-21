@@ -89,6 +89,14 @@ export class ProductSpecificationService {
             switch (category) {
                 case 'CPU':
                     switch (subcategory) {
+                        case 'manufacturer':
+                            query = `
+                                MATCH (p:CPU) 
+                                WHERE p.manufacturer IS NOT NULL 
+                                RETURN DISTINCT p.manufacturer AS value
+                                ORDER BY value
+                            `;
+                            break;
                         case 'socket':
                             query = `
                                 MATCH (p:CPU) 
@@ -118,7 +126,7 @@ export class ProductSpecificationService {
                                 MATCH (p:CPU) 
                                 WHERE p.coreCount IS NOT NULL 
                                 RETURN DISTINCT toString(p.coreCount) + ' nhân' AS value
-                                ORDER BY p.coreCount
+                                ORDER BY value
                             `;
                             break;
                         case 'performanceCoreClock':
@@ -126,7 +134,7 @@ export class ProductSpecificationService {
                                 MATCH (p:CPU) 
                                 WHERE p.performanceCoreClock IS NOT NULL 
                                 RETURN DISTINCT toString(p.performanceCoreClock) + ' GHz' AS value
-                                ORDER BY p.performanceCoreClock
+                                ORDER BY value
                             `;
                             break;
                         default:
@@ -215,16 +223,18 @@ export class ProductSpecificationService {
                             query = `
                                 MATCH (p:RAM) 
                                 WHERE p.moduleSize IS NOT NULL 
-                                RETURN DISTINCT toString(p.moduleSize) + ' GB' AS value
-                                ORDER BY p.moduleSize
+                                WITH DISTINCT toString(p.moduleSize) + ' GB' AS value, p.moduleSize AS size
+                                RETURN value
+                                ORDER BY size
                             `;
                             break;
                         case 'moduleNumber':
                             query = `
                                 MATCH (p:RAM) 
                                 WHERE p.moduleNumber IS NOT NULL 
-                                RETURN DISTINCT toString(p.moduleNumber) + ' thanh' AS value
-                                ORDER BY p.moduleNumber
+                                WITH DISTINCT toString(p.moduleNumber) + ' thanh' AS value, p.moduleNumber AS num
+                                RETURN value
+                                ORDER BY num
                             `;
                             break;
                         case 'color':
@@ -239,8 +249,9 @@ export class ProductSpecificationService {
                             query = `
                                 MATCH (p:RAM) 
                                 WHERE p.casLatency IS NOT NULL 
-                                RETURN DISTINCT 'CL' + toString(toInteger(p.casLatency)) AS value
-                                ORDER BY p.casLatency
+                                WITH DISTINCT 'CL' + toString(toInteger(p.casLatency)) AS value, p.casLatency AS latency
+                                RETURN value
+                                ORDER BY latency
                             `;
                             break;
                         default:
@@ -280,8 +291,9 @@ export class ProductSpecificationService {
                             query = `
                                 MATCH (p:GraphicsCard) 
                                 WHERE p.memory IS NOT NULL 
-                                RETURN DISTINCT toString(p.memory) + ' GB' AS value
-                                ORDER BY p.memory
+                                WITH DISTINCT toString(p.memory) + ' GB' AS value, p.memory AS mem
+                                RETURN value
+                                ORDER BY mem
                             `;
                             break;
                         case 'memoryType':
@@ -296,16 +308,18 @@ export class ProductSpecificationService {
                             query = `
                                 MATCH (p:GraphicsCard) 
                                 WHERE p.cooling IS NOT NULL 
-                                RETURN DISTINCT toString(p.cooling) + ' quạt' AS value
-                                ORDER BY p.cooling
+                                WITH DISTINCT toString(p.cooling) + ' quạt' AS value, p.cooling AS cool
+                                RETURN value
+                                ORDER BY cool
                             `;
                             break;
                         case 'tdp':
                             query = `
                                 MATCH (p:GraphicsCard) 
                                 WHERE p.tdp IS NOT NULL 
-                                RETURN DISTINCT toString(p.tdp) + ' W' AS value
-                                ORDER BY p.tdp
+                                WITH DISTINCT toString(p.tdp) + ' W' AS value, p.tdp AS power
+                                RETURN value
+                                ORDER BY power
                             `;
                             break;
                         default:
@@ -353,12 +367,13 @@ export class ProductSpecificationService {
                             query = `
                                 MATCH (p:InternalHardDrive) 
                                 WHERE p.capacity IS NOT NULL 
-                                RETURN DISTINCT 
+                                WITH DISTINCT 
                                     CASE 
                                         WHEN p.capacity >= 1000 THEN toString(toInteger(p.capacity/1000)) + ' TB' 
                                         ELSE toString(p.capacity) + ' GB' 
-                                    END AS value
-                                ORDER BY p.capacity
+                                    END AS value, p.capacity AS cap
+                                RETURN value
+                                ORDER BY cap
                             `;
                             break;
                         default:
@@ -410,6 +425,9 @@ export class ProductSpecificationService {
                     if (values && values.length > 0) {
                         const paramName = `subcatValues${index}`;
 
+                        // Log each filter being applied
+                        this.logger.log(`Applying Neo4j filter: ${key} = ${JSON.stringify(values)}`);
+
                         // Handle numeric properties with units
                         if (
                             [
@@ -457,42 +475,76 @@ export class ProductSpecificationService {
                                     params[`${paramName}${i}`] =
                                         `.*${cleanValue}.*`;
                                 });
-
-                                this.logger.debug(
-                                    `Pattern matching cypher: ${cypher}`,
-                                );
-                                this.logger.debug(
-                                    `Pattern params: ${JSON.stringify(params)}`,
-                                );
                             } else {
-                                // Use exact matching
+                                // Use exact matching - ensure values are properly formatted as strings
                                 cypher += ` AND p.${key} IN $${paramName}`;
-                                params[paramName] = values;
+                                params[paramName] = values.map(String);
                             }
                         }
                     }
                 },
             );
 
-            // Add brand filter if provided
-            if (brands && brands.length > 0) {
+            // Make sure brand filter is applied correctly (manufacturer is a special case)
+            if (brands && brands.length > 0 && !subcategoryFilters.manufacturer) {
                 cypher += ` AND p.manufacturer IN $brands`;
-                params.brands = brands;
+                params.brands = brands.map(String);
             }
 
-            cypher += ` RETURN p.id AS id`;
+            // Ensure we get distinct product IDs
+            cypher += ` RETURN DISTINCT p.id AS id`;
 
             // Log the query and parameters for debugging
-            this.logger.debug(`Neo4j query: ${cypher}`);
-            this.logger.debug(`Query params: ${JSON.stringify(params)}`);
+            this.logger.log(`Neo4j query: ${cypher}`);
+            this.logger.log(`Neo4j query params: ${JSON.stringify(params)}`);
 
+            // Execute the query
             const result = await session.run(cypher, params);
-            return result.records.map((record) => record.get('id'));
+            
+            // Process and log results
+            const ids = result.records.map((record) => record.get('id'));
+            this.logger.log(`Neo4j returned ${ids.length} matching product IDs`);
+            
+            if (ids.length > 0) {
+                this.logger.log(`Sample IDs: ${ids.slice(0, 3).join(', ')}...`);
+            } else {
+                this.logger.warn('No product IDs matched the filters in Neo4j');
+            }
+            
+            return ids;
         } catch (error) {
             this.logger.error(
                 `Error getting product IDs by subcategory filters: ${error.message}`,
             );
-            throw new Error('Failed to get product IDs by subcategory filters');
+            throw new Error(`Failed to get product IDs by subcategory filters: ${error.message}`);
+        } finally {
+            await session.close();
+        }
+    }
+
+    async getProductIdsByBrands(
+        brands: string[],
+        category?: string,
+    ): Promise<string[]> {
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+
+        try {
+            const brandsParam = brands.map((brand) => `"${brand}"`).join(', ');
+            const query = `
+                MATCH (p)
+                WHERE p.manufacturer IN [${brandsParam}]
+                ${category ? 'AND $category IN labels(p)' : ''}
+                RETURN p.id AS id
+            `;
+
+            const result = await session.run(query, { category });
+            return result.records.map((record) => record.get('id'));
+        } catch (error) {
+            this.logger.error(
+                `Error getting product IDs by brands: ${error.message}`,
+            );
+            throw new Error('Failed to get product IDs by brands');
         } finally {
             await session.close();
         }
@@ -540,34 +592,6 @@ export class ProductSpecificationService {
 
             default:
                 return values.map((v) => Number(v));
-        }
-    }
-
-    async getProductIdsByBrands(
-        brands: string[],
-        category?: string,
-    ): Promise<string[]> {
-        const driver = this.neo4jConfigService.getDriver();
-        const session = driver.session();
-
-        try {
-            const brandsParam = brands.map((brand) => `"${brand}"`).join(', ');
-            const query = `
-                MATCH (p)
-                WHERE p.manufacturer IN [${brandsParam}]
-                ${category ? 'AND $category IN labels(p)' : ''}
-                RETURN p.id AS id
-            `;
-
-            const result = await session.run(query, { category });
-            return result.records.map((record) => record.get('id'));
-        } catch (error) {
-            this.logger.error(
-                `Error getting product IDs by brands: ${error.message}`,
-            );
-            throw new Error('Failed to get product IDs by brands');
-        } finally {
-            await session.close();
         }
     }
 }

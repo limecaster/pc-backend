@@ -142,15 +142,49 @@ export class ProductController {
 
             // Parse subcategory filters
             let subcategoryFilters: Record<string, string[]> | undefined;
+            
             if (subcategoriesParam) {
                 try {
-                    subcategoryFilters = JSON.parse(
-                        decodeURIComponent(subcategoriesParam),
-                    );
+                    this.logger.log(`Raw subcategories param [${typeof subcategoriesParam}]: "${subcategoriesParam}"`);
+                    
+                    const decodedParam = decodeURIComponent(subcategoriesParam);
+                    this.logger.log(`Decoded subcategories param: "${decodedParam}"`);
+                    
+                    try {
+                        subcategoryFilters = JSON.parse(decodedParam);
+                        
+                        // Validate format and structure
+                        if (typeof subcategoryFilters !== 'object' || subcategoryFilters === null) {
+                            this.logger.error('Invalid subcategory filter format: not an object');
+                            throw new BadRequestException('Subcategories must be a valid object');
+                        }
+                        
+                        // Normalize values to ensure they're all arrays
+                        Object.entries(subcategoryFilters).forEach(([key, value]) => {
+                            if (!Array.isArray(value)) {
+                                this.logger.log(`Converting non-array value for "${key}" to array: ${value}`);
+                                subcategoryFilters[key] = [String(value)];
+                            } else if (value.length === 0) {
+                                this.logger.log(`Empty array found for key "${key}", removing`);
+                                delete subcategoryFilters[key];
+                            }
+                        });
+                        
+                        // Log the final structured filters
+                        this.logger.log(`Final subcategory filters: ${JSON.stringify(subcategoryFilters)}`);
+                        
+                        // Check if we have any filters left
+                        if (Object.keys(subcategoryFilters).length === 0) {
+                            this.logger.log('No valid subcategory filters after processing');
+                            subcategoryFilters = undefined;
+                        }
+                    } catch (parseError) {
+                        this.logger.error(`JSON parse error: ${parseError.message}`);
+                        throw new BadRequestException('Invalid JSON in subcategories parameter');
+                    }
                 } catch (error) {
-                    throw new BadRequestException(
-                        'Invalid subcategories format',
-                    );
+                    this.logger.error(`Error processing subcategories: ${error.message}`);
+                    throw error;
                 }
             }
 

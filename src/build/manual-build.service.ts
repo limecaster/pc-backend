@@ -115,82 +115,162 @@ export class ManualBuildService {
     async getSpecificPartTypeCompatibleWithSelectedParts(
         selectedParts: { name: string; label: string; neo4jLabels: string[] }[],
         targetLabel: string[],
+        searchTerm?: string,
+        sortOption?: 'name' | 'price-asc' | 'price-desc',
     ): Promise<any[]> {
-        const filteredSelectedParts = await Promise.all(
-            selectedParts.map(async (part) => {
-                const indexName = `${part.neo4jLabels[0]}NameFulltextIndex`;
-                let query = `
-                CALL db.index.fulltext.queryNodes($indexName, $partname)
-                YIELD node, score
-                MATCH (node)-[:COMPATIBLE_WITH]-(b:${targetLabel.map((lbl) => `\`${lbl}\``).join(':')})
-                RETURN count(b) > 0 AS isRelated
-                `;
-                const sanitizedPartname = part.name.replace(
-                    /[+\-\/():"]/g,
-                    '\\$&',
-                );
-                const result = await this.runQuery(query, {
-                    indexName,
-                    partname: sanitizedPartname,
-                });
-                const isRelated = result.records[0].get('isRelated');
-                return isRelated ? part : null;
-            }),
-        ).then(
-            (parts: { name: string; label: string; neo4jLabels: string[] }[]) =>
-                parts.filter((part) => part !== null),
-        );
-
-        if (filteredSelectedParts.length === 0) {
-            const allPartsQuery = `
-            MATCH (compatible:${targetLabel.map((lbl) => `\`${lbl}\``)})
-            RETURN compatible
-            `;
-            const result = await this.runQuery(allPartsQuery, {});
-            return result.records.map(
-                (record) => record.get('compatible').properties,
-            );
-        }
-
-        const matchStatements = filteredSelectedParts
-            .map(
-                (part, index) => `
-            MATCH (selected${index}:${part.neo4jLabels[0]} {name: $selectedId${index}})-[:COMPATIBLE_WITH]-(compatible:${targetLabel.map((lbl) => `\`${lbl}\``).join(':')})
-            `,
-            )
-            .join(' ');
-
-        const params = filteredSelectedParts.reduce(
-            (acc, part, index) => ({
-                ...acc,
-                [`selectedId${index}`]: part.name,
-            }),
-            {},
-        );
-
-        const query = `
-        ${matchStatements}
-        RETURN DISTINCT compatible
-        `;
-
-        const result = await this.runQuery(query, params);
-        return result.records.map((record) => {
-            const properties = record.get('compatible').properties;
-            for (const key in properties) {
-                if (
-                    properties[key] &&
-                    typeof properties[key] === 'object' &&
-                    'low' in properties[key] &&
-                    'high' in properties[key]
-                ) {
-                    properties[key] = this.utilsService.combineLowHigh(
-                        properties[key].low,
-                        properties[key].high,
+        try {
+            const filteredSelectedParts = await Promise.all(
+                selectedParts.map(async (part) => {
+                    const indexName = `${part.neo4jLabels[0]}NameFulltextIndex`;
+                    let query = `
+                    CALL db.index.fulltext.queryNodes($indexName, $partname)
+                    YIELD node, score
+                    MATCH (node)-[:COMPATIBLE_WITH]-(b:${targetLabel.map((lbl) => `\`${lbl}\``).join(':')})
+                    RETURN count(b) > 0 AS isRelated
+                    `;
+                    const sanitizedPartname = part.name.replace(
+                        /[+\-\/():"]/g,
+                        '\\$&',
                     );
+                    const result = await this.runQuery(query, {
+                        indexName,
+                        partname: sanitizedPartname,
+                    });
+                    const isRelated = result.records[0].get('isRelated');
+                    return isRelated ? part : null;
+                }),
+            ).then(
+                (parts: { name: string; label: string; neo4jLabels: string[] }[]) =>
+                    parts.filter((part) => part !== null),
+            );
+
+            if (filteredSelectedParts.length === 0) {
+                let query = `
+                MATCH (compatible:${targetLabel.map((lbl) => `\`${lbl}\``)})
+                WHERE compatible.price IS NOT NULL AND toFloat(compatible.price) > 0
+                `;
+
+                // Add search filter if provided
+                if (searchTerm) {
+                    query += `
+                    AND toLower(compatible.name) CONTAINS toLower($searchTerm)
+                    `;
+                }
+
+                // Add sorting logic
+                if (sortOption) {
+                    switch(sortOption) {
+                        case 'name':
+                            query += 'ORDER BY compatible.name';
+                            break;
+                        case 'price-asc':
+                            query += 'ORDER BY compatible.price';
+                            break;
+                        case 'price-desc':
+                            query += 'ORDER BY compatible.price DESC';
+                            break;
+                    }
+                }
+
+                query += `
+                RETURN compatible
+                `;
+
+                const params: Record<string, any> = {};
+                if (searchTerm) {
+                    params.searchTerm = searchTerm;
+                }
+
+                const result = await this.runQuery(query, params);
+                return result.records.map(
+                    (record) => this.normalizeProperties(record.get('compatible').properties),
+                );
+            }
+
+            // Build match statements with filtered selected parts
+            const matchStatements = filteredSelectedParts
+                .map(
+                    (part, index) => `
+                MATCH (selected${index}:${part.neo4jLabels[0]} {name: $selectedId${index}})-[:COMPATIBLE_WITH]-(compatible:${targetLabel.map((lbl) => `\`${lbl}\``).join(':')})
+                `,
+                )
+                .join(' ');
+
+            // Add search condition and price filter
+            const whereConditions = ['compatible.price IS NOT NULL', 'toFloat(compatible.price) > 0'];
+            
+            if (searchTerm) {
+                whereConditions.push('toLower(compatible.name) CONTAINS toLower($searchTerm)');
+            }
+            
+            const whereClause = whereConditions.length > 0 
+                ? `WHERE ${whereConditions.join(' AND ')} `
+                : '';
+
+            // Add sorting logic
+            let orderByClause = '';
+            if (sortOption) {
+                switch(sortOption) {
+                    case 'name':
+                        orderByClause = 'ORDER BY compatible.name';
+                        break;
+                    case 'price-asc':
+                        orderByClause = 'ORDER BY compatible.price';
+                        break;
+                    case 'price-desc':
+                        orderByClause = 'ORDER BY compatible.price DESC';
+                        break;
                 }
             }
-            return properties;
-        });
+
+            // Build the params object
+            const params: Record<string, any> = filteredSelectedParts.reduce(
+                (acc, part, index) => ({
+                    ...acc,
+                    [`selectedId${index}`]: part.name,
+                }),
+                {}
+            );
+            
+            // Add search term if provided
+            if (searchTerm) {
+                params.searchTerm = searchTerm;
+            }
+
+            const query = `
+            ${matchStatements}
+            ${whereClause}
+            RETURN DISTINCT compatible
+            ${orderByClause}
+            `;
+
+            const result = await this.runQuery(query, params);
+            return result.records.map(
+                (record) => this.normalizeProperties(record.get('compatible').properties)
+            );
+        } catch (error) {
+            this.logger.error('Error getting specific part type compatible with selected parts:', error);
+            throw new Error('Failed to get specific part type compatible with selected parts');
+        }
+    }
+
+    // Helper method to normalize Neo4j integer properties
+    private normalizeProperties(properties: any): any {
+        const normalized = { ...properties };
+        for (const key in normalized) {
+            if (
+                normalized[key] &&
+                typeof normalized[key] === 'object' &&
+                'low' in normalized[key] &&
+                'high' in normalized[key]
+            ) {
+                normalized[key] = this.utilsService.combineLowHigh(
+                    normalized[key].low,
+                    normalized[key].high,
+                );
+            }
+        }
+        return normalized;
     }
 
     async findAllPartsByLabels(labels: string[]): Promise<any[]> {
@@ -202,24 +282,7 @@ export class ManualBuildService {
             `;
 
             const result = await this.runQuery(query, { labels });
-            // return result.records.map((record) => record.get('part').properties);
-            return result.records.map((record) => {
-                const properties = record.get('part').properties;
-                for (const key in properties) {
-                    if (
-                        properties[key] &&
-                        typeof properties[key] === 'object' &&
-                        'low' in properties[key] &&
-                        'high' in properties[key]
-                    ) {
-                        properties[key] = this.utilsService.combineLowHigh(
-                            properties[key].low,
-                            properties[key].high,
-                        );
-                    }
-                }
-                return properties;
-            });
+            return result.records.map((record) => this.normalizeProperties(record.get('part').properties));
         } catch (error) {
             this.logger.error('Error finding parts by labels:', error);
             throw new Error('Failed to find parts by labels');
@@ -249,23 +312,9 @@ export class ManualBuildService {
             const result = await this.runQuery(query, { labels, skip, limit });
             const countResult = await this.runQuery(countQuery, { labels });
 
-            const items = result.records.map((record) => {
-                const properties = record.get('part').properties;
-                for (const key in properties) {
-                    if (
-                        properties[key] &&
-                        typeof properties[key] === 'object' &&
-                        'low' in properties[key] &&
-                        'high' in properties[key]
-                    ) {
-                        properties[key] = this.utilsService.combineLowHigh(
-                            properties[key].low,
-                            properties[key].high,
-                        );
-                    }
-                }
-                return properties;
-            });
+            const items = result.records.map((record) => 
+                this.normalizeProperties(record.get('part').properties)
+            );
 
             const totalItems = this.utilsService.combineLowHigh(
                 countResult.records[0].get('totalItems').low,
@@ -281,6 +330,7 @@ export class ManualBuildService {
             throw new Error('Failed to find parts by labels with pagination');
         }
     }
+
     private pcConfigurationForManualBuild: any = {};
 
     async checkPartCompatibilityWithSelected(
@@ -301,20 +351,8 @@ export class ManualBuildService {
                 indexName,
                 partname: sanitizedPartname,
             });
-            let partRecord = result.records[0].get('node').properties;
-            for (const key in partRecord) {
-                if (
-                    partRecord[key] &&
-                    typeof partRecord[key] === 'object' &&
-                    'low' in partRecord[key] &&
-                    'high' in partRecord[key]
-                ) {
-                    partRecord[key] = this.utilsService.combineLowHigh(
-                        partRecord[key].low,
-                        partRecord[key].high,
-                    );
-                }
-            }
+            let partRecord = this.normalizeProperties(result.records[0].get('node').properties);
+            
             if (!partRecord) {
                 throw new Error(`Part with name ${partName} not found`);
             }

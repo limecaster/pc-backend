@@ -197,6 +197,56 @@ export class EmailService {
         await this.sendMail(to, subject, html);
     }
 
+    /**
+     * Sends an email notification when an order is approved
+     * @param to Customer email address
+     * @param orderNumber Order number for reference
+     * @param orderDetails Order details including ID, total, etc.
+     */
+    async sendOrderApprovalEmail(
+        to: string,
+        orderNumber: string,
+        orderDetails: any
+    ): Promise<void> {
+        const subject = 'Đơn hàng của bạn đã được xác nhận - B Store';
+        
+        // Format the payment link
+        const paymentLink = `${this.configService.get('FRONTEND_URL', 'http://localhost:3000')}/dashboard/orders`;
+        
+        const html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e7e9; border-radius: 5px;">
+            <h2 style="color: #333; text-align: center;">Đơn hàng đã được xác nhận</h2>
+            <p>Xin chào,</p>
+            <p>Đơn hàng <strong>#${orderNumber}</strong> của bạn đã được xác nhận.</p>
+            <div style="background-color: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 4px;">
+              <p style="margin: 0;"><strong>Tổng giá trị:</strong> ${this.formatPrice(orderDetails.total)} VNĐ</p>
+              <p style="margin: 10px 0 0;"><strong>Ngày đặt hàng:</strong> ${new Date(orderDetails.orderDate).toLocaleDateString('vi-VN')}</p>
+            </div>
+            <p>Vui lòng tiến hành thanh toán để chúng tôi có thể xử lý đơn hàng của bạn:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${paymentLink}" style="background-color: #1435C3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Thanh toán đơn hàng</a>
+            </div>
+            <p>Nếu bạn đã thanh toán, vui lòng bỏ qua thông báo này.</p>
+            <p>Cảm ơn bạn đã mua hàng tại B Store!</p>
+            <p style="margin-top: 30px;">Trân trọng,<br>Đội ngũ B Store</p>
+          </div>
+        `;
+
+        await this.sendMail(to, subject, html);
+    }
+
+    /**
+     * Helper method to format price as VND currency
+     */
+    private formatPrice(price: string | number): string {
+        const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+        return new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND',
+            minimumFractionDigits: 0
+        }).format(numPrice);
+    }
+
     private async sendMail(
         to: string,
         subject: string,

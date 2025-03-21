@@ -85,7 +85,7 @@ export class OrderController {
             // Full access for authenticated owner or staff/admin
             return {
                 success: true,
-                order,
+                order, // This is the correct structure - a single order object
             };
         } catch (error) {
             this.logger.error(`Error fetching order: ${error.message}`);
@@ -164,6 +164,29 @@ export class OrderController {
                 data.status,
                 req.user.id,
             );
+
+            // Send email notification if order is being approved
+            if (data.status === OrderStatus.APPROVED) {
+                // Get the complete order with customer details
+                const orderWithDetails = await this.orderService.findOrderWithItems(
+                    parseInt(orderId)
+                );
+                
+                // Get customer email - check both registered customer and guest
+                const customerEmail = orderWithDetails.customer?.email || orderWithDetails.guestEmail;
+                
+                if (customerEmail) {
+                    // Send approval notification email
+                    await this.emailService.sendOrderApprovalEmail(
+                        customerEmail,
+                        orderWithDetails.orderNumber,
+                        orderWithDetails
+                    );
+                    this.logger.log(`Approval notification sent to ${customerEmail} for order ${orderId}`);
+                } else {
+                    this.logger.warn(`No email found for order ${orderId}, couldn't send approval notification`);
+                }
+            }
 
             return {
                 success: true,
@@ -279,8 +302,9 @@ export class OrderController {
                 },
                 total: order.total,
                 subtotal: order.total,
-                returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/success?orderId=${order.id}`,
+                returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/success`,
                 cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/failure`,
+                webhookUrl: `${process.env.API_URL || 'http://localhost:5000'}/payment/webhook`,
             };
 
             // Create payment link
@@ -632,5 +656,34 @@ export class OrderController {
                 this.recentRequests.delete(key);
             }
         });
+    }
+
+    /**
+     * Get order details specifically for staff
+     * This endpoint ensures complete data is returned in the expected format
+     */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.STAFF, Role.ADMIN)
+    @Get('staff/:id')
+    async getStaffOrderDetails(@Param('id') id: string) {
+        try {
+            this.logger.log(`Staff fetching order with ID: ${id}`);
+            const order = await this.orderService.findOrderWithItems(parseInt(id));
+
+            if (!order) {
+                throw new NotFoundException(`Order with ID ${id} not found`);
+            }
+
+            return {
+                success: true,
+                order,
+            };
+        } catch (error) {
+            this.logger.error(`Error fetching staff order: ${error.message}`);
+            return {
+                success: false,
+                message: error.message,
+            };
+        }
     }
 }

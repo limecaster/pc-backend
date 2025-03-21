@@ -14,7 +14,7 @@ import { OrderItem } from './order-item.entity';
 export enum OrderStatus {
     PENDING_APPROVAL = 'pending_approval',
     APPROVED = 'approved',
-    PAYMENT_SUCCESS = 'payment_success',
+    PAYMENT_SUCCESS = 'payment_success', // Add new payment success status
     PAYMENT_FAILURE = 'payment_failure',
     PROCESSING = 'processing',
     SHIPPING = 'shipping',

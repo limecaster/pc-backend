@@ -14,12 +14,18 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { GuestOrderDto } from './dto/guest-order.dto';
 import { OrderDto } from '../order/dto/order.dto';
 import { OrderStatus } from 'src/order/order.entity';
+import { OrderService } from '../order/order.service';
+import { PaymentService } from '../payment/payment.service';
 
 @Controller('checkout')
 export class CheckoutController {
     private readonly logger = new Logger(CheckoutController.name);
 
-    constructor(private readonly checkoutService: CheckoutService) {}
+    constructor(
+        private readonly checkoutService: CheckoutService,
+        private readonly orderService: OrderService,
+        private readonly paymentService: PaymentService
+    ) {}
 
     @Post('create-order')
     @UseGuards(JwtAuthGuard)
@@ -113,6 +119,24 @@ export class CheckoutController {
                 },
                 HttpStatus.BAD_REQUEST,
             );
+        }
+    }
+
+    @Post('payment/create')
+    async createPayment(@Body() paymentData: any) {
+        try {
+            this.logger.log('Creating payment link with data:', paymentData);
+            
+            // Ensure amounts are properly formatted before passing to payment service
+            const result = await this.paymentService.createPaymentLink(paymentData);
+            
+            return result;
+        } catch (error) {
+            this.logger.error('Error creating payment link:', error);
+            return {
+                success: false,
+                message: error.message || 'An error occurred during payment processing'
+            };
         }
     }
 }

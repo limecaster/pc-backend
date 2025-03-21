@@ -23,15 +23,18 @@ import { Role } from '../auth/enums/role.enum';
 import { StaffService } from './staff.service';
 import { OrderService } from '../order/order.service';
 import { OrderStatus } from '../order/order.entity';
+import { EmailService } from '../email/email.service';
 
 @Controller('staff')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.STAFF)
 export class StaffController {
     private readonly logger = new Logger(StaffController.name);
 
     constructor(
         private readonly staffService: StaffService,
         private readonly orderService: OrderService,
+        private readonly emailService: EmailService,
     ) {}
 
     // Staff-specific endpoints (any staff can access)
@@ -206,8 +209,8 @@ export class StaffController {
         }
     }
 
-    @Post('orders/:orderId/approve')
-    async approveOrder(@Param('orderId') orderId: string, @Request() req) {
+    @Post('orders/:id/approve')
+    async approveOrder(@Param('id') orderId: string, @Request() req) {
         const staffId = req.user.id;
         this.logger.log(`Staff ${staffId} approving order ${orderId}`);
 
@@ -236,20 +239,38 @@ export class StaffController {
                 staffId,
             );
 
+            // Get the complete order with customer details
+            const orderWithDetails = await this.orderService.findOrderWithItems(
+                parseInt(orderId)
+            );
+            
+            // Get customer email - check both registered customer and guest
+            const customerEmail = orderWithDetails.customer?.email || orderWithDetails.guestEmail;
+            
+            if (customerEmail) {
+                // Send approval notification email
+                await this.emailService.sendOrderApprovalEmail(
+                    customerEmail,
+                    orderWithDetails.orderNumber,
+                    orderWithDetails
+                );
+                this.logger.log(`Approval notification sent to ${customerEmail} for order ${orderId}`);
+            } else {
+                this.logger.warn(`No email found for order ${orderId}, couldn't send approval notification`);
+            }
+
             this.logger.log(
-                `Order ${orderId} approved successfully by staff ${staffId}`,
+                `Order ${orderId} approved successfully by staff ${staffId}`
             );
 
             return {
                 success: true,
                 order: updatedOrder,
+                emailSent: !!customerEmail,
                 message: 'Order approved successfully',
             };
         } catch (error) {
-            this.logger.error(
-                `Error approving order ${orderId}: ${error.message}`,
-            );
-
+            this.logger.error(`Error approving order: ${error.message}`);
             return {
                 success: false,
                 message: error.message || 'Failed to approve order',

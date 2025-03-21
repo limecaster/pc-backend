@@ -10,7 +10,6 @@ import { Repository, LessThan } from 'typeorm';
 import { Order, OrderStatus } from './order.entity';
 import { OrderItem } from './order-item.entity';
 import { OrderDto } from './dto/order.dto';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class OrderService {
@@ -639,6 +638,12 @@ export class OrderService {
                 label: 'Đã xác nhận đơn hàng',
                 message:
                     'Đơn hàng của bạn đã được xác nhận và đang được xử lý.',
+            },
+            {
+                status: OrderStatus.PAYMENT_SUCCESS,
+                label: 'Đã thanh toán',
+                message:
+                    'Đơn hàng của bạn đã được thanh toán thành công.',
             },
             {
                 status: OrderStatus.PROCESSING,

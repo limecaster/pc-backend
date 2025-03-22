@@ -24,7 +24,7 @@ export class CheckoutController {
     constructor(
         private readonly checkoutService: CheckoutService,
         private readonly orderService: OrderService,
-        private readonly paymentService: PaymentService
+        private readonly paymentService: PaymentService,
     ) {}
 
     @Post('create-order')
@@ -126,16 +126,19 @@ export class CheckoutController {
     async createPayment(@Body() paymentData: any) {
         try {
             this.logger.log('Creating payment link with data:', paymentData);
-            
+
             // Ensure amounts are properly formatted before passing to payment service
-            const result = await this.paymentService.createPaymentLink(paymentData);
-            
+            const result =
+                await this.paymentService.createPaymentLink(paymentData);
+
             return result;
         } catch (error) {
             this.logger.error('Error creating payment link:', error);
             return {
                 success: false,
-                message: error.message || 'An error occurred during payment processing'
+                message:
+                    error.message ||
+                    'An error occurred during payment processing',
             };
         }
     }

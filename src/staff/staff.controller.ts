@@ -238,29 +238,36 @@ export class StaffController {
                 OrderStatus.APPROVED,
                 staffId,
             );
+            
+            this.logger.log(`Order ${orderId} approved successfully with stock adjustments`);
 
             // Get the complete order with customer details
             const orderWithDetails = await this.orderService.findOrderWithItems(
-                parseInt(orderId)
+                parseInt(orderId),
             );
-            
+
             // Get customer email - check both registered customer and guest
-            const customerEmail = orderWithDetails.customer?.email || orderWithDetails.guestEmail;
-            
+            const customerEmail =
+                orderWithDetails.customer?.email || orderWithDetails.guestEmail;
+
             if (customerEmail) {
                 // Send approval notification email
                 await this.emailService.sendOrderApprovalEmail(
                     customerEmail,
                     orderWithDetails.orderNumber,
-                    orderWithDetails
+                    orderWithDetails,
                 );
-                this.logger.log(`Approval notification sent to ${customerEmail} for order ${orderId}`);
+                this.logger.log(
+                    `Approval notification sent to ${customerEmail} for order ${orderId}`,
+                );
             } else {
-                this.logger.warn(`No email found for order ${orderId}, couldn't send approval notification`);
+                this.logger.warn(
+                    `No email found for order ${orderId}, couldn't send approval notification`,
+                );
             }
 
             this.logger.log(
-                `Order ${orderId} approved successfully by staff ${staffId}`
+                `Order ${orderId} approved successfully by staff ${staffId}`,
             );
 
             return {

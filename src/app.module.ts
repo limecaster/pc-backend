@@ -64,7 +64,7 @@ import { AccountModule } from './dashboard/account/account.module';
         CloudinaryModule,
         RatingModule,
         PCConfigurationModule,
-        AccountModule
+        AccountModule,
     ],
     controllers: [
         AppController,

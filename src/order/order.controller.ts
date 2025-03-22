@@ -168,23 +168,30 @@ export class OrderController {
             // Send email notification if order is being approved
             if (data.status === OrderStatus.APPROVED) {
                 // Get the complete order with customer details
-                const orderWithDetails = await this.orderService.findOrderWithItems(
-                    parseInt(orderId)
-                );
-                
+                const orderWithDetails =
+                    await this.orderService.findOrderWithItems(
+                        parseInt(orderId),
+                    );
+
                 // Get customer email - check both registered customer and guest
-                const customerEmail = orderWithDetails.customer?.email || orderWithDetails.guestEmail;
-                
+                const customerEmail =
+                    orderWithDetails.customer?.email ||
+                    orderWithDetails.guestEmail;
+
                 if (customerEmail) {
                     // Send approval notification email
                     await this.emailService.sendOrderApprovalEmail(
                         customerEmail,
                         orderWithDetails.orderNumber,
-                        orderWithDetails
+                        orderWithDetails,
                     );
-                    this.logger.log(`Approval notification sent to ${customerEmail} for order ${orderId}`);
+                    this.logger.log(
+                        `Approval notification sent to ${customerEmail} for order ${orderId}`,
+                    );
                 } else {
-                    this.logger.warn(`No email found for order ${orderId}, couldn't send approval notification`);
+                    this.logger.warn(
+                        `No email found for order ${orderId}, couldn't send approval notification`,
+                    );
                 }
             }
 
@@ -364,7 +371,6 @@ export class OrderController {
             // Check if identifier is a numeric ID or an order number
             let order;
             const isNumericId = /^\d+$/.test(identifier);
-
             if (isNumericId) {
                 // If it's a numeric ID, find order by ID
                 order = await this.orderService.findOrderWithItems(
@@ -668,7 +674,9 @@ export class OrderController {
     async getStaffOrderDetails(@Param('id') id: string) {
         try {
             this.logger.log(`Staff fetching order with ID: ${id}`);
-            const order = await this.orderService.findOrderWithItems(parseInt(id));
+            const order = await this.orderService.findOrderWithItems(
+                parseInt(id),
+            );
 
             if (!order) {
                 throw new NotFoundException(`Order with ID ${id} not found`);

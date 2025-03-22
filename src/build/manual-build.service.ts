@@ -140,8 +140,13 @@ export class ManualBuildService {
                     return isRelated ? part : null;
                 }),
             ).then(
-                (parts: { name: string; label: string; neo4jLabels: string[] }[]) =>
-                    parts.filter((part) => part !== null),
+                (
+                    parts: {
+                        name: string;
+                        label: string;
+                        neo4jLabels: string[];
+                    }[],
+                ) => parts.filter((part) => part !== null),
             );
 
             if (filteredSelectedParts.length === 0) {
@@ -159,7 +164,7 @@ export class ManualBuildService {
 
                 // Add sorting logic
                 if (sortOption) {
-                    switch(sortOption) {
+                    switch (sortOption) {
                         case 'name':
                             query += 'ORDER BY compatible.name';
                             break;
@@ -182,8 +187,10 @@ export class ManualBuildService {
                 }
 
                 const result = await this.runQuery(query, params);
-                return result.records.map(
-                    (record) => this.normalizeProperties(record.get('compatible').properties),
+                return result.records.map((record) =>
+                    this.normalizeProperties(
+                        record.get('compatible').properties,
+                    ),
                 );
             }
 
@@ -197,20 +204,26 @@ export class ManualBuildService {
                 .join(' ');
 
             // Add search condition and price filter
-            const whereConditions = ['compatible.price IS NOT NULL', 'toFloat(compatible.price) > 0'];
-            
+            const whereConditions = [
+                'compatible.price IS NOT NULL',
+                'toFloat(compatible.price) > 0',
+            ];
+
             if (searchTerm) {
-                whereConditions.push('toLower(compatible.name) CONTAINS toLower($searchTerm)');
+                whereConditions.push(
+                    'toLower(compatible.name) CONTAINS toLower($searchTerm)',
+                );
             }
-            
-            const whereClause = whereConditions.length > 0 
-                ? `WHERE ${whereConditions.join(' AND ')} `
-                : '';
+
+            const whereClause =
+                whereConditions.length > 0
+                    ? `WHERE ${whereConditions.join(' AND ')} `
+                    : '';
 
             // Add sorting logic
             let orderByClause = '';
             if (sortOption) {
-                switch(sortOption) {
+                switch (sortOption) {
                     case 'name':
                         orderByClause = 'ORDER BY compatible.name';
                         break;
@@ -229,9 +242,9 @@ export class ManualBuildService {
                     ...acc,
                     [`selectedId${index}`]: part.name,
                 }),
-                {}
+                {},
             );
-            
+
             // Add search term if provided
             if (searchTerm) {
                 params.searchTerm = searchTerm;
@@ -245,12 +258,17 @@ export class ManualBuildService {
             `;
 
             const result = await this.runQuery(query, params);
-            return result.records.map(
-                (record) => this.normalizeProperties(record.get('compatible').properties)
+            return result.records.map((record) =>
+                this.normalizeProperties(record.get('compatible').properties),
             );
         } catch (error) {
-            this.logger.error('Error getting specific part type compatible with selected parts:', error);
-            throw new Error('Failed to get specific part type compatible with selected parts');
+            this.logger.error(
+                'Error getting specific part type compatible with selected parts:',
+                error,
+            );
+            throw new Error(
+                'Failed to get specific part type compatible with selected parts',
+            );
         }
     }
 
@@ -282,7 +300,9 @@ export class ManualBuildService {
             `;
 
             const result = await this.runQuery(query, { labels });
-            return result.records.map((record) => this.normalizeProperties(record.get('part').properties));
+            return result.records.map((record) =>
+                this.normalizeProperties(record.get('part').properties),
+            );
         } catch (error) {
             this.logger.error('Error finding parts by labels:', error);
             throw new Error('Failed to find parts by labels');
@@ -312,8 +332,8 @@ export class ManualBuildService {
             const result = await this.runQuery(query, { labels, skip, limit });
             const countResult = await this.runQuery(countQuery, { labels });
 
-            const items = result.records.map((record) => 
-                this.normalizeProperties(record.get('part').properties)
+            const items = result.records.map((record) =>
+                this.normalizeProperties(record.get('part').properties),
             );
 
             const totalItems = this.utilsService.combineLowHigh(
@@ -351,8 +371,10 @@ export class ManualBuildService {
                 indexName,
                 partname: sanitizedPartname,
             });
-            let partRecord = this.normalizeProperties(result.records[0].get('node').properties);
-            
+            let partRecord = this.normalizeProperties(
+                result.records[0].get('node').properties,
+            );
+
             if (!partRecord) {
                 throw new Error(`Part with name ${partName} not found`);
             }

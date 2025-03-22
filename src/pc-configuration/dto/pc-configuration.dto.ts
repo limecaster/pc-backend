@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsObject, IsOptional, IsString, IsNumber } from 'class-validator';
+import {
+    IsNotEmpty,
+    IsObject,
+    IsOptional,
+    IsString,
+    IsNumber,
+} from 'class-validator';
 
 export class CreatePCConfigurationDto {
     @IsNotEmpty()

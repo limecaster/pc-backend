@@ -22,7 +22,7 @@ export class BuildController {
         'Màn hình': ['Monitor'],
         // Replace generic categories with specific ones
         'Bàn phím': ['Keyboard'],
-        'Chuột': ['Mouse'],
+        Chuột: ['Mouse'],
         'Card mạng không dây': ['WiFiCard'],
         'Card mạng có dây': ['WiredNetworkCard'],
         'Kem tản nhiệt': ['ThermalPaste'],
@@ -84,23 +84,25 @@ export class BuildController {
             const pageSize = parseInt(limit, 10) || 10;
 
             // Always get compatible parts with filtering first
-            const compatibleParts = await this.manualBuildService.getSpecificPartTypeCompatibleWithSelectedParts(
-                parsedSelectedParts,
-                targetLabels,
-                searchTerm,
-                sortOption,
-            );
-            
+            const compatibleParts =
+                await this.manualBuildService.getSpecificPartTypeCompatibleWithSelectedParts(
+                    parsedSelectedParts,
+                    targetLabels,
+                    searchTerm,
+                    sortOption,
+                );
+
             // Then handle pagination on the already filtered results
             const startIndex = (pageNumber - 1) * pageSize;
             const endIndex = startIndex + pageSize;
             const items = compatibleParts.slice(startIndex, endIndex);
-            const totalPages = Math.ceil(compatibleParts.length / pageSize) || 1; // Ensure at least 1 page
-            
-            return { 
-                items, 
+            const totalPages =
+                Math.ceil(compatibleParts.length / pageSize) || 1; // Ensure at least 1 page
+
+            return {
+                items,
                 totalPages,
-                totalItems: compatibleParts.length 
+                totalItems: compatibleParts.length,
             };
         } catch (error) {
             console.error('Error fetching compatible parts:', error);

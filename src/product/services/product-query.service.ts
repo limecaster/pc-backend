@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-    Repository,
-    ILike,
-} from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Product } from '../product.entity';
 
 @Injectable()
@@ -29,8 +26,13 @@ export class ProductQueryService {
     }> {
         try {
             // If we have product IDs filter but it's empty, return empty result
-            if (Array.isArray(filteredProductIds) && filteredProductIds.length === 0) {
-                this.logger.log('Empty product IDs array provided, returning empty results');
+            if (
+                Array.isArray(filteredProductIds) &&
+                filteredProductIds.length === 0
+            ) {
+                this.logger.log(
+                    'Empty product IDs array provided, returning empty results',
+                );
                 return {
                     products: [],
                     total: 0,
@@ -38,69 +40,87 @@ export class ProductQueryService {
                     page,
                 };
             }
-            
+
             const offset = (page - 1) * limit;
-            const queryBuilder = this.productRepository.createQueryBuilder('product');
-            
+            const queryBuilder =
+                this.productRepository.createQueryBuilder('product');
+
             // Add status filter
-            queryBuilder.where('product.status = :status', { status: 'active' });
-            
+            queryBuilder.where('product.status = :status', {
+                status: 'active',
+            });
+
             // Add category filter if provided
             if (category) {
-                queryBuilder.andWhere('product.category = :category', { category });
+                queryBuilder.andWhere('product.category = :category', {
+                    category,
+                });
             }
-            
+
             // Add price filters if provided
             if (whereClause.price_gte !== undefined) {
-                queryBuilder.andWhere('product.price >= :minPrice', { 
-                    minPrice: whereClause.price_gte 
+                queryBuilder.andWhere('product.price >= :minPrice', {
+                    minPrice: whereClause.price_gte,
                 });
             }
-            
+
             if (whereClause.price_lte !== undefined) {
-                queryBuilder.andWhere('product.price <= :maxPrice', { 
-                    maxPrice: whereClause.price_lte 
+                queryBuilder.andWhere('product.price <= :maxPrice', {
+                    maxPrice: whereClause.price_lte,
                 });
             }
-            
+
             // Add product IDs filter if provided - THIS IS CRITICAL FOR SUBCATEGORY FILTERING
-            if (Array.isArray(filteredProductIds) && filteredProductIds.length > 0) {
-                this.logger.log(`Adding ID filter with ${filteredProductIds.length} product IDs`);
-                
+            if (
+                Array.isArray(filteredProductIds) &&
+                filteredProductIds.length > 0
+            ) {
+                this.logger.log(
+                    `Adding ID filter with ${filteredProductIds.length} product IDs`,
+                );
+
                 // Ensure IDs are strings and not duplicated
-                const uniqueStringIds = [...new Set(filteredProductIds.map(id => String(id)))];
-                
+                const uniqueStringIds = [
+                    ...new Set(filteredProductIds.map((id) => String(id))),
+                ];
+
                 // Print a few sample IDs for debugging
-                this.logger.log(`Sample IDs: ${uniqueStringIds.slice(0, 3).join(', ')}...`);
-                
+                this.logger.log(
+                    `Sample IDs: ${uniqueStringIds.slice(0, 3).join(', ')}...`,
+                );
+
                 // Use parameterized query with explicit parameter name
-                queryBuilder.andWhere('product.id IN (:...filteredIds)', { 
-                    filteredIds: uniqueStringIds 
+                queryBuilder.andWhere('product.id IN (:...filteredIds)', {
+                    filteredIds: uniqueStringIds,
                 });
             }
-            
+
             // Count total results for pagination - must be done after all filters are applied
             const totalCount = await queryBuilder.getCount();
-            this.logger.log(`Query will return a total of ${totalCount} results`);
-            
+            this.logger.log(
+                `Query will return a total of ${totalCount} results`,
+            );
+
             // Add pagination and ordering
             queryBuilder
                 .orderBy('product.createdAt', 'DESC')
                 .skip(offset)
                 .take(limit);
-            
+
             // Log the raw SQL for debugging with all parameters
             const rawQuery = queryBuilder.getSql();
             this.logger.log(`Generated SQL query: ${rawQuery}`);
-            
+
             const parameters = queryBuilder.getParameters();
             this.logger.log(`Query parameters: ${JSON.stringify(parameters)}`);
-            
+
             // Execute query
             const products = await queryBuilder.getMany();
-            
-            this.logger.log(`Query returned ${products.length} products out of ${totalCount} total`);
-            
+
+            this.logger.log(
+                `Query returned ${products.length} products out of ${totalCount} total`,
+            );
+
             return {
                 products,
                 total: totalCount,
@@ -108,7 +128,9 @@ export class ProductQueryService {
                 page,
             };
         } catch (error) {
-            this.logger.error(`Error finding products by category: ${error.message}`);
+            this.logger.error(
+                `Error finding products by category: ${error.message}`,
+            );
             throw error;
         }
     }

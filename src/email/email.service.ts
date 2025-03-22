@@ -206,13 +206,13 @@ export class EmailService {
     async sendOrderApprovalEmail(
         to: string,
         orderNumber: string,
-        orderDetails: any
+        orderDetails: any,
     ): Promise<void> {
         const subject = 'Đơn hàng của bạn đã được xác nhận - B Store';
-        
+
         // Format the payment link
         const paymentLink = `${this.configService.get('FRONTEND_URL', 'http://localhost:3000')}/dashboard/orders`;
-        
+
         const html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e7e9; border-radius: 5px;">
             <h2 style="color: #333; text-align: center;">Đơn hàng đã được xác nhận</h2>
@@ -243,7 +243,7 @@ export class EmailService {
         return new Intl.NumberFormat('vi-VN', {
             style: 'currency',
             currency: 'VND',
-            minimumFractionDigits: 0
+            minimumFractionDigits: 0,
         }).format(numPrice);
     }
 

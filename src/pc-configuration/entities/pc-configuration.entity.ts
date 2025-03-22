@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    CreateDateColumn,
+    UpdateDateColumn,
+} from 'typeorm';
 
 @Entity({ name: 'PC_Configuration' })
 export class PCConfiguration {
@@ -17,7 +23,13 @@ export class PCConfiguration {
     @Column({ type: 'json' })
     products: Record<string, any>;
 
-    @Column({ name: 'total_price', type: 'decimal', precision: 10, scale: 2, nullable: true })
+    @Column({
+        name: 'total_price',
+        type: 'decimal',
+        precision: 10,
+        scale: 2,
+        nullable: true,
+    })
     totalPrice: number;
 
     @Column({ nullable: true })

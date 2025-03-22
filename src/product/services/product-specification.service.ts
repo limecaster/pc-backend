@@ -426,7 +426,9 @@ export class ProductSpecificationService {
                         const paramName = `subcatValues${index}`;
 
                         // Log each filter being applied
-                        this.logger.log(`Applying Neo4j filter: ${key} = ${JSON.stringify(values)}`);
+                        this.logger.log(
+                            `Applying Neo4j filter: ${key} = ${JSON.stringify(values)}`,
+                        );
 
                         // Handle numeric properties with units
                         if (
@@ -486,7 +488,11 @@ export class ProductSpecificationService {
             );
 
             // Make sure brand filter is applied correctly (manufacturer is a special case)
-            if (brands && brands.length > 0 && !subcategoryFilters.manufacturer) {
+            if (
+                brands &&
+                brands.length > 0 &&
+                !subcategoryFilters.manufacturer
+            ) {
                 cypher += ` AND p.manufacturer IN $brands`;
                 params.brands = brands.map(String);
             }
@@ -500,23 +506,27 @@ export class ProductSpecificationService {
 
             // Execute the query
             const result = await session.run(cypher, params);
-            
+
             // Process and log results
             const ids = result.records.map((record) => record.get('id'));
-            this.logger.log(`Neo4j returned ${ids.length} matching product IDs`);
-            
+            this.logger.log(
+                `Neo4j returned ${ids.length} matching product IDs`,
+            );
+
             if (ids.length > 0) {
                 this.logger.log(`Sample IDs: ${ids.slice(0, 3).join(', ')}...`);
             } else {
                 this.logger.warn('No product IDs matched the filters in Neo4j');
             }
-            
+
             return ids;
         } catch (error) {
             this.logger.error(
                 `Error getting product IDs by subcategory filters: ${error.message}`,
             );
-            throw new Error(`Failed to get product IDs by subcategory filters: ${error.message}`);
+            throw new Error(
+                `Failed to get product IDs by subcategory filters: ${error.message}`,
+            );
         } finally {
             await session.close();
         }

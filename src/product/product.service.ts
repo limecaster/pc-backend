@@ -116,8 +116,13 @@ export class ProductService {
     }> {
         try {
             // Debug logging for subcategory filters
-            if (subcategoryFilters && Object.keys(subcategoryFilters).length > 0) {
-                this.logger.log(`Processing subcategory filters: ${JSON.stringify(subcategoryFilters)}`);
+            if (
+                subcategoryFilters &&
+                Object.keys(subcategoryFilters).length > 0
+            ) {
+                this.logger.log(
+                    `Processing subcategory filters: ${JSON.stringify(subcategoryFilters)}`,
+                );
             } else {
                 this.logger.log('No subcategory filters provided');
             }
@@ -137,43 +142,65 @@ export class ProductService {
             let filteredProductIds: string[] | undefined = undefined;
 
             // First handle subcategory filters if provided
-            if (subcategoryFilters && Object.keys(subcategoryFilters).length > 0) {
-                this.logger.log(`Getting products with subcategory filters for category: ${category || 'all'}`);
-                
-                try {
-                    const subcategoryFilteredIds = await this.productSpecService.getProductIdsBySubcategoryFilters(
-                        category,
-                        subcategoryFilters,
-                        brands
-                    );
-
-                    if (!subcategoryFilteredIds || subcategoryFilteredIds.length === 0) {
-                        this.logger.log('No products match the subcategory filters, returning empty result');
-                        return { products: [], total: 0, pages: 0, page };
-                    }
-                    
-                    this.logger.log(`Found ${subcategoryFilteredIds.length} products matching the subcategory filters`);
-                    if (subcategoryFilteredIds.length > 0) {
-                        this.logger.log(`Sample IDs: ${subcategoryFilteredIds.slice(0, 3).join(', ')}...`);
-                    }
-                    
-                    filteredProductIds = subcategoryFilteredIds;
-                } catch (error) {
-                    this.logger.error(`Error applying subcategory filters: ${error.message}`);
-                    throw error;
-                }
-            } 
-            // If no subcategory filters but we have brand filters, handle those
-            else if (brands && brands.length > 0) {
-                this.logger.debug(`Getting products that match brands: ${brands.join(', ')}`);
-                
-                const brandFilteredIds = await this.productSpecService.getProductIdsByBrands(
-                    brands,
-                    category
+            if (
+                subcategoryFilters &&
+                Object.keys(subcategoryFilters).length > 0
+            ) {
+                this.logger.log(
+                    `Getting products with subcategory filters for category: ${category || 'all'}`,
                 );
 
+                try {
+                    const subcategoryFilteredIds =
+                        await this.productSpecService.getProductIdsBySubcategoryFilters(
+                            category,
+                            subcategoryFilters,
+                            brands,
+                        );
+
+                    if (
+                        !subcategoryFilteredIds ||
+                        subcategoryFilteredIds.length === 0
+                    ) {
+                        this.logger.log(
+                            'No products match the subcategory filters, returning empty result',
+                        );
+                        return { products: [], total: 0, pages: 0, page };
+                    }
+
+                    this.logger.log(
+                        `Found ${subcategoryFilteredIds.length} products matching the subcategory filters`,
+                    );
+                    if (subcategoryFilteredIds.length > 0) {
+                        this.logger.log(
+                            `Sample IDs: ${subcategoryFilteredIds.slice(0, 3).join(', ')}...`,
+                        );
+                    }
+
+                    filteredProductIds = subcategoryFilteredIds;
+                } catch (error) {
+                    this.logger.error(
+                        `Error applying subcategory filters: ${error.message}`,
+                    );
+                    throw error;
+                }
+            }
+            // If no subcategory filters but we have brand filters, handle those
+            else if (brands && brands.length > 0) {
+                this.logger.debug(
+                    `Getting products that match brands: ${brands.join(', ')}`,
+                );
+
+                const brandFilteredIds =
+                    await this.productSpecService.getProductIdsByBrands(
+                        brands,
+                        category,
+                    );
+
                 if (!brandFilteredIds || brandFilteredIds.length === 0) {
-                    this.logger.debug('No products match the brand filters, returning empty result');
+                    this.logger.debug(
+                        'No products match the brand filters, returning empty result',
+                    );
                     return { products: [], total: 0, pages: 0, page };
                 }
 
@@ -182,23 +209,32 @@ export class ProductService {
 
             // Apply rating filter if provided
             if (minRating !== undefined && minRating > 0) {
-                this.logger.debug(`Applying minimum rating filter: ${minRating}`);
-                
-                const ratingFilteredIds = await this.productRatingService.getProductIdsByMinRating(minRating);
+                this.logger.debug(
+                    `Applying minimum rating filter: ${minRating}`,
+                );
+
+                const ratingFilteredIds =
+                    await this.productRatingService.getProductIdsByMinRating(
+                        minRating,
+                    );
 
                 if (!ratingFilteredIds || ratingFilteredIds.length === 0) {
-                    this.logger.debug('No products match the rating filter, returning empty result');
+                    this.logger.debug(
+                        'No products match the rating filter, returning empty result',
+                    );
                     return { products: [], total: 0, pages: 0, page };
                 }
 
                 // If we already have product IDs from previous filters, we need to find the intersection
                 if (filteredProductIds) {
-                    filteredProductIds = filteredProductIds.filter(id => 
-                        ratingFilteredIds.includes(id)
+                    filteredProductIds = filteredProductIds.filter((id) =>
+                        ratingFilteredIds.includes(id),
                     );
-                    
+
                     if (filteredProductIds.length === 0) {
-                        this.logger.debug('No products match all filters, returning empty result');
+                        this.logger.debug(
+                            'No products match all filters, returning empty result',
+                        );
                         return { products: [], total: 0, pages: 0, page };
                     }
                 } else {
@@ -207,23 +243,31 @@ export class ProductService {
             }
 
             // Make sure filteredProductIds is explicitly undefined if not set
-            this.logger.log(`Final filter contains ${filteredProductIds ? filteredProductIds.length : 'no'} product IDs`);
-            
+            this.logger.log(
+                `Final filter contains ${filteredProductIds ? filteredProductIds.length : 'no'} product IDs`,
+            );
+
             // Query for products with filters
-            this.logger.log(`Querying database with ${filteredProductIds ? filteredProductIds.length : 'no'} ID filters`);
+            this.logger.log(
+                `Querying database with ${filteredProductIds ? filteredProductIds.length : 'no'} ID filters`,
+            );
             if (filteredProductIds && filteredProductIds.length > 0) {
-                this.logger.log(`Sample IDs: ${filteredProductIds.slice(0, 3).join(', ')}...`);
+                this.logger.log(
+                    `Sample IDs: ${filteredProductIds.slice(0, 3).join(', ')}...`,
+                );
             }
-            
+
             const result = await this.productQueryService.findByCategory(
                 category,
                 page,
                 limit,
                 whereClause,
-                filteredProductIds || undefined
+                filteredProductIds || undefined,
             );
 
-            this.logger.debug(`Database returned ${result.products.length} products out of ${result.total} total matching products`);
+            this.logger.debug(
+                `Database returned ${result.products.length} products out of ${result.total} total matching products`,
+            );
 
             // Enrich products with details
             const productDetails = await this.enrichProductsWithDetails(
@@ -240,7 +284,9 @@ export class ProductService {
             this.logger.error(
                 `Error finding products by category: ${error.message}`,
             );
-            throw new Error(`Failed to find products by category: ${error.message}`);
+            throw new Error(
+                `Failed to find products by category: ${error.message}`,
+            );
         }
     }
 
@@ -728,6 +774,50 @@ export class ProductService {
         } catch (error) {
             this.logger.error(`Error in enhanced search: ${error.message}`);
             return null; // Fall back to standard search on error
+        }
+    }
+
+    /**
+     * Get stock quantities for multiple products
+     * @param ids Array of product IDs or comma-separated string of IDs
+     * @returns Object mapping product IDs to their stock quantities
+     */
+    async getStockQuantities(ids: string[] | string): Promise<Record<string, number>> {
+        try {
+            // Handle both array and comma-separated string formats
+            let productIds: string[];
+            if (typeof ids === 'string') {
+                productIds = ids.split(',').map(id => id.trim());
+            } else {
+                productIds = ids;
+            }
+            console.log(productIds);
+            
+            // Remove any duplicates
+            const uniqueIds = [...new Set(productIds)].filter(id => id);
+            
+            if (uniqueIds.length === 0) {
+                return {};
+            }
+            
+            this.logger.log(`Looking up stock for ${uniqueIds.length} products`);
+            
+            // Find products with these IDs
+            const products = await this.productRepository.find({
+                where: { id: In(uniqueIds) },
+                select: ['id', 'stockQuantity']
+            });
+            
+            this.logger.log(`Found ${products.length} products with stock information`);
+            
+            // Create a mapping of id -> stock_quantity
+            return products.reduce((stocks, product) => {
+                stocks[product.id] = product.stockQuantity;
+                return stocks;
+            }, {} as Record<string, number>);
+        } catch (error) {
+            this.logger.error(`Error getting stock quantities: ${error.message}`);
+            return {};
         }
     }
 }

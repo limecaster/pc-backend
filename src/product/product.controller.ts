@@ -11,6 +11,9 @@ import {
     UseGuards,
     InternalServerErrorException,
     Logger,
+    ParseArrayPipe,
+    HttpException,
+    HttpStatus,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { ProductDetailsDto } from './dto/product-response.dto';
@@ -39,6 +42,42 @@ export class ProductController {
         private readonly cloudinaryService: CloudinaryConfigService,
     ) {}
 
+    // IMPORTANT: Move the stock endpoint before the :slug endpoint to prevent route conflicts
+    @Get('stock')
+    async getProductsStockQuantities(@Query('ids') ids: string) {
+        try {
+            this.logger.log(`Fetching stock quantities for products: ${ids}`);
+            
+            if (!ids) {
+                this.logger.warn('No product IDs provided');
+                return { success: true, stocks: {} };
+            }
+            
+            // Parse comma-separated IDs
+            const productIds = ids.split(',').filter(id => id);
+            
+            if (productIds.length === 0) {
+                return { success: true, stocks: {} };
+            }
+            
+            // Get stock quantities for the requested products
+            const stocks = await this.productService.getStockQuantities(productIds);
+            
+            this.logger.log(`Returning stock data for ${Object.keys(stocks).length} products`);
+            return {
+                success: true,
+                stocks
+            };
+        } catch (error) {
+            this.logger.error(`Error fetching product stock quantities: ${error.message}`);
+            throw new HttpException(
+                `Failed to get product stock quantities: ${error.message}`,
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    // Keep other specific endpoints before the generic :slug endpoint
     @Get('brands')
     async getAllBrands(): Promise<string[]> {
         try {
@@ -142,48 +181,75 @@ export class ProductController {
 
             // Parse subcategory filters
             let subcategoryFilters: Record<string, string[]> | undefined;
-            
+
             if (subcategoriesParam) {
                 try {
-                    this.logger.log(`Raw subcategories param [${typeof subcategoriesParam}]: "${subcategoriesParam}"`);
-                    
+                    this.logger.log(
+                        `Raw subcategories param [${typeof subcategoriesParam}]: "${subcategoriesParam}"`,
+                    );
+
                     const decodedParam = decodeURIComponent(subcategoriesParam);
-                    this.logger.log(`Decoded subcategories param: "${decodedParam}"`);
-                    
+                    this.logger.log(
+                        `Decoded subcategories param: "${decodedParam}"`,
+                    );
+
                     try {
                         subcategoryFilters = JSON.parse(decodedParam);
-                        
+
                         // Validate format and structure
-                        if (typeof subcategoryFilters !== 'object' || subcategoryFilters === null) {
-                            this.logger.error('Invalid subcategory filter format: not an object');
-                            throw new BadRequestException('Subcategories must be a valid object');
+                        if (
+                            typeof subcategoryFilters !== 'object' ||
+                            subcategoryFilters === null
+                        ) {
+                            this.logger.error(
+                                'Invalid subcategory filter format: not an object',
+                            );
+                            throw new BadRequestException(
+                                'Subcategories must be a valid object',
+                            );
                         }
-                        
+
                         // Normalize values to ensure they're all arrays
-                        Object.entries(subcategoryFilters).forEach(([key, value]) => {
-                            if (!Array.isArray(value)) {
-                                this.logger.log(`Converting non-array value for "${key}" to array: ${value}`);
-                                subcategoryFilters[key] = [String(value)];
-                            } else if (value.length === 0) {
-                                this.logger.log(`Empty array found for key "${key}", removing`);
-                                delete subcategoryFilters[key];
-                            }
-                        });
-                        
+                        Object.entries(subcategoryFilters).forEach(
+                            ([key, value]) => {
+                                if (!Array.isArray(value)) {
+                                    this.logger.log(
+                                        `Converting non-array value for "${key}" to array: ${value}`,
+                                    );
+                                    subcategoryFilters[key] = [String(value)];
+                                } else if (value.length === 0) {
+                                    this.logger.log(
+                                        `Empty array found for key "${key}", removing`,
+                                    );
+                                    delete subcategoryFilters[key];
+                                }
+                            },
+                        );
+
                         // Log the final structured filters
-                        this.logger.log(`Final subcategory filters: ${JSON.stringify(subcategoryFilters)}`);
-                        
+                        this.logger.log(
+                            `Final subcategory filters: ${JSON.stringify(subcategoryFilters)}`,
+                        );
+
                         // Check if we have any filters left
                         if (Object.keys(subcategoryFilters).length === 0) {
-                            this.logger.log('No valid subcategory filters after processing');
+                            this.logger.log(
+                                'No valid subcategory filters after processing',
+                            );
                             subcategoryFilters = undefined;
                         }
                     } catch (parseError) {
-                        this.logger.error(`JSON parse error: ${parseError.message}`);
-                        throw new BadRequestException('Invalid JSON in subcategories parameter');
+                        this.logger.error(
+                            `JSON parse error: ${parseError.message}`,
+                        );
+                        throw new BadRequestException(
+                            'Invalid JSON in subcategories parameter',
+                        );
                     }
                 } catch (error) {
-                    this.logger.error(`Error processing subcategories: ${error.message}`);
+                    this.logger.error(
+                        `Error processing subcategories: ${error.message}`,
+                    );
                     throw error;
                 }
             }
@@ -345,6 +411,7 @@ export class ProductController {
         }
     }
 
+    // Move the :slug endpoint to the end to avoid capturing other routes
     @Get(':slug')
     async findBySlug(@Param('slug') slug: string): Promise<ProductDetailsDto> {
         try {

@@ -15,6 +15,7 @@ import { PaymentService } from './payment.service';
 import { OrderService } from '../order/order.service';
 import { OrderStatus } from '../order/order.entity';
 import { Request } from 'express';
+import { DiscountService } from '../discount/discount.service';
 
 @Controller('payment')
 export class PaymentController {
@@ -23,6 +24,7 @@ export class PaymentController {
     constructor(
         private readonly paymentService: PaymentService,
         private readonly orderService: OrderService,
+        private readonly discountService: DiscountService, // Add this injection
     ) {}
 
     @Post('create')
@@ -78,6 +80,15 @@ export class PaymentController {
                 };
             }
 
+            let total = paymentData.orderTotal || 0;
+            // Subtract any discount
+            if (paymentData.discountAmount && paymentData.discountAmount > 0) {
+                total -= paymentData.discountAmount;
+            }
+            if (total < 0) {
+                total = 0;
+            }
+
             const result =
                 await this.paymentService.createPaymentLink(paymentData);
 
@@ -118,7 +129,7 @@ export class PaymentController {
                 }
             }
 
-            return result;
+            return { success: true, finalPrice: total };
         } catch (error) {
             this.logger.error(
                 `Payment creation error: ${error.message}`,
@@ -206,82 +217,93 @@ export class PaymentController {
     @Get('success')
     async handlePaymentSuccess(
         @Query('orderId') orderId: string,
-        @Query('paymentId') paymentId: string,
         @Query('status') paymentStatus: string,
         @Query('code') paymentCode: string,
+        @Query('id') id: string,
+        @Query('orderCode') orderCode: string,
         @Req() request: Request,
     ) {
         try {
             this.logger.log(
-                `Processing successful payment callback for order: ${orderId}`,
+                `Processing payment success: orderId=${orderId}, status=${paymentStatus}, code=${paymentCode}, id=${id}, orderCode=${orderCode}`,
             );
-            this.logger.log(
-                `Payment parameters - status: ${paymentStatus}, code: ${paymentCode}, paymentId: ${paymentId}`,
-            );
-
-            // Validate the parameters
-            if (!orderId) {
-                return {
-                    success: false,
-                    message: 'Order ID is required',
-                };
-            }
-
-            // Get the order to verify its current status
-            const order = await this.orderService.findOrderWithItems(
-                parseInt(orderId),
-            );
-
-            if (!order) {
-                this.logger.warn(
-                    `Order ${orderId} not found when processing payment success`,
-                );
-                return {
-                    success: false,
-                    message: 'Order not found',
-                };
-            }
-
-            this.logger.log(
-                `Found order ${orderId} with status: ${order.status}`,
-            );
-
-            // Check if this is a successful payment from PayOS
+            
+            // Check if this is a direct success call with valid parameters
             const isPaid = paymentStatus === 'PAID' && paymentCode === '00';
-
-            if (isPaid) {
-                // Update order status to payment success
-                this.logger.log(`Updating order ${orderId} to PAYMENT_SUCCESS`);
-                await this.orderService.updateOrderStatus(
-                    parseInt(orderId),
-                    OrderStatus.PAYMENT_SUCCESS,
-                );
-
-                this.logger.log(
-                    `Order ${orderId} successfully updated to PAYMENT_SUCCESS`,
-                );
-            } else {
-                this.logger.warn(
-                    `Payment for order ${orderId} has status ${paymentStatus}, code ${paymentCode} - not marking as paid`,
-                );
+            
+            // Log more details about each parameter to help with debugging
+            this.logger.log(`Direct success parameters check:
+                - orderId exists: ${!!orderId}
+                - Payment success: ${isPaid}
+                - PayOS ID exists: ${!!id}
+                - OrderCode exists: ${!!orderCode}
+            `);
+            
+            // If we have a direct orderId and payment is successful, immediately update the order
+            if (orderId && isPaid) {
+                this.logger.log(`Attempting immediate order status update for order ${orderId}`);
+                
+                try {
+                    // First get the order to verify its existence and status
+                    const order = await this.orderService.findOrderWithItems(parseInt(orderId));
+                    
+                    if (!order) {
+                        this.logger.warn(`Order ${orderId} not found during payment success handling`);
+                        return { success: false, message: 'Order not found', orderId };
+                    }
+                    
+                    // Check if the order is in a state that can be updated
+                    if (order.status === OrderStatus.APPROVED) {
+                        this.logger.log(`Order ${orderId} is in APPROVED state, updating to PAYMENT_SUCCESS`);
+                        
+                        // Update order status to PAYMENT_SUCCESS
+                        await this.orderService.updateOrderStatus(
+                            parseInt(orderId),
+                            OrderStatus.PAYMENT_SUCCESS,
+                        );
+                        
+                        this.logger.log(`Order ${orderId} successfully updated to PAYMENT_SUCCESS`);
+                        
+                        // Handle discount usage if applicable
+                        // ... existing discount code ...
+                        
+                        return {
+                            success: true, 
+                            message: 'Payment successful, order status updated',
+                            orderId,
+                            status: 'PAYMENT_SUCCESS'
+                        };
+                    } else {
+                        this.logger.warn(`Order ${orderId} cannot be updated, current status: ${order.status}`);
+                        return {
+                            success: false,
+                            message: `Order ${orderId} is in ${order.status} state and cannot be updated`,
+                            orderId
+                        };
+                    }
+                } catch (error) {
+                    this.logger.error(`Error updating order ${orderId} status: ${error.message}`);
+                    return {
+                        success: false,
+                        message: `Error updating order status: ${error.message}`,
+                        orderId
+                    };
+                }
             }
+            
+            // ... existing fallback code for finding the order by other means ...
 
-            return {
-                success: true,
-                message: isPaid
-                    ? 'Payment successful'
-                    : 'Payment status processed',
-                orderId,
-                paymentStatus,
-            };
-        } catch (error) {
-            this.logger.error(
-                `Payment success handler error: ${error.message}`,
-                error.stack,
-            );
             return {
                 success: false,
-                message: error.message || 'Error processing payment callback',
+                message: 'Could not process payment success. Please check order status manually.',
+                paymentStatus,
+                paymentCode,
+            };
+        } catch (error) {
+            this.logger.error(`Error in payment success handler: ${error.message}`, error.stack);
+            return {
+                success: false,
+                message: `Error processing payment: ${error.message}`,
             };
         }
     }

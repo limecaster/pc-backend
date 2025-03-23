@@ -94,6 +94,19 @@ export class Order {
     @Column({ nullable: true })
     guestEmail: string;
 
+    // Add fields to store discount information
+    @Column({ type: 'simple-array', nullable: true })
+    appliedDiscountIds?: string[];
+    
+    @Column({ nullable: true })
+    manualDiscountId?: number;
+    
+    @Column({ nullable: true, type: 'decimal', precision: 10, scale: 2 })
+    discountAmount?: number;
+    
+    @Column({ default: false })
+    discountUsageRecorded: boolean;
+
     @OneToMany(() => OrderItem, (orderItem) => orderItem.order)
     items: OrderItem[];
 }

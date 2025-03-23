@@ -16,7 +16,10 @@ export class ProductDetailsDto {
     id: string;
     name: string;
     price: number;
-    originalPrice?: number;
+    originalPrice?: number; // Original price before any discounts
+    discountPercentage?: number; // Percentage discount if applied
+    isDiscounted?: boolean; // Flag to indicate if product has a discount
+    discountSource?: 'automatic' | 'manual'; // Source of the discount
     discount?: number;
     rating: number;
     reviewCount: number;

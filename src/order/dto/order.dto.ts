@@ -1,22 +1,32 @@
+import { Product } from '../../product/product.entity';
+import { Customer } from '../../customer/customer.entity'; // Fixed: Use relative path
 import { OrderItem } from '../order-item.entity';
 import { OrderStatus } from '../order.entity';
-import { Customer } from '../../customer/customer.entity';
 
 export class OrderDto {
     id: number;
     orderNumber: string;
-    total: number;
-    orderDate: Date;
-    receiveDate: Date;
     status: OrderStatus;
-    paymentMethod: string;
-    deliveryAddress: string;
-    customerId: number;
-    customer?: Customer; // Add full customer object
+    orderDate: Date;
+    total: number;
+    subtotal?: number;
+    shippingFee?: number;
+    discountAmount?: number;
+    deliveryAddress?: string;
+    paymentMethod?: string;
+    paymentStatus?: string;
+    
+    // Add missing guest fields
+    guestEmail?: string;
+    guestName?: string;
+    guestPhone?: string;
+    
+    // Add missing date fields
+    createdAt?: Date;
+    updatedAt?: Date;
+    
     items: OrderItem[];
-    createdAt: Date;
-    updatedAt: Date;
-    approvedBy?: number;
-    approvalDate?: Date;
-    guestEmail?: string; // Add guestEmail field
+    customer?: Customer;
+    customerId?: number;
+    staffId?: number;
 }

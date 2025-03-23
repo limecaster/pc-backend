@@ -36,9 +36,19 @@ export class CheckoutController {
                 req.user.id,
                 createOrderDto,
             );
+            let total = createOrderDto.subtotal || 0;
+            // Apply discount
+            if (createOrderDto.discountAmount && createOrderDto.discountAmount > 0) {
+                total -= createOrderDto.discountAmount;
+            }
+            // Ensure final total >= 0
+            if (total < 0) {
+                total = 0;
+            }
             return {
                 success: true,
                 order,
+                finalPrice: total,
             };
         } catch (error) {
             this.logger.error(`Error creating order: ${error.message}`);
@@ -52,27 +62,27 @@ export class CheckoutController {
         }
     }
 
-    @Post('create-guest-order')
-    async createGuestOrder(@Body() guestOrderDto: GuestOrderDto) {
-        try {
-            this.logger.log('Creating guest order');
-            const order =
-                await this.checkoutService.createGuestOrder(guestOrderDto);
-            return {
-                success: true,
-                order,
-            };
-        } catch (error) {
-            this.logger.error(`Error creating guest order: ${error.message}`);
-            throw new HttpException(
-                {
-                    status: HttpStatus.BAD_REQUEST,
-                    error: error.message,
-                },
-                HttpStatus.BAD_REQUEST,
-            );
-        }
-    }
+    // @Post('create-guest-order')
+    // async createGuestOrder(@Body() guestOrderDto: GuestOrderDto) {
+    //     try {
+    //         this.logger.log('Creating guest order');
+    //         const order =
+    //             await this.checkoutService.createGuestOrder(guestOrderDto);
+    //         return {
+    //             success: true,
+    //             order,
+    //         };
+    //     } catch (error) {
+    //         this.logger.error(`Error creating guest order: ${error.message}`);
+    //         throw new HttpException(
+    //             {
+    //                 status: HttpStatus.BAD_REQUEST,
+    //                 error: error.message,
+    //             },
+    //             HttpStatus.BAD_REQUEST,
+    //         );
+    //     }
+    // }
 
     @Post('process-payment')
     async processPayment(@Body() paymentData: any) {

@@ -14,12 +14,14 @@ import { ProductQueryService } from './services/product-query.service';
 import { ProductSpecificationService } from './services/product-specification.service';
 import { ProductRatingService } from './services/product-rating.service';
 import { ProductElasticsearchService } from './services/product-elasticsearch.service';
+import { DiscountModule } from '../discount/discount.module';
 
 @Module({
     imports: [
         ConfigModule,
         TypeOrmModule.forFeature([Product]),
         CloudinaryModule,
+        DiscountModule,
     ],
     controllers: [ProductController],
     providers: [

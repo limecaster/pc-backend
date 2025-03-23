@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -8,6 +8,7 @@ import { ProductQueryService } from './services/product-query.service';
 import { ProductSpecificationService } from './services/product-specification.service';
 import { ProductRatingService } from './services/product-rating.service';
 import { ProductElasticsearchService } from './services/product-elasticsearch.service';
+import { DiscountService } from '../discount/discount.service';
 
 @Injectable()
 export class ProductService {
@@ -21,6 +22,7 @@ export class ProductService {
         private readonly productRatingService: ProductRatingService,
         private readonly productElasticsearchService: ProductElasticsearchService,
         private readonly utilsService: UtilsService,
+        private readonly discountService: DiscountService,
     ) {}
 
     async findBySlug(slug: string): Promise<ProductDetailsDto> {
@@ -65,7 +67,7 @@ export class ProductService {
             }
 
             // Map database result to DTO
-            return {
+            let productDetails = {
                 id: product.id.toString(),
                 name: product.name,
                 price: parseFloat(product.price.toString()),
@@ -90,6 +92,11 @@ export class ProductService {
                 color: product.color || undefined,
                 size: product.size || undefined,
             };
+
+            // Apply automatic discounts
+            const productsWithDiscounts = await this.applyAutomaticDiscounts([productDetails]);
+
+            return productsWithDiscounts[0];
         } catch (error) {
             if (error instanceof NotFoundException) {
                 throw error;
@@ -318,7 +325,121 @@ export class ProductService {
             });
         }
 
-        return productDetails;
+        // Apply automatic discounts before returning
+        return await this.applyAutomaticDiscounts(productDetails);
+    }
+
+    // Add this method to check and apply automatic discounts
+    async applyAutomaticDiscounts(products: ProductDetailsDto[]): Promise<ProductDetailsDto[]> {
+        if (!products || products.length === 0) {
+            return products;
+        }
+        
+        try {
+            // Group products by category for more efficient discount checking
+            const productsByCategory: Record<string, {
+                ids: string[], 
+                products: ProductDetailsDto[]
+            }> = {};
+            
+            // Organize products by category for batch processing
+            products.forEach(product => {
+                const category = product.category || 'uncategorized';
+                
+                if (!productsByCategory[category]) {
+                    productsByCategory[category] = {
+                        ids: [],
+                        products: []
+                    };
+                }
+                
+                productsByCategory[category].ids.push(product.id);
+                productsByCategory[category].products.push(product);
+            });
+            
+            // Process each category group
+            for (const category in productsByCategory) {
+                const { ids, products: categoryProducts } = productsByCategory[category];
+                
+                // Get automatic discounts applicable to these products
+                const discounts = await this.discountService.getAutomaticDiscounts({
+                    productIds: ids,
+                    categoryNames: [category],
+                    orderAmount: 0 // Set to 0 to ignore minimum order amount constraint
+                });
+                
+                // Apply discounts to each product
+                if (discounts.length > 0) {
+                    categoryProducts.forEach(product => {
+                        // Find best discount for this product
+                        const applicableDiscounts = discounts.filter(discount => {
+                            // Check if discount applies to all products or specifically to this one
+                            return discount.targetType === 'all' || 
+                                  (discount.targetType === 'products' && discount.productIds?.includes(product.id)) ||
+                                  (discount.targetType === 'categories' && discount.categoryNames?.includes(product.category));
+                        });
+                        
+                        if (applicableDiscounts.length > 0) {
+                            // Find best discount (highest amount)
+                            const bestDiscount = this.findBestDiscount(applicableDiscounts, product.price);
+                            
+                            // Apply the discount to the product
+                            if (bestDiscount) {
+                                product.originalPrice = product.price;
+                                
+                                if (bestDiscount.type === 'percentage') {
+                                    product.discountPercentage = bestDiscount.discountAmount;
+                                    product.price = product.price * (1 - bestDiscount.discountAmount/100);
+                                } else {
+                                    const discountAmount = Math.min(bestDiscount.discountAmount, product.price);
+                                    product.discountPercentage = Math.round((discountAmount / product.originalPrice) * 100);
+                                    product.price = product.price - discountAmount;
+                                }
+                                
+                                // Round price to prevent floating-point issues
+                                product.price = Math.round(product.price);
+                                product.isDiscounted = true;
+                                product.discountSource = 'automatic';
+                            }
+                        }
+                    });
+                }
+            }
+            
+            return products;
+        } catch (error) {
+            this.logger.error(`Error applying automatic discounts: ${error.message}`);
+            return products; // Return original products in case of error
+        }
+    }
+    
+    // Helper method to find the best discount for a product
+    private findBestDiscount(discounts: any[], productPrice: number): any {
+        if (!discounts || discounts.length === 0) {
+            return null;
+        }
+        
+        // Calculate actual discount amounts
+        const discountsWithValues = discounts.map(discount => {
+            let discountValue = 0;
+            
+            if (discount.type === 'percentage') {
+                discountValue = productPrice * (discount.discountAmount / 100);
+            } else {
+                discountValue = Math.min(discount.discountAmount, productPrice);
+            }
+            
+            return {
+                ...discount,
+                calculatedValue: discountValue
+            };
+        });
+        
+        // Sort by discount value descending
+        discountsWithValues.sort((a, b) => b.calculatedValue - a.calculatedValue);
+        
+        // Return the discount with highest value
+        return discountsWithValues[0];
     }
 
     // Delegate methods to specialized services
@@ -818,6 +939,47 @@ export class ProductService {
         } catch (error) {
             this.logger.error(`Error getting stock quantities: ${error.message}`);
             return {};
+        }
+    }
+
+    async getSimpleProductList(
+        search?: string,
+        page: number = 1,
+        limit: number = 10
+    ): Promise<{ products: { id: string, name: string }[], total: number, pages: number }> {
+        try {
+            const queryBuilder = this.productRepository.createQueryBuilder('product')
+                .select(['product.id', 'product.name'])
+                .where('product.status = :status', { status: 'active' });
+            
+            // Add search condition if search term is provided
+            if (search && search.trim() !== '') {
+                queryBuilder.andWhere('LOWER(product.name) LIKE LOWER(:search)', { 
+                    search: `%${search.trim()}%` 
+                });
+            }
+            
+            // Get total count for pagination
+            const total = await queryBuilder.getCount();
+            
+            // Add pagination
+            const products = await queryBuilder
+                .orderBy('product.name', 'ASC')
+                .skip((page - 1) * limit)
+                .take(limit)
+                .getMany();
+                
+            // Calculate total pages
+            const pages = Math.ceil(total / limit);
+            
+            return {
+                products,
+                total,
+                pages
+            };
+        } catch (error) {
+            this.logger.error(`Failed to get simple product list: ${error.message}`);
+            throw new InternalServerErrorException('Failed to retrieve product list');
         }
     }
 }

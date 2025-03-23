@@ -335,4 +335,43 @@ export class PaymentService {
             };
         }
     }
+
+    /**
+     * Get payment details by PayOS transaction ID
+     * @param transactionId PayOS transaction ID
+     */
+    async getPaymentDetails(transactionId: string) {
+        try {
+            this.logger.log(`Getting payment details for transaction ${transactionId}`);
+            
+            // Call PayOS API to get transaction details
+            const response = await fetch(
+                `${this.apiUrl}/v2/payment-requests/${transactionId}`, // Fixed: Changed payosApiUrl to apiUrl
+                {
+                    method: 'GET',
+                    headers: {
+                        'x-client-id': this.clientId,
+                        'x-api-key': this.apiKey,
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to get transaction: ${response.status} - ${errorText}`);
+            }
+
+            const data = await response.json();
+            return {
+                success: true,
+                data: data,
+            };
+        } catch (error) {
+            this.logger.error(`Error fetching payment details: ${error.message}`);
+            return {
+                success: false,
+                message: error.message || 'Failed to get payment details',
+            };
+        }
+    }
 }

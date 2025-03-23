@@ -4,6 +4,9 @@ import {
     IsNumber,
     IsString,
     ValidateNested,
+    IsOptional,
+    Min,
+    IsBoolean
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -37,5 +40,24 @@ export class CreateOrderDto {
     items: OrderItemDto[];
 
     @IsString()
+    @IsOptional()
     notes?: string;
+
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    subtotal?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    discountAmount?: number;
+    
+    @IsNumber()
+    @IsOptional()
+    manualDiscountId?: number;
+    
+    @IsArray()
+    @IsOptional()
+    appliedDiscountIds?: string[];
 }

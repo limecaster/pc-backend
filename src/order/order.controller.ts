@@ -54,15 +54,19 @@ export class OrderController {
                 throw new NotFoundException(`Order with ID ${id} not found`);
             }
 
+            // Check if this is a payment verification request from success page
+            const isPaymentVerification = req.query.paymentVerification === 'true';
+            
             // Check if user is authenticated and is the owner of this order
             // If not, we'll return limited information for public access
             const isAuthenticated = req.user?.id;
-            const isOwner = isAuthenticated && order.customerId === req.user.id;
+            const isOwner = isAuthenticated && order.customerId === req.user?.id;
             const isStaffOrAdmin =
                 req.user?.role === Role.STAFF || req.user?.role === Role.ADMIN;
 
             // If not authenticated or not the order owner, return only basic info
-            if (!isAuthenticated || (!isOwner && !isStaffOrAdmin)) {
+            // UNLESS this is a payment verification request
+            if (!isPaymentVerification && (!isAuthenticated || (!isOwner && !isStaffOrAdmin))) {
                 this.logger.log(
                     `Public access to order ${id} - returning limited information`,
                 );
@@ -82,10 +86,37 @@ export class OrderController {
                 };
             }
 
-            // Full access for authenticated owner or staff/admin
+            // For payment verification or authenticated users, return more complete information
+            const completeOrderInfo = {
+                id: order.id,
+                orderNumber: order.orderNumber,
+                orderDate: order.orderDate,
+                status: order.status,
+                total: order.total,
+                subtotal: order.subtotal || order.total,
+                discountAmount: order.discountAmount || 0,
+                shippingFee: order.shippingFee || 0,
+                // Customer info with safety checks and type assertions
+                customerName: order.customer 
+                    ? `${order.customer.firstname || ''} ${order.customer.lastname || ''}`
+                    : (order as any).guestName || 'Không có thông tin',
+                customerEmail: order.customer?.email || (order as any).guestEmail,
+                customerPhone: order.customer?.phoneNumber || (order as any).guestPhone || 'Không có thông tin',
+                // Address info
+                deliveryAddress: order.deliveryAddress || 'Không có thông tin',
+                // Items with safety checks and type assertions
+                items: order.items?.map(item => ({
+                    id: item.product?.id || 'unknown',
+                    name: item.product?.name || 'Unknown Product',
+                    price: (item as any).price || 0,
+                    quantity: item.quantity || 0,
+                    imageUrl: (item.product as any)?.imageUrl || ((item.product as any)?.images?.[0]) || null
+                })) || []
+            };
+
             return {
                 success: true,
-                order, // This is the correct structure - a single order object
+                order: completeOrderInfo, 
             };
         } catch (error) {
             this.logger.error(`Error fetching order: ${error.message}`);
@@ -262,7 +293,7 @@ export class OrderController {
 
     @UseGuards(JwtAuthGuard)
     @Post(':id/pay')
-    async initiatePayment(@Param('id') orderId: string, @Request() req) {
+    async initiatePayment(@Param('id') orderId: string, @Request() req, @Body() body: any) {
         try {
             // First check if the order belongs to the current user
             const order = await this.orderService.findOrderWithItems(
@@ -309,9 +340,15 @@ export class OrderController {
                 },
                 total: order.total,
                 subtotal: order.total,
-                returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/success`,
-                cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/failure`,
+                // Make sure orderId is included in all URLs to track the payment
+                returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/success?orderId=${order.id}`,
+                cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/failure?orderId=${order.id}`,
                 webhookUrl: `${process.env.API_URL || 'http://localhost:5000'}/payment/webhook`,
+                // Add additional tracking data that will be passed back by PayOS
+                extraData: {
+                    orderId: order.id.toString(),
+                    customerEmail: req.user.email,
+                }
             };
 
             // Create payment link

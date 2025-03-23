@@ -404,10 +404,6 @@ export class CartService {
                     let imageUrl =
                         imageUrlMap.get(item.productId) ||
                         '/images/image-placeholder.webp';
-                    if (imageUrl.includes('pcbuilderus')) {
-                        imageUrl = '/images/image-placeholder.webp';
-                    }
-
                     return {
                         id: item.id,
                         productId: item.productId,

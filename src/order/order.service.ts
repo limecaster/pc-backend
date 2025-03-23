@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Connection } from 'typeorm';
-import { Order } from './order.entity';
+import { Repository, Connection, MoreThan } from 'typeorm';
+import { Order, OrderStatus } from './order.entity'; // Fixed: Import OrderStatus from order.entity
 import { OrderItem } from './order-item.entity';
 import { OrderDto } from './dto/order.dto';
 import { OrderTrackingService } from './services/order-tracking.service';
@@ -122,16 +122,31 @@ export class OrderService {
         await queryRunner.startTransaction();
         
         try {
+            this.logger.log(`Updating order ${orderId} status to ${status}`);
+            
+            // Get the current order to validate
+            const currentOrder = await this.orderRepository.findOne({ where: { id: orderId } });
+            if (!currentOrder) {
+                this.logger.error(`Cannot update status: Order ${orderId} not found`);
+                throw new NotFoundException(`Order with ID ${orderId} not found`);
+            }
+            
+            this.logger.log(`Current order ${orderId} status: ${currentOrder.status}`);
+            
             // Delegate to OrderStatusService, with transaction support
             const order = await this.orderStatusService.updateOrderStatus(orderId, status, staffId);
             
+            this.logger.log(`Order status updated in memory, saving to database...`);
             await queryRunner.manager.save(Order, order);
+            
+            this.logger.log(`Committing transaction...`);
             await queryRunner.commitTransaction();
             
+            this.logger.log(`Order ${orderId} successfully updated to status ${status}`);
             return order;
         } catch (error) {
-            await queryRunner.rollbackTransaction();
             this.logger.error(`Error updating order status: ${error.message}`);
+            await queryRunner.rollbackTransaction();
             throw error;
         } finally {
             await queryRunner.release();
@@ -182,5 +197,48 @@ export class OrderService {
 
     async checkOrderTrackingPermission(orderId: number, userId?: number): Promise<boolean> {
         return this.orderTrackingService.checkOrderTrackingPermission(orderId, userId);
+    }
+
+    /**
+     * Mark discount usage as recorded for an order to prevent duplicate counting
+     * @param orderId The order ID
+     * @returns The updated order
+     */
+    async markDiscountUsageRecorded(orderId: number): Promise<Order> {
+        const order = await this.orderRepository.findOne({ where: { id: orderId }});
+        
+        if (!order) {
+            throw new NotFoundException(`Order with ID ${orderId} not found`);
+        }
+        
+        order.discountUsageRecorded = true;
+        return await this.orderRepository.save(order);
+    }
+
+    /**
+     * Find the most recent order that's pending payment
+     * This is a fallback method for associating payments with orders
+     */
+    async findMostRecentPendingPayment(): Promise<Order | null> {
+        try {
+            // Find the most recent APPROVED order that hasn't been paid yet
+            // Limit to orders created in the last hour to avoid incorrect associations
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+            
+            const order = await this.orderRepository.findOne({
+                where: {
+                    status: OrderStatus.APPROVED,
+                    createdAt: MoreThan(oneHourAgo),
+                },
+                order: {
+                    createdAt: 'DESC',
+                },
+            });
+            
+            return order;
+        } catch (error) {
+            this.logger.error(`Error finding recent pending payment: ${error.message}`);
+            return null;
+        }
     }
 }

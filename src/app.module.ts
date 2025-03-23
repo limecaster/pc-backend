@@ -29,6 +29,7 @@ import { CloudinaryModule } from '../config/cloudinary.module';
 import { RatingModule } from './rating/rating.module';
 import { PCConfigurationModule } from './pc-configuration/pc-configuration.module';
 import { AccountModule } from './dashboard/account/account.module';
+import { DiscountModule } from './discount/discount.module';
 
 @Module({
     imports: [
@@ -65,12 +66,12 @@ import { AccountModule } from './dashboard/account/account.module';
         RatingModule,
         PCConfigurationModule,
         AccountModule,
+        DiscountModule,
     ],
     controllers: [
         AppController,
         BuildController,
         ChatbotController,
-        ProductController,
     ],
     providers: [
         AppService,

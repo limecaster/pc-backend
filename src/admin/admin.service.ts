@@ -93,8 +93,6 @@ export class AdminService {
     }
 
     async validateAdmin(username: string, password: string): Promise<any> {
-        this.logger.debug(`Validating admin credentials for: ${username}`);
-
         try {
             // Find admin by username
             const admin = await this.adminRepository.findOne({
@@ -102,9 +100,6 @@ export class AdminService {
             });
 
             if (!admin) {
-                this.logger.warn(
-                    `No active admin found with username: ${username}`,
-                );
                 throw new UnauthorizedException('Invalid credentials');
             }
 
@@ -114,7 +109,6 @@ export class AdminService {
                 admin.password,
             );
             if (!isPasswordValid) {
-                this.logger.warn(`Invalid password for admin: ${username}`);
                 throw new UnauthorizedException('Invalid credentials');
             }
 
@@ -150,14 +144,9 @@ export class AdminService {
      */
     async findByUsername(username: string) {
         try {
-            const admin = await this.adminRepository.findOne({
+            return await this.adminRepository.findOne({
                 where: { username },
             });
-
-            this.logger.debug(
-                `Finding admin by username ${username}: ${admin ? 'found' : 'not found'}`,
-            );
-            return admin;
         } catch (error) {
             this.logger.error(
                 `Error finding admin by username ${username}: ${error.message}`,

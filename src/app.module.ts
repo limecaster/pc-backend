@@ -14,7 +14,6 @@ import { ChatbotController } from 'src/chatbot/chatbot.controller';
 import { ChatbotService } from 'src/chatbot/chatbot.service';
 import { PostgresConfigService } from 'config/postgres.config';
 import { ProductModule } from './product/product.module';
-import { ProductController } from './product/product.controller';
 import { PaymentModule } from './payment/payment.module';
 import { AuthModule } from './auth/auth.module';
 import { CustomerModule } from './customer/customer.module';

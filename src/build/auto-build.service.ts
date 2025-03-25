@@ -210,7 +210,7 @@ export class AutoBuildService {
             return;
         }
 
-        const startTime = new Date().getTime();
+
         for (const part of autoBuildDto.preferredParts) {
             const indexName = this.getIndexName(part.label);
             const query = `CALL db.index.fulltext.queryNodes($indexName, $partname)
@@ -241,8 +241,8 @@ export class AutoBuildService {
         }
         this.preferredPartsCache.userInput = autoBuildDto.userInput;
         this.preferredPartsCache.data = preferredPartsData;
-        const endTime = new Date().getTime();
-        console.log(`Fetch preferred parts time: ${endTime - startTime}ms`);
+
+
     }
 
     private getIndexName(label: string): string {
@@ -368,7 +368,7 @@ export class AutoBuildService {
         budgetAllocation: BudgetAllocation,
         sortOption: 'saving' | 'performance' | 'popular',
     ) {
-        const startTime = new Date().getTime();
+
         this.shouldRefreshCache(
             budgetAllocation,
             this.preferredPartsCache.userInput,
@@ -453,8 +453,8 @@ export class AutoBuildService {
 
             this.partPools[sortOption][part] = parts;
         }
-        const endTime = new Date().getTime();
-        console.log(`Fetch parts within budget time: ${endTime - startTime}ms`);
+
+
     }
 
     // private addPreferredPartsToConfiguration(
@@ -583,7 +583,6 @@ export class AutoBuildService {
         );
         if (!this.isCompleteConfiguration(pcConfig)) {
             pcConfig = await this.backtrackAndRebuild(autoBuildDto, pcConfig);
-            console.log('BACKTRACKED');
         }
         session.close();
         return pcConfig;
@@ -596,7 +595,7 @@ export class AutoBuildService {
         preferredParts: PartsData,
         otherParts: PartsData,
     ): Promise<PCConfiguration> {
-        const startTime = Date.now();
+
         const pcConfiguration = new PCConfiguration();
 
         // Use a deep search to fill all parts.
@@ -607,8 +606,7 @@ export class AutoBuildService {
             0,
         );
 
-        const endTime = Date.now();
-        console.log(`Build PC time: ${endTime - startTime}ms`);
+
         return pcConfiguration;
     }
 
@@ -672,7 +670,7 @@ export class AutoBuildService {
 
         // Fallback: if no candidate passed and this part is required, select the first candidate unconditionally.
         if (!candidateFound && this.isRequiredPart(label)) {
-            console.log(`Fallback: assigning first candidate for ${label}`);
+
             pcConfiguration[label] = pool[0];
             if (
                 await this.tryBuildConfiguration(
@@ -747,19 +745,14 @@ export class AutoBuildService {
         );
 
         if (!success || !this.isCompleteConfiguration(configuration)) {
-            console.log(
-                `❌ Incomplete configuration after ${attempts} attempts`,
-            );
-
+    
             if (
                 attempts >= 30 ||
                 lastBudgetIncrease >= 3 ||
                 this.calculateTotalCost(configuration) >
                     autoBuildDto.initialBudget * 1.2
             ) {
-                console.log(
-                    '⚠️ Max retries or budget limit reached. Returning partial build.',
-                );
+             
                 return configuration;
             }
 
@@ -781,7 +774,6 @@ export class AutoBuildService {
             );
         }
 
-        console.log(`✅ Build completed in ${Date.now() - startTime}ms`);
         return configuration;
     }
 
@@ -889,10 +881,6 @@ export class AutoBuildService {
                 if (!this.isCompleteConfiguration(config)) break;
 
                 const configStr = JSON.stringify(config);
-                console.log(
-                    `Attempt ${attempts + 1}: ${this.isCompleteConfiguration(config) ? '✅' : '❌'}`,
-                );
-                console.log('Length:', builds.length);
 
                 // Prevent duplicate configurations.
                 if (
@@ -935,7 +923,7 @@ export class AutoBuildService {
             results[option] = builds;
         }
         const endTime = Date.now();
-        console.log(`Total time: ${endTime - startTime}ms`);
+
         return results;
     }
     // In your class constructor or as a property initializer

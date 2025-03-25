@@ -11,7 +11,6 @@ import {
 import { CheckoutService } from './checkout.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { GuestOrderDto } from './dto/guest-order.dto';
 import { OrderDto } from '../order/dto/order.dto';
 import { OrderStatus } from 'src/order/order.entity';
 import { OrderService } from '../order/order.service';
@@ -23,7 +22,6 @@ export class CheckoutController {
 
     constructor(
         private readonly checkoutService: CheckoutService,
-        private readonly orderService: OrderService,
         private readonly paymentService: PaymentService,
     ) {}
 
@@ -31,7 +29,6 @@ export class CheckoutController {
     @UseGuards(JwtAuthGuard)
     async createOrder(@Request() req, @Body() createOrderDto: CreateOrderDto) {
         try {
-            this.logger.log(`Creating order for user #${req.user.id}`);
             const order: OrderDto = await this.checkoutService.createOrder(
                 req.user.id,
                 createOrderDto,
@@ -51,7 +48,7 @@ export class CheckoutController {
                 finalPrice: total,
             };
         } catch (error) {
-            this.logger.error(`Error creating order: ${error.message}`);
+            this.logger.error(`Critical: Error creating order for user #${req.user.id}: ${error.message}`);
             throw new HttpException(
                 {
                     status: HttpStatus.BAD_REQUEST,
@@ -62,39 +59,14 @@ export class CheckoutController {
         }
     }
 
-    // @Post('create-guest-order')
-    // async createGuestOrder(@Body() guestOrderDto: GuestOrderDto) {
-    //     try {
-    //         this.logger.log('Creating guest order');
-    //         const order =
-    //             await this.checkoutService.createGuestOrder(guestOrderDto);
-    //         return {
-    //             success: true,
-    //             order,
-    //         };
-    //     } catch (error) {
-    //         this.logger.error(`Error creating guest order: ${error.message}`);
-    //         throw new HttpException(
-    //             {
-    //                 status: HttpStatus.BAD_REQUEST,
-    //                 error: error.message,
-    //             },
-    //             HttpStatus.BAD_REQUEST,
-    //         );
-    //     }
-    // }
-
     @Post('process-payment')
     async processPayment(@Body() paymentData: any) {
         try {
-            this.logger.log(
-                `Processing payment for order #${paymentData.orderId}`,
-            );
             const result =
                 await this.checkoutService.processPayment(paymentData);
             return result;
         } catch (error) {
-            this.logger.error(`Error processing payment: ${error.message}`);
+            this.logger.error(`Critical: Error processing payment for order #${paymentData.orderId}: ${error.message}`);
             throw new HttpException(
                 {
                     status: HttpStatus.BAD_REQUEST,
@@ -111,7 +83,6 @@ export class CheckoutController {
     ) {
         try {
             const { orderId, status } = data;
-            this.logger.log(`Updating order #${orderId} status to ${status}`);
             const result = await this.checkoutService.updateOrderStatus(
                 orderId,
                 status,
@@ -121,7 +92,7 @@ export class CheckoutController {
                 order: result,
             };
         } catch (error) {
-            this.logger.error(`Error updating order status: ${error.message}`);
+            this.logger.error(`Critical: Error updating order #${data.orderId} status to ${data.status}: ${error.message}`);
             throw new HttpException(
                 {
                     status: HttpStatus.BAD_REQUEST,
@@ -135,15 +106,12 @@ export class CheckoutController {
     @Post('payment/create')
     async createPayment(@Body() paymentData: any) {
         try {
-            this.logger.log('Creating payment link with data:', paymentData);
-
-            // Ensure amounts are properly formatted before passing to payment service
             const result =
                 await this.paymentService.createPaymentLink(paymentData);
 
             return result;
         } catch (error) {
-            this.logger.error('Error creating payment link:', error);
+            this.logger.error(`Critical: Error creating payment link: ${error.message}`);
             return {
                 success: false,
                 message:

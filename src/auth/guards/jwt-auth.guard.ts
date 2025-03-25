@@ -14,11 +14,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     canActivate(
         context: ExecutionContext,
     ): boolean | Promise<boolean> | Observable<boolean> {
-        // Log the incoming request for debugging
         const request = context.switchToHttp().getRequest();
-        this.logger.debug(
-            `JWT guard checking request to: ${request.method} ${request.url}`,
-        );
 
         // Check if Authorization header exists
         const authHeader = request.headers.authorization;
@@ -26,11 +22,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             this.logger.error('Missing Authorization header');
             throw new UnauthorizedException('Authorization header is required');
         }
-
-        // Log Authorization header format (partially)
-        this.logger.debug(
-            `Auth header format: ${authHeader.substring(0, 10)}... (length: ${authHeader.length})`,
-        );
 
         return super.canActivate(context);
     }
@@ -54,9 +45,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             this.logger.error('JWT validation failed - Missing user ID:', user);
             throw new UnauthorizedException('Invalid user identity');
         }
-
-        // Log successful authentication
-        this.logger.debug(`User authenticated: ${user.id}`);
 
         return user;
     }

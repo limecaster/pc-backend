@@ -28,30 +28,26 @@ export class CartService {
         private customerRepository: Repository<Customer>,
         private neo4jConfigService: Neo4jConfigService,
     ) {}
-    /**
-     * Runs a Neo4j query to check compatibility.
-     * @param session - Neo4j session.
-     * @param query - Cypher query string.
-     * @param params - Query parameters.
-     * @returns Promise resolving to a boolean indicating compatibility.
-     */
 
     private async runNeo4jQuery(
         session: any,
         query: string,
         params: { [key: string]: any },
     ): Promise<any> {
-        const result = await session.run(query, params);
-        return result;
+        try {
+            const result = await session.run(query, params);
+            return result;
+        } catch (error) {
+            this.logger.error(`Neo4j query failed: ${error.message}`, error.stack);
+            throw error;
+        }
     }
 
     async getCart(userId: number): Promise<CartResponseDto> {
-        // Validate userId
         if (!userId) {
             throw new BadRequestException('Valid customer ID is required');
         }
 
-        // Find or create cart
         let cart = await this.cartRepository.findOne({
             where: { customerId: userId },
             relations: ['items', 'items.product'],
@@ -66,7 +62,6 @@ export class CartService {
             await this.cartRepository.save(cart);
         }
 
-        // Calculate total price and format response
         return this.formatCartResponse(cart);
     }
 
@@ -75,12 +70,10 @@ export class CartService {
         productId: string,
         quantity: number = 1,
     ): Promise<CartResponseDto> {
-        // Validate userId
         if (!userId) {
             throw new BadRequestException('Valid customer ID is required');
         }
 
-        // Check if product exists
         const product = await this.productRepository.findOne({
             where: { id: productId },
         });
@@ -88,7 +81,6 @@ export class CartService {
             throw new NotFoundException('Product not found');
         }
 
-        // Find or create cart
         let cart = await this.cartRepository.findOne({
             where: { customerId: userId },
             relations: ['items', 'items.product'],
@@ -103,18 +95,15 @@ export class CartService {
             await this.cartRepository.save(cart);
         }
 
-        // Check if product is already in cart
         const existingItem = cart.items.find(
             (item) => item.productId === productId,
         );
 
         if (existingItem) {
-            // Update quantity if product already exists
             existingItem.quantity += quantity;
             existingItem.subPrice = product.price * existingItem.quantity;
             await this.cartItemRepository.save(existingItem);
         } else {
-            // Add new item to cart
             const newItem = this.cartItemRepository.create({
                 cartId: cart.id,
                 productId: product.id,
@@ -125,7 +114,6 @@ export class CartService {
             cart.items.push(newItem);
         }
 
-        // Refresh cart to get updated items
         cart = await this.cartRepository.findOne({
             where: { id: cart.id },
             relations: ['items', 'items.product'],
@@ -138,26 +126,19 @@ export class CartService {
         userId: number,
         productIds: string[],
     ): Promise<CartResponseDto> {
-        // Validate userId
         if (!userId) {
             throw new BadRequestException('Valid customer ID is required');
         }
 
-        // Check if customer exists in database first
         const customer = await this.customerRepository.findOne({
             where: { id: userId },
         });
 
         if (!customer) {
-            this.logger.error(
-                `Customer with ID ${userId} not found in database`,
-            );
+            this.logger.error(`Customer with ID ${userId} not found`);
             throw new NotFoundException(`Customer with ID ${userId} not found`);
         }
 
-        this.logger.debug(`Found customer: ${customer.id} (${customer.email})`);
-
-        // Find or create cart
         try {
             let cart = await this.cartRepository.findOne({
                 where: { customerId: userId },
@@ -165,7 +146,6 @@ export class CartService {
             });
 
             if (!cart) {
-                this.logger.debug(`Creating new cart for customer ${userId}`);
                 cart = this.cartRepository.create({
                     customerId: userId,
                     status: 'active',
@@ -173,27 +153,23 @@ export class CartService {
                 });
                 await this.cartRepository.save(cart);
 
-                // Refresh cart after creation
                 cart = await this.cartRepository.findOne({
                     where: { customerId: userId },
                     relations: ['items', 'items.product'],
                 });
 
                 if (!cart) {
+                    this.logger.error(`Failed to create cart for user ${userId}`);
                     throw new Error('Failed to create cart');
                 }
             }
 
-            // Process each product
             for (const productId of productIds) {
                 try {
                     const product = await this.productRepository.findOne({
                         where: { id: productId },
                     });
                     if (!product) {
-                        this.logger.warn(
-                            `Product ${productId} not found, skipping`,
-                        );
                         continue;
                     }
 
@@ -202,13 +178,11 @@ export class CartService {
                     );
 
                     if (existingItem) {
-                        // Update quantity if product already exists
                         existingItem.quantity += 1;
                         existingItem.subPrice =
                             product.price * existingItem.quantity;
                         await this.cartItemRepository.save(existingItem);
                     } else {
-                        // Add new item to cart
                         const newItem = this.cartItemRepository.create({
                             cartId: cart.id,
                             productId: product.id,
@@ -220,13 +194,11 @@ export class CartService {
                     }
                 } catch (error) {
                     this.logger.error(
-                        `Error adding product ${productId} to cart:`,
-                        error,
+                        `Error adding product ${productId} to cart: ${error.message}`,
                     );
                 }
             }
 
-            // Refresh cart to get updated items
             cart = await this.cartRepository.findOne({
                 where: { id: cart.id },
                 relations: ['items', 'items.product'],
@@ -236,7 +208,6 @@ export class CartService {
         } catch (error) {
             if (error instanceof QueryFailedError) {
                 this.logger.error(`Database error: ${error.message}`);
-                // Check if it's a foreign key constraint error
                 if (error.message.includes('violates foreign key constraint')) {
                     throw new BadRequestException(
                         'Invalid customer ID. Please contact support.',
@@ -252,11 +223,6 @@ export class CartService {
         productId: string,
         quantity: number,
     ): Promise<CartResponseDto> {
-        this.logger.debug(
-            `Updating cart item for user ${userId}, product ${productId}, quantity ${quantity}`,
-        );
-
-        // Validate userId
         if (!userId) {
             throw new BadRequestException('Valid customer ID is required');
         }
@@ -265,7 +231,6 @@ export class CartService {
             throw new BadRequestException('Quantity must be at least 1');
         }
 
-        // Check if product exists
         const product = await this.productRepository.findOne({
             where: { id: productId },
         });
@@ -275,7 +240,6 @@ export class CartService {
             );
         }
 
-        // Find cart
         let cart = await this.cartRepository.findOne({
             where: { customerId: userId },
             relations: ['items', 'items.product'],
@@ -285,7 +249,6 @@ export class CartService {
             throw new NotFoundException(`Cart for user ${userId} not found`);
         }
 
-        // Find item in cart
         const existingItem = cart.items.find(
             (item) => item.productId === productId,
         );
@@ -295,12 +258,10 @@ export class CartService {
             );
         }
 
-        // Update quantity and subprice
         existingItem.quantity = quantity;
         existingItem.subPrice = parseFloat(product.price.toString()) * quantity;
         await this.cartItemRepository.save(existingItem);
 
-        // Refresh cart to get updated items
         cart = await this.cartRepository.findOne({
             where: { id: cart.id },
             relations: ['items', 'items.product'],
@@ -313,16 +274,10 @@ export class CartService {
         userId: number,
         productId: string,
     ): Promise<CartResponseDto> {
-        this.logger.debug(
-            `Removing item from cart for user ${userId}, product ${productId}`,
-        );
-
-        // Validate userId
         if (!userId) {
             throw new BadRequestException('Valid customer ID is required');
         }
 
-        // Find cart
         let cart = await this.cartRepository.findOne({
             where: { customerId: userId },
             relations: ['items', 'items.product'],
@@ -332,7 +287,6 @@ export class CartService {
             throw new NotFoundException(`Cart for user ${userId} not found`);
         }
 
-        // Find the item to remove
         const itemToRemove = cart.items.find(
             (item) => item.productId === productId,
         );
@@ -342,10 +296,8 @@ export class CartService {
             );
         }
 
-        // Remove the item
         await this.cartItemRepository.remove(itemToRemove);
 
-        // Refresh cart to get updated items
         cart = await this.cartRepository.findOne({
             where: { id: cart.id },
             relations: ['items', 'items.product'],
@@ -355,10 +307,8 @@ export class CartService {
     }
 
     private async formatCartResponse(cart: Cart): Promise<CartResponseDto> {
-        // Gather all product IDs to fetch images in bulk
         const productIds = cart.items.map((item) => item.productId);
 
-        // Fetch image URLs from Neo4j in bulk if there are products
         const imageUrlMap = new Map<string, string>();
 
         if (productIds.length > 0) {
@@ -374,7 +324,6 @@ export class CartService {
                     query,
                     { productIds },
                 );
-                // Create a map of product ID to image URL
                 for (const record of result.records) {
                     const id = record.get('id');
                     const imageUrl = record.get('imageUrl');
@@ -382,16 +331,10 @@ export class CartService {
                         imageUrlMap.set(id, imageUrl);
                     }
                 }
-
-                this.logger.debug(
-                    `Fetched ${imageUrlMap.size} images from Neo4j`,
-                );
             } catch (error) {
                 this.logger.error(
                     `Error fetching images from Neo4j: ${error.message}`,
-                    error.stack,
                 );
-                // Continue with the default image URLs if Neo4j query fails
             }
         }
 
@@ -400,7 +343,6 @@ export class CartService {
             status: cart.status,
             items: await Promise.all(
                 cart.items.map(async (item) => {
-                    // Get image URL from Neo4j map or use default/fallback
                     let imageUrl =
                         imageUrlMap.get(item.productId) ||
                         '/images/image-placeholder.webp';

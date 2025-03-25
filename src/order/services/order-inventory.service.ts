@@ -37,14 +37,14 @@ export class OrderInventoryService {
         });
 
         if (!orderItems || orderItems.length === 0) {
-            this.logger.warn(`No items found for order ${orderId} - skipping inventory adjustment`);
+            this.logger.error(`No items found for order ${orderId} - inventory adjustment failed`);
             return;
         }
 
         // Process each order item
         for (const item of orderItems) {
             if (!item.product) {
-                this.logger.warn(`Order item ${item.id} has no associated product - skipping`);
+                this.logger.error(`Order item ${item.id} has no associated product - inventory adjustment failed`);
                 continue;
             }
 
@@ -53,7 +53,7 @@ export class OrderInventoryService {
             });
 
             if (!product) {
-                this.logger.warn(`Product ${item.product.id} not found - skipping inventory adjustment`);
+                this.logger.error(`Product ${item.product.id} not found - inventory adjustment failed`);
                 continue;
             }
 
@@ -68,11 +68,6 @@ export class OrderInventoryService {
             }
 
             await productRepo.save(product);
-            
-            this.logger.log(
-                `${operation === 'decrease' ? 'Reduced' : 'Increased'} stock for product ${product.id} ` +
-                `from ${oldStock} to ${product.stock_quantity} (change: ${item.quantity})`
-            );
         }
     }
 }

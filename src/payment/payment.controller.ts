@@ -7,7 +7,6 @@ import {
     Query,
     HttpException,
     HttpStatus,
-    Logger,
     Req,
     Headers,
 } from '@nestjs/common';
@@ -19,21 +18,15 @@ import { DiscountService } from '../discount/discount.service';
 
 @Controller('payment')
 export class PaymentController {
-    private readonly logger = new Logger(PaymentController.name);
-
     constructor(
         private readonly paymentService: PaymentService,
         private readonly orderService: OrderService,
-        private readonly discountService: DiscountService, // Add this injection
+        private readonly discountService: DiscountService,
     ) {}
 
     @Post('create')
     async createPayment(@Body() paymentData: any) {
         try {
-            this.logger.log(
-                `Creating payment for order: ${paymentData.orderId}`,
-            );
-
             // Get order details if orderId is provided
             let orderDetails = null;
             if (paymentData.orderId) {
@@ -92,9 +85,6 @@ export class PaymentController {
             const result =
                 await this.paymentService.createPaymentLink(paymentData);
 
-            // Log full result for debugging
-            this.logger.log('Payment service result:', result);
-
             // If we got a successful result but no checkoutUrl, call the payment service directly
             if (
                 result.success &&
@@ -102,10 +92,6 @@ export class PaymentController {
                 !result.data.checkoutUrl &&
                 result.data.orderCode
             ) {
-                this.logger.log(
-                    'Payment link created but missing checkoutUrl, getting payment status',
-                );
-
                 // Try to get payment status which may contain the checkoutUrl
                 const paymentStatus =
                     await this.paymentService.checkPaymentStatus(
@@ -119,22 +105,11 @@ export class PaymentController {
                 ) {
                     // Add the checkoutUrl from the status response
                     result.data.checkoutUrl = paymentStatus.data.checkoutUrl;
-                    this.logger.log(
-                        'Retrieved checkoutUrl from payment status',
-                    );
-                } else {
-                    this.logger.warn(
-                        'Could not retrieve checkoutUrl from payment status',
-                    );
                 }
             }
 
             return { success: true, finalPrice: total };
         } catch (error) {
-            this.logger.error(
-                `Payment creation error: ${error.message}`,
-                error.stack,
-            );
             throw new HttpException(
                 error.message || 'Failed to create payment',
                 error.status || HttpStatus.INTERNAL_SERVER_ERROR,
@@ -145,18 +120,11 @@ export class PaymentController {
     @Get('status/:orderCode')
     async checkPaymentStatus(@Param('orderCode') orderCode: string) {
         try {
-            this.logger.log(
-                `Checking payment status for order code: ${orderCode}`,
-            );
             const result =
                 await this.paymentService.checkPaymentStatus(orderCode);
 
             return result;
         } catch (error) {
-            this.logger.error(
-                `Payment status check error: ${error.message}`,
-                error.stack,
-            );
             throw new HttpException(
                 error.message || 'Failed to check payment status',
                 error.status || HttpStatus.INTERNAL_SERVER_ERROR,
@@ -171,10 +139,7 @@ export class PaymentController {
         @Req() request: Request,
     ) {
         try {
-            this.logger.log('Received payment webhook');
-
             // Verify the webhook signature if required by your payment provider
-            // For this example, we'll just process the webhook data
             const result = await this.paymentService.verifyPaymentWebhook(
                 payload,
                 headers,
@@ -189,10 +154,6 @@ export class PaymentController {
                         parseInt(orderId),
                         OrderStatus.PAYMENT_SUCCESS,
                     );
-
-                    this.logger.log(
-                        `Order ${orderId} updated to PAYMENT_SUCCESS after successful payment`,
-                    );
                 }
 
                 return {
@@ -203,10 +164,6 @@ export class PaymentController {
 
             return result;
         } catch (error) {
-            this.logger.error(
-                `Payment webhook error: ${error.message}`,
-                error.stack,
-            );
             return {
                 success: false,
                 message: error.message || 'Failed to process webhook',
@@ -224,49 +181,27 @@ export class PaymentController {
         @Req() request: Request,
     ) {
         try {
-            this.logger.log(
-                `Processing payment success: orderId=${orderId}, status=${paymentStatus}, code=${paymentCode}, id=${id}, orderCode=${orderCode}`,
-            );
-            
             // Check if this is a direct success call with valid parameters
             const isPaid = paymentStatus === 'PAID' && paymentCode === '00';
-            
-            // Log more details about each parameter to help with debugging
-            this.logger.log(`Direct success parameters check:
-                - orderId exists: ${!!orderId}
-                - Payment success: ${isPaid}
-                - PayOS ID exists: ${!!id}
-                - OrderCode exists: ${!!orderCode}
-            `);
-            
+
             // If we have a direct orderId and payment is successful, immediately update the order
             if (orderId && isPaid) {
-                this.logger.log(`Attempting immediate order status update for order ${orderId}`);
-                
                 try {
                     // First get the order to verify its existence and status
                     const order = await this.orderService.findOrderWithItems(parseInt(orderId));
-                    
+
                     if (!order) {
-                        this.logger.warn(`Order ${orderId} not found during payment success handling`);
                         return { success: false, message: 'Order not found', orderId };
                     }
-                    
+
                     // Check if the order is in a state that can be updated
                     if (order.status === OrderStatus.APPROVED) {
-                        this.logger.log(`Order ${orderId} is in APPROVED state, updating to PAYMENT_SUCCESS`);
-                        
                         // Update order status to PAYMENT_SUCCESS
                         await this.orderService.updateOrderStatus(
                             parseInt(orderId),
                             OrderStatus.PAYMENT_SUCCESS,
                         );
-                        
-                        this.logger.log(`Order ${orderId} successfully updated to PAYMENT_SUCCESS`);
-                        
-                        // Handle discount usage if applicable
-                        // ... existing discount code ...
-                        
+
                         return {
                             success: true, 
                             message: 'Payment successful, order status updated',
@@ -274,7 +209,6 @@ export class PaymentController {
                             status: 'PAYMENT_SUCCESS'
                         };
                     } else {
-                        this.logger.warn(`Order ${orderId} cannot be updated, current status: ${order.status}`);
                         return {
                             success: false,
                             message: `Order ${orderId} is in ${order.status} state and cannot be updated`,
@@ -282,7 +216,6 @@ export class PaymentController {
                         };
                     }
                 } catch (error) {
-                    this.logger.error(`Error updating order ${orderId} status: ${error.message}`);
                     return {
                         success: false,
                         message: `Error updating order status: ${error.message}`,
@@ -290,8 +223,6 @@ export class PaymentController {
                     };
                 }
             }
-            
-            // ... existing fallback code for finding the order by other means ...
 
             return {
                 success: false,
@@ -300,7 +231,6 @@ export class PaymentController {
                 paymentCode,
             };
         } catch (error) {
-            this.logger.error(`Error in payment success handler: ${error.message}`, error.stack);
             return {
                 success: false,
                 message: `Error processing payment: ${error.message}`,
@@ -310,7 +240,6 @@ export class PaymentController {
 
     @Get('cancel')
     async handlePaymentCancel(@Query('orderId') orderId: string) {
-        this.logger.log(`Payment cancelled for order: ${orderId}`);
         return {
             success: false,
             message: 'Payment was cancelled',
@@ -321,10 +250,6 @@ export class PaymentController {
     @Get('debug/:orderId')
     async debugOrderPaymentStatus(@Param('orderId') orderId: string) {
         try {
-            this.logger.log(
-                `Debug request for order payment status: ${orderId}`,
-            );
-
             const order = await this.orderService.findOrderWithItems(
                 parseInt(orderId),
             );
@@ -347,7 +272,6 @@ export class PaymentController {
                 },
             };
         } catch (error) {
-            this.logger.error(`Debug endpoint error: ${error.message}`);
             return {
                 success: false,
                 message: error.message,
@@ -362,10 +286,6 @@ export class PaymentController {
         }
 
         try {
-            this.logger.log(
-                `TEST: Manually updating order ${orderId} to payment_success status`,
-            );
-
             // Update order status
             await this.orderService.updateOrderStatus(
                 parseInt(orderId),
@@ -378,7 +298,6 @@ export class PaymentController {
                 orderId,
             };
         } catch (error) {
-            this.logger.error(`Test endpoint error: ${error.message}`);
             return {
                 success: false,
                 message: error.message,

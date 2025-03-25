@@ -31,9 +31,6 @@ export class RolesGuard implements CanActivate {
             return false;
         }
 
-        this.logger.debug(
-            `Checking if role ${user.role} is in ${requiredRoles.join(', ')}`,
-        );
         const hasRequiredRole = requiredRoles.some(
             (role) => user.role === role,
         );

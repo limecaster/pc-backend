@@ -84,7 +84,7 @@ export class DiscountController {
         code: string; 
         orderAmount: number;
         productIds?: string[];
-        productPrices?: Record<string, number>; // Add this to receive product prices
+        productPrices?: Record<string, number>; 
     }) {
         this.logger.log(`Validating discount code: ${data.code} for order amount: ${data.orderAmount}`);
         
@@ -100,7 +100,7 @@ export class DiscountController {
             data.code, 
             data.orderAmount, 
             data.productIds,
-            data.productPrices // Pass product prices to the service
+            data.productPrices
         );
 
         if (!validatedDiscount.valid) {
@@ -133,11 +133,11 @@ export class DiscountController {
         customerId?: string;
         isFirstPurchase?: boolean;
         orderAmount?: number;
-        productPrices?: Record<string, number>; // Accept productPrices
+        productPrices?: Record<string, number>; 
     }) {
         this.logger.log(`Fetching automatic discounts for cart with ${options.productIds?.length || 0} products`);
         
-        // Pass all options including productPrices to the service
+ 
         const discounts = await this.discountService.getAutomaticDiscounts({
             ...options
         });

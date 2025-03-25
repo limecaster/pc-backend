@@ -19,10 +19,6 @@ export class OrderDisplayService {
         orderId: number | string,
         limitedInfo: boolean = false,
     ) {
-        this.logger.log(
-            `Fetching ${limitedInfo ? 'limited' : 'full'} tracking info for order: ${orderId}`,
-        );
-
         try {
             // Find order with relations
             let order;
@@ -40,6 +36,7 @@ export class OrderDisplayService {
             }
 
             if (!order) {
+                this.logger.error(`Order ${orderId} not found`);
                 throw new NotFoundException(`Order ${orderId} not found`);
             }
 
@@ -72,7 +69,7 @@ export class OrderDisplayService {
                     total: parseFloat(order.total.toString()),
                 };
             }
-            
+
             // Return full tracking information for verified requests
             return {
                 ...baseTrackingInfo,
@@ -103,7 +100,7 @@ export class OrderDisplayService {
             };
         } catch (error) {
             this.logger.error(
-                `Error fetching order tracking info: ${error.message}`,
+                `Critical error fetching order tracking info: ${error.message}`,
             );
             throw error;
         }
@@ -111,10 +108,8 @@ export class OrderDisplayService {
 
     // Helper method to extract image URL from product
     private getProductImageUrl(product: any): string {
-        // Default placeholder
         const placeholder = '/images/image-placesholder.webp';
 
-        // Check for additional_images field which might contain image URLs
         if (product.additional_images) {
             try {
                 const images = JSON.parse(product.additional_images);
@@ -122,13 +117,12 @@ export class OrderDisplayService {
                     return images[0];
                 }
             } catch (e) {
-                this.logger.warn(
-                    `Error parsing additional_images for product ${product.id}: ${e.message}`,
+                this.logger.error(
+                    `Critical error parsing additional_images for product ${product.id}: ${e.message}`,
                 );
             }
         }
 
-        // Check for other possible image fields that might be available
         if (product.imageUrl) {
             return product.imageUrl;
         }
@@ -147,12 +141,10 @@ export class OrderDisplayService {
             (s) => s.status === order.status,
         );
 
-        // Add all activities up to the current status
         for (let i = 0; i <= currentStatusIndex; i++) {
             const statusInfo = statuses[i];
             let timestamp = '';
 
-            // Use actual timestamps for certain statuses if available
             if (statusInfo.status === OrderStatus.PENDING_APPROVAL) {
                 timestamp = this.formatDate(order.orderDate);
             } else if (
@@ -171,7 +163,6 @@ export class OrderDisplayService {
             ) {
                 timestamp = this.formatDate(order.deliveredAt);
             } else if (i < currentStatusIndex) {
-                // For intermediate statuses without specific timestamps, estimate one
                 timestamp = this.formatDate(
                     this.estimateTimestampForStatus(order, i),
                 );
@@ -188,7 +179,6 @@ export class OrderDisplayService {
             });
         }
 
-        // Add future statuses as incomplete
         for (let i = currentStatusIndex + 1; i < statuses.length; i++) {
             const statusInfo = statuses[i];
             activities.push({
@@ -242,12 +232,10 @@ export class OrderDisplayService {
     }
 
     private calculateEstimatedDelivery(order: Order) {
-        // If already delivered, use the actual delivery date
         if (order.status === OrderStatus.DELIVERED && order.deliveredAt) {
             return this.formatDate(order.deliveredAt);
         }
 
-        // Otherwise, estimate delivery date (5 days from order date)
         const estimatedDate = new Date(order.orderDate);
         estimatedDate.setDate(estimatedDate.getDate() + 5);
         return this.formatDate(estimatedDate);
@@ -256,7 +244,6 @@ export class OrderDisplayService {
     private formatDate(date: Date) {
         if (!date) return '';
 
-        // Format: DD/MM/YYYY, HH:MM
         return new Intl.DateTimeFormat('vi-VN', {
             day: '2-digit',
             month: '2-digit',
@@ -267,9 +254,8 @@ export class OrderDisplayService {
     }
 
     private estimateTimestampForStatus(order: Order, statusIndex: number) {
-        // Create estimated timestamps based on order date and status sequence
         const orderDate = new Date(order.orderDate);
-        const hoursToAdd = statusIndex * 8; // Add 8 hours per status
+        const hoursToAdd = statusIndex * 8;
 
         const estimatedDate = new Date(orderDate);
         estimatedDate.setHours(orderDate.getHours() + hoursToAdd);

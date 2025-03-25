@@ -30,6 +30,7 @@ export class CartController {
         const userId = req.user?.id;
 
         if (!userId) {
+            this.logger.error('User not authenticated or missing ID in addToCart');
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
@@ -54,18 +55,13 @@ export class CartController {
         @Body() addMultipleDto: AddMultipleToCartDto,
     ) {
         const userId = req.user?.id;
-        this.logger.debug(`Add multiple to cart request for user: ${userId}`);
 
         if (!userId) {
-            this.logger.error('Missing user ID in authenticated request');
+            this.logger.error('User not authenticated or missing ID in addMultipleToCart');
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
         }
-
-        this.logger.debug(
-            `Adding ${addMultipleDto.productIds.length} products to cart for user ${userId}`,
-        );
 
         const cart = await this.cartService.addMultipleToCart(
             userId,
@@ -85,11 +81,9 @@ export class CartController {
         @Body() updateCartItemDto: UpdateCartItemDto,
     ) {
         const userId = req.user?.id;
-        this.logger.debug(
-            `Update cart item for user ${userId}, product ${updateCartItemDto.productId}`,
-        );
 
         if (!userId) {
+            this.logger.error('User not authenticated or missing ID in updateCartItem');
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
@@ -114,11 +108,9 @@ export class CartController {
         @Body() removeItemDto: { productId: string },
     ) {
         const userId = req.user?.id;
-        this.logger.debug(
-            `Remove item from cart for user ${userId}, product ${removeItemDto.productId}`,
-        );
 
         if (!userId) {
+            this.logger.error('User not authenticated or missing ID in removeCartItem');
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
@@ -141,6 +133,7 @@ export class CartController {
         const userId = req.user?.id;
 
         if (!userId) {
+            this.logger.error('User not authenticated or missing ID in getCart');
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );

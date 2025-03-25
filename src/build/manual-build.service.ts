@@ -356,7 +356,6 @@ export class ManualBuildService {
     async checkPartCompatibilityWithSelected(
         partName: string,
         partLabels: string[],
-        selectedParts: any[],
     ) {
         try {
             // Query the full record from Neo4j by full-text search on the name field

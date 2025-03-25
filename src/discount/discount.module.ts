@@ -8,6 +8,6 @@ import { Discount } from './discount.entity';
   imports: [TypeOrmModule.forFeature([Discount])],
   controllers: [DiscountController],
   providers: [DiscountService],
-  exports: [DiscountService], // Make sure DiscountService is exported
+  exports: [DiscountService],
 })
 export class DiscountModule {}

@@ -73,13 +73,8 @@ export class AdminController {
     async registerInitialAdmin(@Body() adminData: any & { secretKey: string }) {
         const configuredKey = process.env.ADMIN_SETUP_SECRET_KEY;
 
-        this.logger.debug('Attempting to register initial admin');
-
         // Verify the secret key
         if (!configuredKey || adminData.secretKey !== configuredKey) {
-            this.logger.warn(
-                'Attempt to register initial admin with invalid secret key',
-            );
             return {
                 success: false,
                 message: 'Invalid or missing secret key',
@@ -90,9 +85,6 @@ export class AdminController {
         const adminsCount = await this.adminService.getAdminCount();
 
         if (adminsCount > 0) {
-            this.logger.warn(
-                'Attempt to register initial admin when admin already exists',
-            );
             return {
                 success: false,
                 message: 'Initial admin already exists',
@@ -104,17 +96,12 @@ export class AdminController {
             const { secretKey, ...adminInfo } = adminData;
             const result = await this.adminService.createAdmin(adminInfo);
 
-            this.logger.log('Initial admin account registered successfully');
-
             return {
                 success: true,
                 message: 'Initial admin registered successfully',
                 admin: result.admin,
             };
         } catch (error) {
-            this.logger.error(
-                `Failed to register initial admin: ${error.message}`,
-            );
             return {
                 success: false,
                 message: error.message || 'Failed to register initial admin',

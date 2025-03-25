@@ -27,13 +27,6 @@ import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 @Controller('orders')
 export class OrderController {
     private readonly logger = new Logger(OrderController.name);
-    // Track recent requests to detect duplicates
-    private recentRequests = new Map<string, number>();
-    // Rate limiting for OTP requests
-    private otpAttempts = new Map<
-        string,
-        { count: number; lastAttempt: number }
-    >();
 
     constructor(
         private readonly orderService: OrderService,
@@ -45,78 +38,56 @@ export class OrderController {
     @Get(':id')
     async getOrderById(@Param('id') id: string, @Request() req) {
         try {
-            this.logger.log(`Fetching order with ID: ${id}`);
-            const order = await this.orderService.findOrderWithItems(
-                parseInt(id),
-            );
+            const order = await this.orderService.findOrderWithItems(parseInt(id));
 
             if (!order) {
+                this.logger.error(`Order with ID ${id} not found`);
                 throw new NotFoundException(`Order with ID ${id} not found`);
             }
 
-            // Check if this is a payment verification request from success page
             const isPaymentVerification = req.query.paymentVerification === 'true';
-            
-            // Check if user is authenticated and is the owner of this order
-            // If not, we'll return limited information for public access
             const isAuthenticated = req.user?.id;
             const isOwner = isAuthenticated && order.customerId === req.user?.id;
             const isStaffOrAdmin =
                 req.user?.role === Role.STAFF || req.user?.role === Role.ADMIN;
 
-            // If not authenticated or not the order owner, return only basic info
-            // UNLESS this is a payment verification request
             if (!isPaymentVerification && (!isAuthenticated || (!isOwner && !isStaffOrAdmin))) {
-                this.logger.log(
-                    `Public access to order ${id} - returning limited information`,
-                );
+                return {
+                    success: true,
+                    order: {
+                        id: order.id,
+                        orderNumber: order.orderNumber,
+                        orderDate: order.orderDate,
+                        status: order.status,
+                    },
+                };
+            }
 
-                // Only return public order info
-                const publicOrderInfo = {
+            return {
+                success: true,
+                order: {
                     id: order.id,
                     orderNumber: order.orderNumber,
                     orderDate: order.orderDate,
                     status: order.status,
-                    // Include only essential fields needed for public display
-                };
-
-                return {
-                    success: true,
-                    order: publicOrderInfo,
-                };
-            }
-
-            // For payment verification or authenticated users, return more complete information
-            const completeOrderInfo = {
-                id: order.id,
-                orderNumber: order.orderNumber,
-                orderDate: order.orderDate,
-                status: order.status,
-                total: order.total,
-                subtotal: order.subtotal || order.total,
-                discountAmount: order.discountAmount || 0,
-                shippingFee: order.shippingFee || 0,
-                // Customer info with safety checks and type assertions
-                customerName: order.customer 
-                    ? `${order.customer.firstname || ''} ${order.customer.lastname || ''}`
-                    : (order as any).guestName || 'Không có thông tin',
-                customerEmail: order.customer?.email || (order as any).guestEmail,
-                customerPhone: order.customer?.phoneNumber || (order as any).guestPhone || 'Không có thông tin',
-                // Address info
-                deliveryAddress: order.deliveryAddress || 'Không có thông tin',
-                // Items with safety checks and type assertions
-                items: order.items?.map(item => ({
-                    id: item.product?.id || 'unknown',
-                    name: item.product?.name || 'Unknown Product',
-                    price: (item as any).price || 0,
-                    quantity: item.quantity || 0,
-                    imageUrl: (item.product as any)?.imageUrl || ((item.product as any)?.images?.[0]) || null
-                })) || []
-            };
-
-            return {
-                success: true,
-                order: completeOrderInfo, 
+                    total: order.total,
+                    subtotal: order.subtotal || order.total,
+                    discountAmount: order.discountAmount || 0,
+                    shippingFee: order.shippingFee || 0,
+                    customerName: order.customer
+                        ? `${order.customer.firstname || ''} ${order.customer.lastname || ''}`
+                        : (order as any).guestName || 'Không có thông tin',
+                    customerEmail: order.customer?.email || (order as any).guestEmail,
+                    customerPhone: order.customer?.phoneNumber || (order as any).guestPhone || 'Không có thông tin',
+                    deliveryAddress: order.deliveryAddress || 'Không có thông tin',
+                    items: order.items?.map(item => ({
+                        id: item.product?.id || 'unknown',
+                        name: item.product?.name || 'Unknown Product',
+                        price: (item as any).price || 0,
+                        quantity: item.quantity || 0,
+                        imageUrl: (item.product as any)?.imageUrl || ((item.product as any)?.images?.[0]) || null,
+                    })) || [],
+                },
             };
         } catch (error) {
             this.logger.error(`Error fetching order: ${error.message}`);
@@ -132,21 +103,14 @@ export class OrderController {
     async getUserOrderHistory(@Request() req) {
         try {
             const customerId = req.user.id;
-            this.logger.log(
-                `Fetching order history for user ID: ${customerId}`,
-            );
-
-            const orders =
-                await this.orderService.findOrdersByCustomerId(customerId);
+            const orders = await this.orderService.findOrdersByCustomerId(customerId);
 
             return {
                 success: true,
                 orders,
             };
         } catch (error) {
-            this.logger.error(
-                `Error fetching user order history: ${error.message}`,
-            );
+            this.logger.error(`Error fetching user order history: ${error.message}`);
             return {
                 success: false,
                 message: error.message,
@@ -159,7 +123,6 @@ export class OrderController {
     @Get('admin/pending-approval')
     async getPendingApprovalOrders() {
         try {
-            this.logger.log(`Fetching orders pending approval`);
             const orders = await this.orderService.findPendingApprovalOrders();
 
             return {
@@ -167,9 +130,7 @@ export class OrderController {
                 orders,
             };
         } catch (error) {
-            this.logger.error(
-                `Error fetching pending orders: ${error.message}`,
-            );
+            this.logger.error(`Error fetching pending orders: ${error.message}`);
             return {
                 success: false,
                 message: error.message,
@@ -186,42 +147,21 @@ export class OrderController {
         @Request() req,
     ) {
         try {
-            this.logger.log(
-                `Staff ${req.user.id} updating order ${orderId} status to ${data.status}`,
-            );
-
             const updatedOrder = await this.orderService.updateOrderStatus(
                 parseInt(orderId),
                 data.status,
                 req.user.id,
             );
 
-            // Send email notification if order is being approved
             if (data.status === OrderStatus.APPROVED) {
-                // Get the complete order with customer details
-                const orderWithDetails =
-                    await this.orderService.findOrderWithItems(
-                        parseInt(orderId),
-                    );
-
-                // Get customer email - check both registered customer and guest
-                const customerEmail =
-                    orderWithDetails.customer?.email ||
-                    orderWithDetails.guestEmail;
+                const orderWithDetails = await this.orderService.findOrderWithItems(parseInt(orderId));
+                const customerEmail = orderWithDetails.customer?.email || orderWithDetails.guestEmail;
 
                 if (customerEmail) {
-                    // Send approval notification email
                     await this.emailService.sendOrderApprovalEmail(
                         customerEmail,
                         orderWithDetails.orderNumber,
                         orderWithDetails,
-                    );
-                    this.logger.log(
-                        `Approval notification sent to ${customerEmail} for order ${orderId}`,
-                    );
-                } else {
-                    this.logger.warn(
-                        `No email found for order ${orderId}, couldn't send approval notification`,
                     );
                 }
             }
@@ -243,15 +183,11 @@ export class OrderController {
     @Post(':id/cancel')
     async cancelOrder(@Param('id') orderId: string, @Request() req) {
         try {
-            // First check if the order belongs to the current user
-            const order = await this.orderService.findOrderWithItems(
-                parseInt(orderId),
-            );
+            const order = await this.orderService.findOrderWithItems(parseInt(orderId));
 
             if (!order) {
-                throw new NotFoundException(
-                    `Order with ID ${orderId} not found`,
-                );
+                this.logger.error(`Order with ID ${orderId} not found`);
+                throw new NotFoundException(`Order with ID ${orderId} not found`);
             }
 
             if (order.customerId !== req.user.id) {
@@ -261,12 +197,7 @@ export class OrderController {
                 };
             }
 
-            // Only pending_approval or approved orders can be cancelled by customers
-            if (
-                ![OrderStatus.PENDING_APPROVAL, OrderStatus.APPROVED].includes(
-                    order.status,
-                )
-            ) {
+            if (![OrderStatus.PENDING_APPROVAL, OrderStatus.APPROVED].includes(order.status)) {
                 return {
                     success: false,
                     message: 'This order cannot be cancelled',
@@ -295,15 +226,11 @@ export class OrderController {
     @Post(':id/pay')
     async initiatePayment(@Param('id') orderId: string, @Request() req, @Body() body: any) {
         try {
-            // First check if the order belongs to the current user
-            const order = await this.orderService.findOrderWithItems(
-                parseInt(orderId),
-            );
+            const order = await this.orderService.findOrderWithItems(parseInt(orderId));
 
             if (!order) {
-                throw new NotFoundException(
-                    `Order with ID ${orderId} not found`,
-                );
+                this.logger.error(`Order with ID ${orderId} not found`);
+                throw new NotFoundException(`Order with ID ${orderId} not found`);
             }
 
             if (order.customerId !== req.user.id) {
@@ -313,7 +240,6 @@ export class OrderController {
                 };
             }
 
-            // Only approved orders can be paid
             if (order.status !== OrderStatus.APPROVED) {
                 return {
                     success: false,
@@ -322,7 +248,6 @@ export class OrderController {
                 };
             }
 
-            // Generate payment data
             const paymentData = {
                 orderId: order.id.toString(),
                 description: `Order #${order.id} Thanh toan B Store`,
@@ -340,20 +265,16 @@ export class OrderController {
                 },
                 total: order.total,
                 subtotal: order.total,
-                // Make sure orderId is included in all URLs to track the payment
                 returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/success?orderId=${order.id}`,
                 cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/failure?orderId=${order.id}`,
                 webhookUrl: `${process.env.API_URL || 'http://localhost:5000'}/payment/webhook`,
-                // Add additional tracking data that will be passed back by PayOS
                 extraData: {
                     orderId: order.id.toString(),
                     customerEmail: req.user.email,
-                }
+                },
             };
 
-            // Create payment link
-            const paymentResult =
-                await this.checkoutService.processPayment(paymentData);
+            const paymentResult = await this.checkoutService.processPayment(paymentData);
 
             return {
                 success: true,
@@ -369,366 +290,4 @@ export class OrderController {
         }
     }
 
-    /**
-     * Track order with authentication (JWT or OTP)
-     * Returns different levels of detail based on authentication
-     */
-    @UseGuards(OptionalJwtAuthGuard)
-    @Get('track/:identifier')
-    async trackOrder(
-        @Param('identifier') identifier: string,
-        @Request() req,
-        @Query('email') email?: string,
-    ) {
-        const clientIp = req.ip || 'unknown';
-        const requestId = `${clientIp}-track-${identifier}`;
-        const now = Date.now();
-
-        // Check for duplicate requests
-        if (this.recentRequests.has(requestId)) {
-            const timestamp = this.recentRequests.get(requestId);
-            if (now - timestamp < 2000) {
-                this.logger.warn(
-                    `Potential duplicate request detected for order ${identifier} from IP ${clientIp}`,
-                );
-            }
-        }
-
-        // Record this request
-        this.recentRequests.set(requestId, now);
-        this.cleanupOldRequests();
-
-        try {
-            // Identify the request source
-            const isAuthenticated = !!req.user;
-            this.logger.log(
-                `Tracking order ${identifier}, User authenticated: ${isAuthenticated}, Email provided: ${!!email}`,
-            );
-
-            // Check if identifier is a numeric ID or an order number
-            let order;
-            const isNumericId = /^\d+$/.test(identifier);
-            if (isNumericId) {
-                // If it's a numeric ID, find order by ID
-                order = await this.orderService.findOrderWithItems(
-                    parseInt(identifier),
-                );
-            } else {
-                // Otherwise treat it as an order number
-                order = await this.orderService.findOrderByNumber(identifier);
-            }
-
-            if (!order) {
-                throw new NotFoundException(`Order ${identifier} not found`);
-            }
-
-            // Check if user has permission to view full details
-            let hasFullAccess = false;
-
-            // Check if authenticated user owns the order
-            if (isAuthenticated) {
-                const userId = req.user.id;
-                hasFullAccess =
-                    await this.orderService.checkOrderTrackingPermission(
-                        order.id,
-                        userId,
-                    );
-                this.logger.log(`Authorized access via JWT: ${hasFullAccess}`);
-            }
-            // If email is provided, check if it matches the order's email
-            else if (email) {
-                // Need to check customer?.email safely and guestEmail safely
-                const customerEmail = order.customer?.email?.toLowerCase();
-                const guestEmail = order.guestEmail?.toLowerCase();
-                const providedEmail = email.toLowerCase();
-
-                hasFullAccess =
-                    customerEmail === providedEmail ||
-                    guestEmail === providedEmail;
-
-                this.logger.log(`Email verification result: ${hasFullAccess}`);
-            }
-
-            // Get tracking info with limited details if not authorized
-            const trackingInfo = await this.orderService.getOrderTrackingInfo(
-                isNumericId ? parseInt(identifier) : identifier,
-                !hasFullAccess, // true = limited info if not authorized
-            );
-
-            // If verification is needed, include masked email for the frontend to display as a hint
-            let maskedEmail = null;
-            if (!hasFullAccess) {
-                const emailToMask = order.customer?.email || order.guestEmail;
-                if (emailToMask) {
-                    // Mask email - show only first 2 and last 2 characters of username part
-                    const [username, domain] = emailToMask.split('@');
-                    const maskedUsername =
-                        username.length > 4
-                            ? `${username.substring(0, 2)}****${username.substring(username.length - 2)}`
-                            : username.substring(0, 1) + '****';
-                    maskedEmail = `${maskedUsername}@${domain}`;
-                }
-            }
-
-            return {
-                success: true,
-                order: trackingInfo,
-                requiresVerification: !hasFullAccess,
-                customerEmail: maskedEmail,
-            };
-        } catch (error) {
-            this.logger.error(`Error tracking order: ${error.message}`);
-            return {
-                success: false,
-                message:
-                    error instanceof NotFoundException
-                        ? 'Order not found'
-                        : 'Unable to retrieve order information',
-            };
-        }
-    }
-
-    /**
-     * Track order with verification data (POST method)
-     * This endpoint is used when providing verification data directly
-     */
-    @Post('track')
-    async trackOrderWithVerification(
-        @Body() body: { orderId: number | string; verificationData: string },
-    ) {
-        try {
-            this.logger.log(
-                `Verifying access to order ${body.orderId} with verification data`,
-            );
-
-            let order;
-            let orderId = body.orderId;
-
-            // Check if the order identifier is a number or order number
-            if (
-                typeof body.orderId === 'number' ||
-                /^\d+$/.test(body.orderId.toString())
-            ) {
-                // Convert to number if it's a string numeric value
-                const numericId =
-                    typeof body.orderId === 'string'
-                        ? parseInt(body.orderId)
-                        : body.orderId;
-                order = await this.orderService.findOrderWithItems(numericId);
-                orderId = numericId;
-            } else {
-                // Treat as order number
-                order = await this.orderService.findOrderByNumber(
-                    body.orderId.toString(),
-                );
-                orderId = body.orderId;
-            }
-
-            if (!order) {
-                throw new NotFoundException(`Order ${body.orderId} not found`);
-            }
-
-            // Verify access using the provided verification data
-            const hasAccess = await this.orderService.verifyOrderAccess(
-                order.id,
-                body.verificationData,
-            );
-
-            if (!hasAccess) {
-                return {
-                    success: false,
-                    message: 'Thông tin xác thực không chính xác',
-                    requiresVerification: true,
-                };
-            }
-
-            // Get full order details since verification was successful
-            const trackingInfo = await this.orderService.getOrderTrackingInfo(
-                orderId,
-                false,
-            );
-
-            return {
-                success: true,
-                order: trackingInfo,
-            };
-        } catch (error) {
-            this.logger.error(`Error verifying order access: ${error.message}`);
-            return {
-                success: false,
-                message:
-                    error instanceof NotFoundException
-                        ? 'Order not found'
-                        : 'Unable to verify order access',
-            };
-        }
-    }
-
-    /**
-     * Request an OTP to track an order
-     */
-    @Post('track/send-otp')
-    async requestTrackingOtp(@Body() body: SendOTPDto) {
-        const { orderId, email } = body;
-        const clientIp = 'unknown'; // In a real app, get from request
-        const requestKey = `${clientIp}-${email}-${orderId}`;
-
-        // Implement rate limiting
-        if (this.isRateLimited(requestKey)) {
-            return {
-                success: false,
-                message: 'Too many OTP requests. Please try again later.',
-            };
-        }
-
-        try {
-            // Generate OTP
-            const otp = await this.orderService.generateTrackingOTP(
-                orderId,
-                email,
-            );
-
-            // Send OTP via email
-            await this.emailService.sendOrderTrackingOTP(
-                email,
-                otp,
-                orderId.toString(),
-            );
-
-            // Record this attempt
-            this.recordOtpAttempt(requestKey);
-
-            return {
-                success: true,
-                message: 'Verification code sent to your email',
-            };
-        } catch (error) {
-            this.logger.error(
-                `Error generating tracking OTP: ${error.message}`,
-            );
-
-            // Don't leak information about which part failed
-            return {
-                success: false,
-                message:
-                    'If the order exists and the email is correct, a verification code has been sent.',
-            };
-        }
-    }
-
-    /**
-     * Verify OTP and get full order details
-     */
-    @Post('track/verify-otp')
-    async verifyTrackingOtp(@Body() body: VerifyOTPDto) {
-        const { orderId, email, otp } = body;
-
-        try {
-            // Verify OTP
-            const isValid = await this.orderService.verifyTrackingOTP(
-                orderId,
-                email,
-                otp,
-            );
-
-            if (!isValid) {
-                return {
-                    success: false,
-                    message: 'Invalid or expired verification code',
-                };
-            }
-
-            // Get full order details
-            const trackingInfo = await this.orderService.getOrderTrackingInfo(
-                orderId,
-                false,
-            );
-
-            return {
-                success: true,
-                order: trackingInfo,
-            };
-        } catch (error) {
-            this.logger.error(`Error verifying tracking OTP: ${error.message}`);
-            return {
-                success: false,
-                message: 'Failed to verify order access',
-            };
-        }
-    }
-
-    // Rate limiting helper methods
-    private recordOtpAttempt(key: string): void {
-        const now = Date.now();
-        const attempt = this.otpAttempts.get(key) || {
-            count: 0,
-            lastAttempt: now,
-        };
-
-        if (now - attempt.lastAttempt > 3600000) {
-            // 1 hour
-            attempt.count = 1;
-        } else {
-            attempt.count++;
-        }
-
-        attempt.lastAttempt = now;
-        this.otpAttempts.set(key, attempt);
-    }
-
-    private isRateLimited(key: string): boolean {
-        const attempt = this.otpAttempts.get(key);
-        if (!attempt) return false;
-
-        const now = Date.now();
-        if (now - attempt.lastAttempt > 3600000) {
-            // Reset after 1 hour
-            this.otpAttempts.delete(key);
-            return false;
-        }
-
-        return attempt.count >= 3; // Max 3 attempts per hour
-    }
-
-    // Helper method to clean up request tracking
-    private cleanupOldRequests() {
-        const now = Date.now();
-        this.recentRequests.forEach((timestamp, key) => {
-            if (now - timestamp > 60000) {
-                // Remove entries older than 1 minute
-                this.recentRequests.delete(key);
-            }
-        });
-    }
-
-    /**
-     * Get order details specifically for staff
-     * This endpoint ensures complete data is returned in the expected format
-     */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(Role.STAFF, Role.ADMIN)
-    @Get('staff/:id')
-    async getStaffOrderDetails(@Param('id') id: string) {
-        try {
-            this.logger.log(`Staff fetching order with ID: ${id}`);
-            const order = await this.orderService.findOrderWithItems(
-                parseInt(id),
-            );
-
-            if (!order) {
-                throw new NotFoundException(`Order with ID ${id} not found`);
-            }
-
-            return {
-                success: true,
-                order,
-            };
-        } catch (error) {
-            this.logger.error(`Error fetching staff order: ${error.message}`);
-            return {
-                success: false,
-                message: error.message,
-            };
-        }
-    }
 }

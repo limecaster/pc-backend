@@ -27,32 +27,27 @@ export class OrderStatusService {
         status: OrderStatus,
         staffId?: number,
     ): Promise<Order> {
-        this.logger.log(`Updating order ${orderId} status to ${status}`);
-        
         const order = await this.orderRepository.findOne({
             where: { id: orderId },
         });
 
         if (!order) {
+            this.logger.error(`Order with ID ${orderId} not found`);
             throw new NotFoundException(`Order with ID ${orderId} not found`);
         }
-        
+
         const previousStatus = order.status;
-        
+
         // Validate status transitions
         await this.validateStatusTransition(order.status, status, staffId);
 
         // Handle stock adjustment based on status change
         if (status === OrderStatus.APPROVED && previousStatus === OrderStatus.PENDING_APPROVAL) {
-            // When order is approved, reduce product stock
             await this.orderInventoryService.adjustInventoryForOrder(orderId, 'decrease');
-            this.logger.log(`Decreased stock for products in order ${orderId}`);
         } 
         else if (status === OrderStatus.CANCELLED && 
                 (previousStatus === OrderStatus.APPROVED || previousStatus === OrderStatus.PAYMENT_SUCCESS)) {
-            // When approved order is cancelled, restore product stock
             await this.orderInventoryService.adjustInventoryForOrder(orderId, 'increase');
-            this.logger.log(`Restored stock for products in order ${orderId}`);
         }
 
         order.status = status;
@@ -76,7 +71,6 @@ export class OrderStatusService {
         newStatus: OrderStatus,
         staffId?: number,
     ): Promise<void> {
-        // Define valid status transitions
         const validTransitions = {
             [OrderStatus.PENDING_APPROVAL]: [
                 OrderStatus.APPROVED,
@@ -101,15 +95,17 @@ export class OrderStatusService {
             [OrderStatus.CANCELLED]: [],
         };
 
-        // Check if transition is valid
         if (!validTransitions[currentStatus].includes(newStatus)) {
+            this.logger.error(
+                `Invalid status transition from ${currentStatus} to ${newStatus}`,
+            );
             throw new ForbiddenException(
                 `Cannot transition from ${currentStatus} to ${newStatus}`,
             );
         }
 
-        // Staff approval is required for certain transitions
         if (newStatus === OrderStatus.APPROVED && !staffId) {
+            this.logger.error('Staff ID required for order approval');
             throw new ForbiddenException(
                 'Staff ID required for order approval',
             );
@@ -125,28 +121,17 @@ export class OrderStatusService {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysInTransit);
 
-        this.logger.log(
-            `Checking for shipping orders older than ${cutoffDate.toISOString()}`,
-        );
-
         const shippingOrders = await this.orderRepository.find({
             where: {
                 status: OrderStatus.SHIPPING,
-                updatedAt: LessThan(cutoffDate), // Orders that haven't been updated for X days
+                updatedAt: LessThan(cutoffDate),
             },
         });
-
-        this.logger.log(
-            `Found ${shippingOrders.length} orders to mark as delivered`,
-        );
 
         for (const order of shippingOrders) {
             order.status = OrderStatus.DELIVERED;
             order.receiveDate = new Date();
             await this.orderRepository.save(order);
-            this.logger.log(
-                `Order #${order.id} automatically marked as delivered`,
-            );
         }
     }
 

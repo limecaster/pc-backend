@@ -12,11 +12,13 @@ import { OrderTrackingService } from './services/order-tracking.service';
 import { OrderStatusService } from './services/order-status.service';
 import { OrderInventoryService } from './services/order-inventory.service';
 import { OrderDisplayService } from './services/order-display.service';
+import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, OrderItem, Product]),
     forwardRef(() => CheckoutModule),
+    forwardRef(() => PaymentModule),
     EmailModule,
     ScheduleModule.forRoot(),
   ],

@@ -45,13 +45,13 @@ export class OrderTrackingService {
         }
 
         if (!order) {
+            this.logger.error(`Order with identifier ${orderId} not found`);
             throw new NotFoundException(
                 `Order with identifier ${orderId} not found`,
             );
         }
 
         // Verify that this email is associated with the order
-        // either as the customer email or the email provided during guest checkout
         let isValidEmail = false;
 
         if (order.customer?.email?.toLowerCase() === email.toLowerCase()) {
@@ -61,6 +61,9 @@ export class OrderTrackingService {
         }
 
         if (!isValidEmail) {
+            this.logger.error(
+                `Unauthorized access attempt for order ${orderId} with email ${email}`,
+            );
             throw new UnauthorizedException(
                 'Email is not associated with this order',
             );
@@ -75,17 +78,12 @@ export class OrderTrackingService {
 
         // Use order ID for consistent key (in case orderNumber was provided)
         const otpKey = `${order.id}-${email}`;
-        
+
         // Store the OTP
         this.otpStore.set(otpKey, {
             otp,
             expires: expiry,
         });
-        
-        this.logger.log(`Generated OTP for order ${order.id} (${orderId}), email: ${email}, key: ${otpKey}, OTP: ${otp}`);
-        
-        // Log the current state of the OTP store for debugging
-        this.logOtpStoreStatus();
 
         // Clean up expired OTPs occasionally
         this.cleanupExpiredOTPs();
@@ -105,14 +103,9 @@ export class OrderTrackingService {
         email: string,
         otp: string,
     ): Promise<boolean> {
-        this.logger.log(`Verifying OTP for order ${orderId} and email ${email}, OTP: ${otp}`);
-        
-        // Log the current state of the OTP store
-        this.logOtpStoreStatus();
-        
         // First, find the order to get the consistent ID
         let order;
-        
+
         // Handle both numeric IDs and order numbers
         if (typeof orderId === 'number' || !isNaN(Number(orderId))) {
             order = await this.orderRepository.findOne({
@@ -125,52 +118,40 @@ export class OrderTrackingService {
         }
 
         if (!order) {
-            this.logger.warn(`Order ${orderId} not found during OTP verification`);
+            this.logger.error(`Order ${orderId} not found during OTP verification`);
             return false;
         }
 
         // Use order.id to ensure the key matches what was used in generateTrackingOTP
         const otpKey = `${order.id}-${email}`;
-        this.logger.log(`Looking up OTP with key: ${otpKey}`);
-        
+
         const storedData = this.otpStore.get(otpKey);
 
         if (!storedData) {
-            this.logger.warn(`No OTP found for key ${otpKey}`);
+            this.logger.error(`No OTP found for key ${otpKey}`);
             return false;
         }
 
         // Check if OTP has expired
         if (storedData.expires < new Date()) {
-            this.logger.warn(`OTP for order ${orderId} has expired`);
+            this.logger.error(`OTP for order ${orderId} has expired`);
             this.otpStore.delete(otpKey);
             return false;
         }
 
         // Check if OTP matches
         const isValid = storedData.otp === otp;
-        this.logger.log(`OTP validation result for order ${orderId}: ${isValid ? 'valid' : 'invalid'}, Expected: ${storedData.otp}, Got: ${otp}`);
 
         // OTP is valid, delete it after use
         if (isValid) {
             this.otpStore.delete(otpKey);
+        } else {
+            this.logger.error(
+                `Invalid OTP for order ${orderId}. Expected: ${storedData.otp}, Got: ${otp}`,
+            );
         }
-        
-        return isValid;
-    }
 
-    /**
-     * Log the current state of the OTP store for debugging
-     */
-    private logOtpStoreStatus(): void {
-        this.logger.log(`Current OTP store size: ${this.otpStore.size}`);
-        if (this.otpStore.size > 0) {
-            this.logger.log('OTP store contents:');
-            for (const [key, value] of this.otpStore.entries()) {
-                const expiresIn = Math.round((value.expires.getTime() - Date.now()) / 1000);
-                this.logger.log(`- Key: ${key}, OTP: ${value.otp}, Expires in: ${expiresIn}s`);
-            }
-        }
+        return isValid;
     }
 
     /**
@@ -201,6 +182,7 @@ export class OrderTrackingService {
         });
 
         if (!order) {
+            this.logger.error(`Order ${orderId} not found during permission check`);
             return false;
         }
 
@@ -220,8 +202,6 @@ export class OrderTrackingService {
         orderId: number,
         verificationData: string,
     ): Promise<boolean> {
-        this.logger.log(`Verifying access to order ${orderId}`);
-
         try {
             const order = await this.orderRepository.findOne({
                 where: { id: orderId },
@@ -229,6 +209,7 @@ export class OrderTrackingService {
             });
 
             if (!order) {
+                this.logger.error(`Order ${orderId} not found during access verification`);
                 return false;
             }
 

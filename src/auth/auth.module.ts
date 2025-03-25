@@ -16,8 +16,8 @@ import { StaffModule } from '../staff/staff.module';
         PassportModule,
         CustomerModule,
         EmailModule,
-        AdminModule, // Add AdminModule
-        StaffModule, // Add StaffModule
+        AdminModule, 
+        StaffModule, 
         JwtModule.registerAsync({
             imports: [ConfigModule],
             useFactory: async (configService: ConfigService) => ({
@@ -26,7 +26,7 @@ import { StaffModule } from '../staff/staff.module';
             }),
             inject: [ConfigService],
         }),
-        ConfigModule, // Ensure ConfigModule is imported
+        ConfigModule,
     ],
     controllers: [AuthController],
     providers: [AuthService, LocalStrategy, JwtStrategy],

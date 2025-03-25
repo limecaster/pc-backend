@@ -11,7 +11,7 @@ export class OrderItem {
     quantity: number;
     
     // Add price field
-    @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+    @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
     price: number;
 
     @ManyToOne(() => Order, order => order.items)

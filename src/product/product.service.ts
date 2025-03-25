@@ -298,121 +298,129 @@ export class ProductService {
     }
 
     // Helper to enrich products with Neo4j details and ratings
+    // Optimized to avoid N+1 queries by using batch fetching
     private async enrichProductsWithDetails(
         products: Product[],
     ): Promise<ProductDetailsDto[]> {
-        const productDetails: ProductDetailsDto[] = [];
-
-        for (const product of products) {
-            const specifications =
-                await this.productSpecService.getSpecifications(product.id);
-            const { rating, reviewCount } =
-                await this.productRatingService.getRating(product.id);
-
-            productDetails.push({
-                id: product.id.toString(),
-                name: product.name,
-                price: parseFloat(product.price.toString()),
-                rating: rating,
-                reviewCount: reviewCount,
-                imageUrl: specifications['imageUrl'] || '',
-                description: product.description || '',
-                specifications: specifications || undefined,
-                brand: specifications['manufacturer'] || '',
-                sku: product.id || '',
-                stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
-                category: product.category || '',
-            });
+        if (!products || products.length === 0) {
+            return [];
         }
-
-        // Apply automatic discounts before returning
-        return await this.applyAutomaticDiscounts(productDetails);
+        
+        try {
+            // Get all product IDs for batch fetching
+            const productIds = products.map(product => product.id);
+            
+            // Batch fetch specifications and ratings for all products at once
+            const [specificationsMap, ratingsMap] = await Promise.all([
+                this.productSpecService.getSpecificationsInBatch(productIds),
+                this.productRatingService.getRatingsInBatch(productIds)
+            ]);
+            
+            // Map each product to its enriched DTO
+            const productDetails = products.map(product => {
+                const id = product.id;
+                const specifications = specificationsMap[id] || {};
+                const { rating, reviewCount } = ratingsMap[id] || { rating: 0, reviewCount: 0 };
+                
+                return {
+                    id: id.toString(),
+                    name: product.name,
+                    price: parseFloat(product.price.toString()),
+                    originalPrice: product.originalPrice ? parseFloat(product.originalPrice.toString()) : undefined,
+                    rating: rating,
+                    reviewCount: reviewCount,
+                    imageUrl: specifications['imageUrl'] || '',
+                    description: product.description || '',
+                    specifications: specifications as Record<string, any>, // Fix type compatibility issue
+                    brand: specifications['manufacturer'] || '',
+                    sku: id || '',
+                    stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
+                    category: product.category || '',
+                    stockQuantity: product.stockQuantity,
+                };
+            });
+            
+            // Use type assertion to ensure compatibility with ProductDetailsDto[]
+            return this.applyAutomaticDiscounts(productDetails as ProductDetailsDto[]);
+        } catch (error) {
+            this.logger.error(`Error enriching products with details: ${error.message}`);
+            throw error;
+        }
     }
 
-    // Add this method to check and apply automatic discounts
+    // Optimize discount service to minimize API calls
     async applyAutomaticDiscounts(products: ProductDetailsDto[]): Promise<ProductDetailsDto[]> {
         if (!products || products.length === 0) {
             return products;
         }
         
         try {
-            // Group products by category for more efficient discount checking
-            const productsByCategory: Record<string, {
-                ids: string[], 
-                products: ProductDetailsDto[]
-            }> = {};
+            // Instead of making separate API calls per category, collect all data upfront
             
-            // Organize products by category for batch processing
-            products.forEach(product => {
-                const category = product.category || 'uncategorized';
-                
-                if (!productsByCategory[category]) {
-                    productsByCategory[category] = {
-                        ids: [],
-                        products: []
-                    };
-                }
-                
-                productsByCategory[category].ids.push(product.id);
-                productsByCategory[category].products.push(product);
+            // Extract all unique product IDs and categories
+            const allProductIds = products.map(product => product.id);
+            
+            // Collect all unique categories (each product has exactly one category)
+            const allCategories = Array.from(new Set(
+                products.map(product => product.category).filter(Boolean)
+            ));
+            
+            this.logger.log(`Found ${allCategories.length} unique categories for discount processing`);
+            
+            // Make a single API call to get all applicable discounts
+            const allDiscounts = await this.discountService.getAutomaticDiscounts({
+                productIds: allProductIds,
+                categoryNames: allCategories,
+                orderAmount: 0
             });
             
-            // Process each category group
-            for (const category in productsByCategory) {
-                const { ids, products: categoryProducts } = productsByCategory[category];
+            // Process each product with the complete discount information
+            return products.map(product => {
+                // Find applicable discounts for this product
+                const applicableDiscounts = allDiscounts.filter(discount => 
+                    discount.targetType === 'all' || 
+                    (discount.targetType === 'products' && discount.productIds?.includes(product.id)) ||
+                    (discount.targetType === 'categories' && product.category && 
+                     discount.categoryNames?.includes(product.category))
+                );
                 
-                // Get automatic discounts applicable to these products
-                const discounts = await this.discountService.getAutomaticDiscounts({
-                    productIds: ids,
-                    categoryNames: [category],
-                    orderAmount: 0 // Set to 0 to ignore minimum order amount constraint
-                });
-                
-                // Apply discounts to each product
-                if (discounts.length > 0) {
-                    categoryProducts.forEach(product => {
-                        // Find best discount for this product
-                        const applicableDiscounts = discounts.filter(discount => {
-                            // Check if discount applies to all products or specifically to this one
-                            return discount.targetType === 'all' || 
-                                  (discount.targetType === 'products' && discount.productIds?.includes(product.id)) ||
-                                  (discount.targetType === 'categories' && discount.categoryNames?.includes(product.category));
-                        });
-                        
-                        if (applicableDiscounts.length > 0) {
-                            // Find best discount (highest amount)
-                            const bestDiscount = this.findBestDiscount(applicableDiscounts, product.price);
-                            
-                            // Apply the discount to the product
-                            if (bestDiscount) {
-                                product.originalPrice = product.price;
-                                
-                                if (bestDiscount.type === 'percentage') {
-                                    product.discountPercentage = bestDiscount.discountAmount;
-                                    product.price = product.price * (1 - bestDiscount.discountAmount/100);
-                                } else {
-                                    const discountAmount = Math.min(bestDiscount.discountAmount, product.price);
-                                    product.discountPercentage = Math.round((discountAmount / product.originalPrice) * 100);
-                                    product.price = product.price - discountAmount;
-                                }
-                                
-                                // Round price to prevent floating-point issues
-                                product.price = Math.round(product.price);
-                                product.isDiscounted = true;
-                                product.discountSource = 'automatic';
-                            }
-                        }
-                    });
+                // Log if we found applicable discounts
+                if (applicableDiscounts.length > 0) {
+                    this.logger.debug(`Found ${applicableDiscounts.length} applicable discounts for product ${product.id} (${product.name})`);
                 }
-            }
-            
-            return products;
+                
+                // If we have applicable discounts, find the best one and apply it
+                if (applicableDiscounts.length > 0) {
+                    const bestDiscount = this.findBestDiscount(applicableDiscounts, product.price);
+                    
+                    if (bestDiscount) {
+                        // Apply discount logic
+                        product.originalPrice = product.price;
+                        
+                        if (bestDiscount.type === 'percentage') {
+                            product.discountPercentage = bestDiscount.discountAmount;
+                            product.price = product.price * (1 - bestDiscount.discountAmount/100);
+                        } else {
+                            const discountAmount = Math.min(bestDiscount.discountAmount, product.price);
+                            product.discountPercentage = Math.round((discountAmount / product.originalPrice) * 100);
+                            product.price = product.price - discountAmount;
+                        }
+                        
+                        product.price = Math.round(product.price);
+                        product.isDiscounted = true;
+                        product.discountSource = 'automatic';
+                        product.discountType = bestDiscount.type;
+                    }
+                }
+                
+                return product;
+            });
         } catch (error) {
             this.logger.error(`Error applying automatic discounts: ${error.message}`);
-            return products; // Return original products in case of error
+            return products;
         }
     }
-    
+
     // Helper method to find the best discount for a product
     private findBestDiscount(discounts: any[], productPrice: number): any {
         if (!discounts || discounts.length === 0) {
@@ -440,6 +448,69 @@ export class ProductService {
         
         // Return the discount with highest value
         return discountsWithValues[0];
+    }
+
+    /**
+     * Get multiple products by IDs with discounts pre-calculated
+     * Optimized to avoid N+1 queries
+     */
+    async getProductsWithDiscounts(productIds: string[]): Promise<ProductDetailsDto[]> {
+        try {
+            if (!productIds || productIds.length === 0) {
+                return [];
+            }
+
+            this.logger.log(`Getting ${productIds.length} products with discounts`);
+            
+            // Use ProductQueryService to get basic product data
+            const products = await this.productQueryService.getProductsWithDiscounts(productIds);
+            
+            // Batch fetch additional data
+            // Extract IDs of products that need enrichment
+            const idsNeedingImages = products
+                .filter(product => !product.imageUrl)
+                .map(product => product.id);
+                
+            const idsNeedingRatings = products
+                .filter(product => product.rating === 0)
+                .map(product => product.id);
+            
+            // Batch fetch specifications and ratings
+            const [specificationsMap, ratingsMap] = await Promise.all([
+                idsNeedingImages.length > 0 
+                    ? this.productSpecService.getSpecificationsInBatch(idsNeedingImages)
+                    : {},
+                idsNeedingRatings.length > 0
+                    ? this.productRatingService.getRatingsInBatch(idsNeedingRatings)
+                    : {}
+            ]);
+            
+            // Enrich products with the fetched data
+            const enrichedProducts = products.map(product => {
+                // Add specifications data if needed
+                if (!product.imageUrl && specificationsMap[product.id]) {
+                    const specs = specificationsMap[product.id];
+                    product.imageUrl = specs['imageUrl'] || '';
+                    product.brand = specs['manufacturer'] || '';
+                }
+                
+                // Add ratings data if needed
+                if (product.rating === 0 && ratingsMap[product.id]) {
+                    const ratingData = ratingsMap[product.id];
+                    product.rating = ratingData.rating;
+                    product.reviewCount = ratingData.reviewCount;
+                }
+                
+                return product;
+            });
+
+            // Apply automatic discounts before returning
+            return this.applyAutomaticDiscounts(enrichedProducts);
+            
+        } catch (error) {
+            this.logger.error(`Error getting products with discounts: ${error.message}`);
+            throw new Error(`Failed to get products with discounts: ${error.message}`);
+        }
     }
 
     // Delegate methods to specialized services
@@ -912,8 +983,7 @@ export class ProductService {
             } else {
                 productIds = ids;
             }
-            console.log(productIds);
-            
+   
             // Remove any duplicates
             const uniqueIds = [...new Set(productIds)].filter(id => id);
             

@@ -87,4 +87,56 @@ export class ProductRatingService {
             throw new Error('Failed to get product IDs by minimum rating');
         }
     }
+
+    /**
+     * Get ratings for multiple products in one query
+     * Prevents N+1 query problem by batching rating lookups
+     */
+    async getRatingsInBatch(productIds: string[]): Promise<Record<string, { rating: number; reviewCount: number }>> {
+        if (!productIds || productIds.length === 0) {
+            return {};
+        }
+        
+        const pool = this.postgresConfigService.getPool();
+
+        try {
+            this.logger.log(`Fetching ratings for ${productIds.length} products in batch`);
+            
+            // Use a parameterized query with ANY to batch fetch multiple ratings
+            const query = `
+                SELECT 
+                    product_id, 
+                    AVG(stars) as avg_rating, 
+                    COUNT(*) as count
+                FROM "Rating_Comment"
+                WHERE product_id = ANY($1)
+                GROUP BY product_id
+            `;
+
+            const result = await pool.query(query, [productIds]);
+            
+            // Create a map of product ID -> rating data
+            const ratingsMap: Record<string, { rating: number; reviewCount: number }> = {};
+            
+            // Initialize all requested products with default values
+            productIds.forEach(id => {
+                ratingsMap[id] = { rating: 0, reviewCount: 0 };
+            });
+            
+            // Update with actual values for products that have ratings
+            result.rows.forEach(row => {
+                ratingsMap[row.product_id] = { 
+                    rating: parseFloat(row.avg_rating) || 0,
+                    reviewCount: parseInt(row.count) || 0 
+                };
+            });
+            
+            this.logger.log(`Successfully fetched ratings for ${result.rows.length} products with reviews`);
+            
+            return ratingsMap;
+        } catch (error) {
+            this.logger.error(`Error batch fetching ratings: ${error.message}`);
+            throw new Error(`Failed to batch fetch ratings: ${error.message}`);
+        }
+    }
 }

@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, In } from 'typeorm';
 import { Product } from '../product.entity';
+import { ProductDetailsDto } from '../dto/product-response.dto';
 
 @Injectable()
 export class ProductQueryService {
@@ -241,6 +242,62 @@ export class ProductQueryService {
                 `Error finding all products for admin: ${error.message}`,
             );
             throw new Error('Failed to find all products for admin');
+        }
+    }
+
+    /**
+     * Get multiple products by IDs with basic information
+     * This method fetches products by IDs for batch processing
+     * @param productIds Array of product IDs to fetch
+     * @returns Array of products with basic information
+     */
+    async getProductsWithDiscounts(productIds: string[]): Promise<ProductDetailsDto[]> {
+        try {
+            if (!productIds || productIds.length === 0) {
+                return [];
+            }
+
+            this.logger.log(`Getting ${productIds.length} products for batch processing`);
+            
+            // Get products from database
+            const products = await this.productRepository.find({
+                where: { id: In(productIds), status: 'active' }
+            });
+
+            if (!products || products.length === 0) {
+                this.logger.warn(`No products found for the provided IDs`);
+                return [];
+            }
+
+            // Transform to ProductDetailsDto with minimum necessary fields
+            const productDtos = products.map(product => {
+                return {
+                    id: product.id.toString(),
+                    name: product.name,
+                    price: parseFloat(product.price.toString()),
+                    originalPrice: product.originalPrice ? parseFloat(product.originalPrice.toString()) : undefined,
+                    discount: product.discount ? parseFloat(product.discount.toString()) : undefined,
+                    category: product.category || '',
+                    stockQuantity: product.stockQuantity,
+                    // Basic fields that don't require additional services
+                    description: product.description || '',
+                    sku: product.id || '',
+                    stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
+                    // Default values for fields that would be populated by other services
+                    rating: 0,
+                    reviewCount: 0,
+                    imageUrl: '',
+                    // Create an empty specifications object that will be filled in later
+                    specifications: {},  
+                    brand: '',
+                };
+            });
+
+            // Convert the array to the expected return type using the recommended double casting
+            return (productDtos as unknown) as ProductDetailsDto[];
+        } catch (error) {
+            this.logger.error(`Error getting products with discounts: ${error.message}`);
+            throw new Error(`Failed to get products with discounts: ${error.message}`);
         }
     }
 }

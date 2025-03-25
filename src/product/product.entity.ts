@@ -11,7 +11,7 @@ export class Product {
     @Column({ type: 'text', nullable: true })
     description: string;
 
-    @Column({ type: 'decimal', precision: 12, scale: 2 })
+    @Column({ type: 'decimal', precision: 15, scale: 2 })
     price: number;
 
     @Column({ name: 'stock_quantity' })
@@ -39,12 +39,12 @@ export class Product {
         name: 'original_price',
         nullable: true,
         type: 'decimal',
-        precision: 12,
+        precision: 15,
         scale: 2,
     })
     originalPrice?: number;
 
-    @Column({ nullable: true, type: 'decimal', precision: 5, scale: 2 })
+    @Column({ nullable: true, type: 'decimal', precision: 15, scale: 2 })
     discount?: number;
 
     @CreateDateColumn({ name: 'created_at' })

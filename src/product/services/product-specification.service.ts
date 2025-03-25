@@ -55,6 +55,58 @@ export class ProductSpecificationService {
         }
     }
 
+    /**
+     * Get specifications for multiple products in one query
+     * Prevents N+1 query problem by batching specification lookups
+     */
+    async getSpecificationsInBatch(productIds: string[]): Promise<Record<string, ProductSpecDto>> {
+        if (!productIds || productIds.length === 0) {
+            return {};
+        }
+        
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+
+        try {
+            this.logger.log(`Fetching specifications for ${productIds.length} products in batch`);
+            
+            // Use a parameterized Cypher query to get all products at once
+            const query = `
+                MATCH (p)
+                WHERE p.id IN $productIds
+                RETURN p.id AS id, p AS product
+            `;
+
+            const result = await session.run(query, { productIds });
+            
+            // Create a map of product ID -> specifications
+            const specificationsMap: Record<string, ProductSpecDto> = {};
+            
+            result.records.forEach(record => {
+                const id = record.get('id');
+                const properties = record.get('product').properties;
+                
+                // Convert Neo4j integer objects to JavaScript numbers
+                for (const key in properties) {
+                    if (properties[key] && typeof properties[key].toNumber === 'function') {
+                        properties[key] = properties[key].toNumber();
+                    }
+                }
+                
+                specificationsMap[id] = properties as ProductSpecDto;
+            });
+            
+            this.logger.log(`Successfully fetched specifications for ${Object.keys(specificationsMap).length} products`);
+            
+            return specificationsMap;
+        } catch (error) {
+            this.logger.error(`Error batch fetching specifications: ${error.message}`);
+            throw new Error(`Failed to batch fetch specifications: ${error.message}`);
+        } finally {
+            await session.close();
+        }
+    }
+
     async getAllBrands(): Promise<string[]> {
         const driver = this.neo4jConfigService.getDriver();
         const session = driver.session();

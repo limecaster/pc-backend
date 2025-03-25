@@ -30,6 +30,6 @@ export class CartItem {
     @Column({ name: 'product_quantity' })
     quantity: number;
 
-    @Column({ name: 'sub_price', type: 'decimal', precision: 10, scale: 2 })
+    @Column({ name: 'sub_price', type: 'decimal', precision: 15, scale: 2 })
     subPrice: number;
 }

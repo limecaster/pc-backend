@@ -63,7 +63,7 @@ CREATE TABLE Product (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    price DECIMAL(12,2) NOT NULL,
+    price DECIMAL(15,2) NOT NULL,
     stock_quantity INT NOT NULL,
     status VARCHAR(50) NOT NULL,
     category VARCHAR(100) NOT NULL,
@@ -79,7 +79,7 @@ CREATE TABLE Discount (
     discount_description TEXT,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
-    discount_amount DECIMAL(10,2) NOT NULL,
+    discount_amount DECIMAL(15,2) NOT NULL,
     type VARCHAR(20) CHECK (type IN ('percentage', 'fixed')) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP DEFAULT NOW(),
@@ -90,7 +90,7 @@ CREATE TABLE Discount (
 CREATE TABLE Orders (
     id SERIAL PRIMARY KEY,
     customer_id INT REFERENCES Customer(id) ON DELETE SET NULL,
-    total_price DECIMAL(10,2) NOT NULL,
+    total_price DECIMAL(15,2) NOT NULL,
     order_date TIMESTAMP DEFAULT NOW(),
     receive_date TIMESTAMP,
     status VARCHAR(50) NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE Order_Detail (
     order_id INT REFERENCES Orders(id) ON DELETE CASCADE,
     product_id UUID REFERENCES Product(id) ON DELETE SET NULL,
     product_quantity INT NOT NULL,
-    sub_price DECIMAL(10,2) NOT NULL
+    sub_price DECIMAL(15,2) NOT NULL
 );
 
 -- Wishlist Table
@@ -142,7 +142,7 @@ CREATE TABLE Cart_Item (
     cart_id INT REFERENCES Cart(id) ON DELETE CASCADE,
     product_id UUID REFERENCES Product(id) ON DELETE SET NULL,
     product_quantity INT NOT NULL,
-    sub_price DECIMAL(10,2) NOT NULL
+    sub_price DECIMAL(15,2) NOT NULL
 );
 
 -- Order - Discount Many-to-Many Relationship

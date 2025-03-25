@@ -20,6 +20,7 @@ export class ProductDetailsDto {
     discountPercentage?: number; // Percentage discount if applied
     isDiscounted?: boolean; // Flag to indicate if product has a discount
     discountSource?: 'automatic' | 'manual'; // Source of the discount
+    discountType?: 'percentage' | 'fixed'; // Type of discount (percentage or fixed amount)
     discount?: number;
     rating: number;
     reviewCount: number;

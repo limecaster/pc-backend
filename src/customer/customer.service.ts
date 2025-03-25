@@ -21,7 +21,6 @@ export class CustomerService {
     ) {}
 
     async findByEmail(email: string): Promise<Customer | undefined> {
-        this.logger.debug(`Looking up user by email: ${email}`);
         try {
             // First try with exact match
             let customer = await this.customerRepository.findOne({
@@ -30,34 +29,18 @@ export class CustomerService {
 
             // If not found, try case-insensitive lookup
             if (!customer) {
-                this.logger.debug(
-                    `No exact match for email: ${email}, trying case-insensitive query`,
-                );
-
                 // Using query builder for case-insensitive search
                 customer = await this.customerRepository
                     .createQueryBuilder('customer')
                     .where('LOWER(customer.email) = LOWER(:email)', { email })
                     .getOne();
-
-                if (customer) {
-                    this.logger.debug(
-                        `Found user with case-insensitive email match: ${customer.email} (ID: ${customer.id})`,
-                    );
-                }
             }
 
             // Last resort: Direct SQL query to see what's happening
             if (!customer) {
-                this.logger.debug(`Still no match, executing raw SQL query`);
-
                 const rawResults = await this.customerRepository.query(
                     `SELECT id, email, username FROM "Customer" WHERE email = $1 OR LOWER(email) = LOWER($1)`,
                     [email],
-                );
-
-                this.logger.debug(
-                    `Raw SQL results: ${JSON.stringify(rawResults)}`,
                 );
 
                 // If we found results in raw SQL but not through TypeORM, there's a mapping issue
@@ -66,30 +49,7 @@ export class CustomerService {
                     customer = await this.customerRepository.findOne({
                         where: { id: rawResults[0].id },
                     });
-
-                    if (customer) {
-                        this.logger.debug(
-                            `Found through raw SQL: ${customer.id}`,
-                        );
-                    }
                 }
-            }
-
-            if (customer) {
-                this.logger.debug(
-                    `Found user with ID ${customer.id} by email: ${email}`,
-                );
-            } else {
-                this.logger.debug(`No user found with email: ${email}`);
-                // List all emails in the database for debugging
-                const allEmails = await this.customerRepository
-                    .createQueryBuilder('customer')
-                    .select(['customer.id', 'customer.email'])
-                    .getMany();
-
-                this.logger.debug(
-                    `All emails in database: ${JSON.stringify(allEmails.map((c) => c.email))}`,
-                );
             }
 
             return customer;
@@ -102,7 +62,6 @@ export class CustomerService {
     }
 
     async findByUsername(username: string): Promise<Customer | undefined> {
-        this.logger.debug(`Looking up user by username: ${username}`);
         try {
             // Try exact match first
             let customer = await this.customerRepository.findOne({
@@ -111,22 +70,12 @@ export class CustomerService {
 
             // Try case-insensitive lookup
             if (!customer) {
-                this.logger.debug(
-                    `No exact match for username: ${username}, trying case-insensitive query`,
-                );
-
                 customer = await this.customerRepository
                     .createQueryBuilder('customer')
                     .where('LOWER(customer.username) = LOWER(:username)', {
                         username,
                     })
                     .getOne();
-
-                if (customer) {
-                    this.logger.debug(
-                        `Found user with case-insensitive username match: ${customer.username}`,
-                    );
-                }
             }
 
             // Raw SQL fallback
@@ -136,19 +85,11 @@ export class CustomerService {
                     [username],
                 );
 
-                this.logger.debug(
-                    `Raw username SQL results: ${JSON.stringify(rawResults)}`,
-                );
-
                 if (rawResults && rawResults.length > 0) {
                     customer = await this.customerRepository.findOne({
                         where: { id: rawResults[0].id },
                     });
                 }
-            }
-
-            if (!customer) {
-                this.logger.debug(`No user found with username: ${username}`);
             }
 
             return customer;
@@ -220,9 +161,6 @@ export class CustomerService {
                 existingEmail.updatedAt = new Date();
                 await this.customerRepository.save(existingEmail);
 
-                this.logger.log(
-                    `Regenerated OTP for unverified user: ${existingEmail.email}`,
-                );
                 return existingEmail;
             }
         }
@@ -254,7 +192,6 @@ export class CustomerService {
         });
 
         await this.customerRepository.save(newCustomer);
-        this.logger.log(`Created new user with email: ${newCustomer.email}`);
         return newCustomer;
     }
 
@@ -444,23 +381,15 @@ export class CustomerService {
 
     // Add a flexible lookup method that tries both email and username
     async findByLoginId(loginId: string): Promise<Customer | undefined> {
-        this.logger.debug(`Flexible lookup by loginId: ${loginId}`);
-
         // Try email first
         let customer = await this.findByEmail(loginId);
-        console.log('Found by email: ', customer);
         // If not found by email, try username
         if (!customer) {
             customer = await this.findByUsername(loginId);
         }
-        console.log('Found by username: ', customer);
         // If still not found, try direct query
         if (!customer) {
             try {
-                this.logger.debug(
-                    `Attempting direct query for loginId: ${loginId}`,
-                );
-
                 // Query that checks both email and username fields
                 const result = await this.customerRepository.query(
                     `SELECT * FROM "Customer" WHERE email = $1 OR username = $1 LIMIT 1`,
@@ -468,7 +397,6 @@ export class CustomerService {
                 );
 
                 if (result && result.length > 0) {
-                    this.logger.debug(`Found user directly: ${result[0].id}`);
                     customer = await this.customerRepository.findOne({
                         where: { id: result[0].id },
                     });
@@ -482,8 +410,6 @@ export class CustomerService {
     }
 
     async validateCustomer(username: string, password: string): Promise<any> {
-        this.logger.debug(`Validating customer credentials for: ${username}`);
-
         // Try to find by username or email
         const customer = await this.findByLoginId(username);
 

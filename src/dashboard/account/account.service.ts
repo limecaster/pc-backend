@@ -41,14 +41,6 @@ export class AccountService {
             }
         }
 
-        console.log('Retrieved customer profile:', {
-            id: customer.id,
-            name: `${customer.firstname} ${customer.lastname}`,
-            birthday: customer.birthday,
-            formattedBirthday,
-            gender: customer.gender || 'male',
-        });
-
         return {
             fullName: `${customer.firstname} ${customer.lastname}`,
             email: customer.email,
@@ -66,7 +58,6 @@ export class AccountService {
             throw new NotFoundException('Customer not found');
         }
 
-        console.log(profileDto);
 
         // Split the full name into first and last name (simple approach)
         const nameParts = profileDto.fullName.trim().split(' ');

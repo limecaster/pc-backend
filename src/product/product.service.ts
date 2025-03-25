@@ -122,18 +122,6 @@ export class ProductService {
         page: number;
     }> {
         try {
-            // Debug logging for subcategory filters
-            if (
-                subcategoryFilters &&
-                Object.keys(subcategoryFilters).length > 0
-            ) {
-                this.logger.log(
-                    `Processing subcategory filters: ${JSON.stringify(subcategoryFilters)}`,
-                );
-            } else {
-                this.logger.log('No subcategory filters provided');
-            }
-
             // Build price filter
             const whereClause: any = {};
 
@@ -153,10 +141,6 @@ export class ProductService {
                 subcategoryFilters &&
                 Object.keys(subcategoryFilters).length > 0
             ) {
-                this.logger.log(
-                    `Getting products with subcategory filters for category: ${category || 'all'}`,
-                );
-
                 try {
                     const subcategoryFilteredIds =
                         await this.productSpecService.getProductIdsBySubcategoryFilters(
@@ -169,19 +153,7 @@ export class ProductService {
                         !subcategoryFilteredIds ||
                         subcategoryFilteredIds.length === 0
                     ) {
-                        this.logger.log(
-                            'No products match the subcategory filters, returning empty result',
-                        );
                         return { products: [], total: 0, pages: 0, page };
-                    }
-
-                    this.logger.log(
-                        `Found ${subcategoryFilteredIds.length} products matching the subcategory filters`,
-                    );
-                    if (subcategoryFilteredIds.length > 0) {
-                        this.logger.log(
-                            `Sample IDs: ${subcategoryFilteredIds.slice(0, 3).join(', ')}...`,
-                        );
                     }
 
                     filteredProductIds = subcategoryFilteredIds;
@@ -194,10 +166,6 @@ export class ProductService {
             }
             // If no subcategory filters but we have brand filters, handle those
             else if (brands && brands.length > 0) {
-                this.logger.debug(
-                    `Getting products that match brands: ${brands.join(', ')}`,
-                );
-
                 const brandFilteredIds =
                     await this.productSpecService.getProductIdsByBrands(
                         brands,
@@ -205,9 +173,6 @@ export class ProductService {
                     );
 
                 if (!brandFilteredIds || brandFilteredIds.length === 0) {
-                    this.logger.debug(
-                        'No products match the brand filters, returning empty result',
-                    );
                     return { products: [], total: 0, pages: 0, page };
                 }
 
@@ -216,19 +181,12 @@ export class ProductService {
 
             // Apply rating filter if provided
             if (minRating !== undefined && minRating > 0) {
-                this.logger.debug(
-                    `Applying minimum rating filter: ${minRating}`,
-                );
-
                 const ratingFilteredIds =
                     await this.productRatingService.getProductIdsByMinRating(
                         minRating,
                     );
 
                 if (!ratingFilteredIds || ratingFilteredIds.length === 0) {
-                    this.logger.debug(
-                        'No products match the rating filter, returning empty result',
-                    );
                     return { products: [], total: 0, pages: 0, page };
                 }
 
@@ -239,9 +197,6 @@ export class ProductService {
                     );
 
                     if (filteredProductIds.length === 0) {
-                        this.logger.debug(
-                            'No products match all filters, returning empty result',
-                        );
                         return { products: [], total: 0, pages: 0, page };
                     }
                 } else {
@@ -249,31 +204,13 @@ export class ProductService {
                 }
             }
 
-            // Make sure filteredProductIds is explicitly undefined if not set
-            this.logger.log(
-                `Final filter contains ${filteredProductIds ? filteredProductIds.length : 'no'} product IDs`,
-            );
-
             // Query for products with filters
-            this.logger.log(
-                `Querying database with ${filteredProductIds ? filteredProductIds.length : 'no'} ID filters`,
-            );
-            if (filteredProductIds && filteredProductIds.length > 0) {
-                this.logger.log(
-                    `Sample IDs: ${filteredProductIds.slice(0, 3).join(', ')}...`,
-                );
-            }
-
             const result = await this.productQueryService.findByCategory(
                 category,
                 page,
                 limit,
                 whereClause,
                 filteredProductIds || undefined,
-            );
-
-            this.logger.debug(
-                `Database returned ${result.products.length} products out of ${result.total} total matching products`,
             );
 
             // Enrich products with details
@@ -365,8 +302,6 @@ export class ProductService {
                 products.map(product => product.category).filter(Boolean)
             ));
             
-            this.logger.log(`Found ${allCategories.length} unique categories for discount processing`);
-            
             // Make a single API call to get all applicable discounts
             const allDiscounts = await this.discountService.getAutomaticDiscounts({
                 productIds: allProductIds,
@@ -383,11 +318,6 @@ export class ProductService {
                     (discount.targetType === 'categories' && product.category && 
                      discount.categoryNames?.includes(product.category))
                 );
-                
-                // Log if we found applicable discounts
-                if (applicableDiscounts.length > 0) {
-                    this.logger.debug(`Found ${applicableDiscounts.length} applicable discounts for product ${product.id} (${product.name})`);
-                }
                 
                 // If we have applicable discounts, find the best one and apply it
                 if (applicableDiscounts.length > 0) {
@@ -460,17 +390,13 @@ export class ProductService {
                 return [];
             }
 
-            this.logger.log(`Getting ${productIds.length} products with discounts`);
-            
             // Use ProductQueryService to get basic product data
             const products = await this.productQueryService.getProductsWithDiscounts(productIds);
             
             // Batch fetch additional data
-            // Extract IDs of products that need enrichment
             const idsNeedingImages = products
                 .filter(product => !product.imageUrl)
                 .map(product => product.id);
-                
             const idsNeedingRatings = products
                 .filter(product => product.rating === 0)
                 .map(product => product.id);
@@ -818,16 +744,12 @@ export class ProductService {
         try {
             // Normalize query to lowercase for case-insensitive matching
             const normalizedQuery = query.toLowerCase();
-            this.logger.debug(`Enhanced search for query: ${normalizedQuery}`);
 
             // GPU specific search patterns
             const gpuRegex = /\b(rtx|gtx|rx)\s*(\d{4})\b/i;
             const gpuMatch = normalizedQuery.match(gpuRegex);
 
             if (gpuMatch) {
-                this.logger.debug(
-                    `GPU match found: ${JSON.stringify(gpuMatch)}`,
-                );
                 const gpuSeries = gpuMatch[1].toUpperCase(); // RTX, GTX, RX
                 const gpuModel = gpuMatch[2]; // Model number (e.g., 3050, 4070)
 
@@ -835,9 +757,6 @@ export class ProductService {
                 // 1. The exact model number (3050)
                 // 2. The series and model together (RTX 3050)
                 const searchPattern = `${gpuSeries}.*${gpuModel}`;
-                this.logger.debug(
-                    `Searching for GPU pattern: ${searchPattern}`,
-                );
 
                 try {
                     // Get product IDs from Neo4j that match this chipset
@@ -848,10 +767,6 @@ export class ProductService {
                             undefined,
                             true, // Enable pattern matching
                         );
-
-                    this.logger.debug(
-                        `Found ${matchingIds.length} matching GPU IDs`,
-                    );
 
                     if (matchingIds && matchingIds.length > 0) {
                         // Use these IDs to fetch products from relational DB
@@ -890,10 +805,6 @@ export class ProductService {
             const cpuMatch = normalizedQuery.match(cpuRegex);
 
             if (cpuMatch) {
-                this.logger.debug(
-                    `CPU match found: ${JSON.stringify(cpuMatch)}`,
-                );
-
                 try {
                     const cpuBrand =
                         cpuMatch[1].toLowerCase() === 'ryzen' ? 'AMD' : 'Intel';
@@ -907,10 +818,6 @@ export class ProductService {
                         searchPattern = `${cpuMatch[1]}.*${cpuMatch[2]}.*${cpuMatch[3]}`;
                     }
 
-                    this.logger.debug(
-                        `Searching for CPU pattern: ${searchPattern}`,
-                    );
-
                     // Get product IDs from Neo4j that match this CPU model
                     const matchingIds =
                         await this.productSpecService.getProductIdsBySubcategoryFilters(
@@ -922,10 +829,6 @@ export class ProductService {
                             undefined,
                             true, // Enable pattern matching
                         );
-
-                    this.logger.debug(
-                        `Found ${matchingIds.length} matching CPU IDs`,
-                    );
 
                     if (matchingIds && matchingIds.length > 0) {
                         // Use these IDs to fetch products from relational DB
@@ -959,9 +862,6 @@ export class ProductService {
             }
 
             // No special pattern matched or no results found
-            this.logger.debug(
-                'No specific hardware pattern matched in enhanced search',
-            );
             return null; // Fall back to standard search
         } catch (error) {
             this.logger.error(`Error in enhanced search: ${error.message}`);
@@ -991,15 +891,11 @@ export class ProductService {
                 return {};
             }
             
-            this.logger.log(`Looking up stock for ${uniqueIds.length} products`);
-            
             // Find products with these IDs
             const products = await this.productRepository.find({
                 where: { id: In(uniqueIds) },
                 select: ['id', 'stockQuantity']
             });
-            
-            this.logger.log(`Found ${products.length} products with stock information`);
             
             // Create a mapping of id -> stock_quantity
             return products.reduce((stocks, product) => {

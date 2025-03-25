@@ -1,19 +1,8 @@
 import {
     Controller,
     Get,
-    Post,
-    Body,
-    Param,
-    Patch,
-    Delete,
     UseGuards,
-    Request,
-    UnauthorizedException,
-    NotFoundException,
-    ConflictException,
     Logger,
-    HttpCode,
-    HttpStatus,
     InternalServerErrorException,
     Query,
 } from '@nestjs/common';
@@ -29,13 +18,6 @@ export class CustomerController {
     
     constructor(private readonly customerService: CustomerService) {}
 
-    // Simple debug endpoint without auth to test if controller works
-    @Get('debug-check')
-    async debugCheck(): Promise<{ status: string }> {
-        this.logger.log('Debug check endpoint called');
-        return { status: 'Customer controller is working' };
-    }
-
     // Updated to support search and pagination
     @Get('simple-list')
     @UseGuards(JwtAuthGuard, RolesGuard)
@@ -46,9 +28,10 @@ export class CustomerController {
         @Query('limit') limit: number = 10
     ): Promise<{ customers: { id: string, name: string }[], total: number, pages: number }> {
         try {
-            this.logger.log(`Getting simple customer list for admin with search: ${search}, page: ${page}, limit: ${limit}`);
+            // Removed non-critical debug log
             return await this.customerService.getSimpleCustomerList(search, page, limit);
         } catch (error) {
+            // Keeping critical error log
             this.logger.error(`Error retrieving customer list: ${error.message}`);
             throw new InternalServerErrorException('Failed to retrieve customer list');
         }

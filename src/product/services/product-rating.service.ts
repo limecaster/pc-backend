@@ -1,11 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PostgresConfigService } from '../../../config/postgres.config';
 import { ReviewDto } from '../dto/product-response.dto';
 
 @Injectable()
 export class ProductRatingService {
-    private readonly logger = new Logger(ProductRatingService.name);
-
     constructor(
         private readonly postgresConfigService: PostgresConfigService,
     ) {}
@@ -35,9 +33,6 @@ export class ProductRatingService {
             const result = await pool.query(query, [productId]);
             return result.rows as ReviewDto[];
         } catch (error) {
-            this.logger.error(
-                `Error getting reviews for product ${productId}: ${error.message}`,
-            );
             throw new Error(`Failed to get reviews for product ${productId}`);
         }
     }
@@ -60,9 +55,6 @@ export class ProductRatingService {
 
             return { rating, reviewCount };
         } catch (error) {
-            this.logger.error(
-                `Error getting rating for product ${productId}: ${error.message}`,
-            );
             throw new Error(`Failed to get rating for product ${productId}`);
         }
     }
@@ -81,9 +73,6 @@ export class ProductRatingService {
             const result = await pool.query(query, [minRating]);
             return result.rows.map((row) => row.product_id);
         } catch (error) {
-            this.logger.error(
-                `Error getting product IDs by minimum rating: ${error.message}`,
-            );
             throw new Error('Failed to get product IDs by minimum rating');
         }
     }
@@ -100,8 +89,6 @@ export class ProductRatingService {
         const pool = this.postgresConfigService.getPool();
 
         try {
-            this.logger.log(`Fetching ratings for ${productIds.length} products in batch`);
-            
             // Use a parameterized query with ANY to batch fetch multiple ratings
             const query = `
                 SELECT 
@@ -131,11 +118,8 @@ export class ProductRatingService {
                 };
             });
             
-            this.logger.log(`Successfully fetched ratings for ${result.rows.length} products with reviews`);
-            
             return ratingsMap;
         } catch (error) {
-            this.logger.error(`Error batch fetching ratings: ${error.message}`);
             throw new Error(`Failed to batch fetch ratings: ${error.message}`);
         }
     }

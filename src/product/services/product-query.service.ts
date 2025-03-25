@@ -31,9 +31,6 @@ export class ProductQueryService {
                 Array.isArray(filteredProductIds) &&
                 filteredProductIds.length === 0
             ) {
-                this.logger.log(
-                    'Empty product IDs array provided, returning empty results',
-                );
                 return {
                     products: [],
                     total: 0,
@@ -71,36 +68,23 @@ export class ProductQueryService {
                 });
             }
 
-            // Add product IDs filter if provided - THIS IS CRITICAL FOR SUBCATEGORY FILTERING
+            // Add product IDs filter if provided
             if (
                 Array.isArray(filteredProductIds) &&
                 filteredProductIds.length > 0
             ) {
-                this.logger.log(
-                    `Adding ID filter with ${filteredProductIds.length} product IDs`,
-                );
-
                 // Ensure IDs are strings and not duplicated
                 const uniqueStringIds = [
                     ...new Set(filteredProductIds.map((id) => String(id))),
                 ];
 
-                // Print a few sample IDs for debugging
-                this.logger.log(
-                    `Sample IDs: ${uniqueStringIds.slice(0, 3).join(', ')}...`,
-                );
-
-                // Use parameterized query with explicit parameter name
                 queryBuilder.andWhere('product.id IN (:...filteredIds)', {
                     filteredIds: uniqueStringIds,
                 });
             }
 
-            // Count total results for pagination - must be done after all filters are applied
+            // Count total results for pagination
             const totalCount = await queryBuilder.getCount();
-            this.logger.log(
-                `Query will return a total of ${totalCount} results`,
-            );
 
             // Add pagination and ordering
             queryBuilder
@@ -108,19 +92,8 @@ export class ProductQueryService {
                 .skip(offset)
                 .take(limit);
 
-            // Log the raw SQL for debugging with all parameters
-            const rawQuery = queryBuilder.getSql();
-            this.logger.log(`Generated SQL query: ${rawQuery}`);
-
-            const parameters = queryBuilder.getParameters();
-            this.logger.log(`Query parameters: ${JSON.stringify(parameters)}`);
-
             // Execute query
             const products = await queryBuilder.getMany();
-
-            this.logger.log(
-                `Query returned ${products.length} products out of ${totalCount} total`,
-            );
 
             return {
                 products,
@@ -257,15 +230,12 @@ export class ProductQueryService {
                 return [];
             }
 
-            this.logger.log(`Getting ${productIds.length} products for batch processing`);
-            
             // Get products from database
             const products = await this.productRepository.find({
                 where: { id: In(productIds), status: 'active' }
             });
 
             if (!products || products.length === 0) {
-                this.logger.warn(`No products found for the provided IDs`);
                 return [];
             }
 
@@ -279,21 +249,17 @@ export class ProductQueryService {
                     discount: product.discount ? parseFloat(product.discount.toString()) : undefined,
                     category: product.category || '',
                     stockQuantity: product.stockQuantity,
-                    // Basic fields that don't require additional services
                     description: product.description || '',
                     sku: product.id || '',
                     stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
-                    // Default values for fields that would be populated by other services
                     rating: 0,
                     reviewCount: 0,
                     imageUrl: '',
-                    // Create an empty specifications object that will be filled in later
                     specifications: {},  
                     brand: '',
                 };
             });
 
-            // Convert the array to the expected return type using the recommended double casting
             return (productDtos as unknown) as ProductDetailsDto[];
         } catch (error) {
             this.logger.error(`Error getting products with discounts: ${error.message}`);

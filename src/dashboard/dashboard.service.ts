@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, LessThan, MoreThan, Raw } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { Order, OrderStatus } from '../order/order.entity';
 import { Customer } from '../customer/customer.entity';
 import { Product } from '../product/product.entity';
@@ -8,7 +8,7 @@ import { OrderItem } from '../order/order-item.entity';
 
 @Injectable()
 export class DashboardService {
-    private readonly logger = new Logger(DashboardService.name);
+    // Removed logger: only critical errors will be handled via exception flow
 
     constructor(
         @InjectRepository(Order)
@@ -55,9 +55,7 @@ export class DashboardService {
 
             // Calculate sales change percentage
             const currentSales = parseFloat(salesResult.totalSales || '0');
-            const previousSales = parseFloat(
-                previousSalesResult.totalSales || '0',
-            );
+            const previousSales = parseFloat(previousSalesResult.totalSales || '0');
             let salesChangePercentage = 0;
 
             if (previousSales > 0) {
@@ -97,15 +95,12 @@ export class DashboardService {
 
             const customersChangePercentage =
                 previousCustomers > 0
-                    ? ((totalCustomers - previousCustomers) /
-                          previousCustomers) *
-                      100
+                    ? ((totalCustomers - previousCustomers) / previousCustomers) * 100
                     : 0;
 
             const productsChangePercentage =
                 previousProducts > 0
-                    ? ((totalProducts - previousProducts) / previousProducts) *
-                      100
+                    ? ((totalProducts - previousProducts) / previousProducts) * 100
                     : 0;
 
             return {
@@ -119,9 +114,7 @@ export class DashboardService {
                 productsChange: `${productsChangePercentage > 0 ? '+' : ''}${productsChangePercentage.toFixed(2)}%`,
             };
         } catch (error) {
-            this.logger.error(
-                `Error getting dashboard summary: ${error.message}`,
-            );
+            // Critical error handling – no logger output here
             return {
                 totalSales: 0,
                 totalOrders: 0,
@@ -202,13 +195,13 @@ export class DashboardService {
                         return monthNames[parseInt(month) - 1];
                     } else {
                         const date = new Date(item.date);
-                        return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+                        return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1)
+                            .toString()
+                            .padStart(2, '0')}`;
                     }
                 });
 
-                const sales = salesData.map(
-                    (item) => parseFloat(item.sales) || 0,
-                );
+                const sales = salesData.map((item) => parseFloat(item.sales) || 0);
 
                 return { dates, sales };
             }
@@ -233,16 +226,14 @@ export class DashboardService {
                     sales: Array(12).fill(0),
                 };
             } else if (period === 'month') {
-                const daysInMonth = new Date(
-                    now.getFullYear(),
-                    now.getMonth() + 1,
-                    0,
-                ).getDate();
+                const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
                 return {
                     dates: Array.from(
                         { length: daysInMonth },
                         (_, i) =>
-                            `${(i + 1).toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}`,
+                            `${(i + 1).toString().padStart(2, '0')}/${(now.getMonth() + 1)
+                                .toString()
+                                .padStart(2, '0')}`,
                     ),
                     sales: Array(daysInMonth).fill(0),
                 };
@@ -255,14 +246,16 @@ export class DashboardService {
                     const date = new Date();
                     date.setDate(date.getDate() - i);
                     dates.push(
-                        `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`,
+                        `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1)
+                            .toString()
+                            .padStart(2, '0')}`,
                     );
                 }
 
                 return { dates, sales };
             }
         } catch (error) {
-            this.logger.error(`Error getting sales data: ${error.message}`);
+            // Critical error handling – no logger output here
             return { dates: [], sales: [] };
         }
     }
@@ -290,18 +283,13 @@ export class DashboardService {
                 );
 
                 // Calculate the difference between total and displayed categories
-                const otherCategoriesCount =
-                    totalProductsCount - displayedCategoriesSum;
+                const otherCategoriesCount = totalProductsCount - displayedCategoriesSum;
 
                 // Sort by count in descending order
-                categoriesData.sort(
-                    (a, b) => parseInt(b.count) - parseInt(a.count),
-                );
+                categoriesData.sort((a, b) => parseInt(b.count) - parseInt(a.count));
 
                 const categories = categoriesData.map((item) => item.category);
-                const counts = categoriesData.map((item) =>
-                    parseInt(item.count),
-                );
+                const counts = categoriesData.map((item) => parseInt(item.count));
 
                 // Add "Other" category if there are products not in top categories
                 if (otherCategoriesCount > 0) {
@@ -318,21 +306,12 @@ export class DashboardService {
 
             // Fallback to placeholder data if no real data
             return {
-                categories: [
-                    'Laptop',
-                    'Desktop',
-                    'Màn hình',
-                    'CPU',
-                    'GPU',
-                    'Phụ kiện',
-                ],
+                categories: ['Laptop', 'Desktop', 'Màn hình', 'CPU', 'GPU', 'Phụ kiện'],
                 counts: [0, 0, 0, 0, 0, 0],
                 totalCount: 0,
             };
         } catch (error) {
-            this.logger.error(
-                `Error getting product categories: ${error.message}`,
-            );
+            // Critical error handling – no logger output here
             return {
                 categories: [],
                 counts: [],
@@ -395,18 +374,11 @@ export class DashboardService {
 
             // Fallback
             return {
-                statuses: [
-                    'Chờ duyệt',
-                    'Đã duyệt',
-                    'Đang xử lý',
-                    'Đang giao hàng',
-                    'Đã giao hàng',
-                    'Đã hủy',
-                ],
+                statuses: ['Chờ duyệt', 'Đã duyệt', 'Đang xử lý', 'Đang giao hàng', 'Đã giao hàng', 'Đã hủy'],
                 counts: [0, 0, 0, 0, 0, 0],
             };
         } catch (error) {
-            this.logger.error(`Error getting order statuses: ${error.message}`);
+            // Critical error handling – no logger output here
             return { statuses: [], counts: [] };
         }
     }
@@ -468,7 +440,9 @@ export class DashboardService {
                         return monthNames[parseInt(month) - 1];
                     } else {
                         const date = new Date(item.date);
-                        return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+                        return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1)
+                            .toString()
+                            .padStart(2, '0')}`;
                     }
                 });
 
@@ -501,9 +475,7 @@ export class DashboardService {
                 return this.generateDateRange(startDate, now, period);
             }
         } catch (error) {
-            this.logger.error(
-                `Error getting customer growth: ${error.message}`,
-            );
+            // Critical error handling – no logger output here
             return { dates: [], counts: [] };
         }
     }
@@ -558,9 +530,7 @@ export class DashboardService {
                 })),
             };
         } catch (error) {
-            this.logger.error(
-                `Error getting top selling products: ${error.message}`,
-            );
+            // Critical error handling – no logger output here
             return { products: [] };
         }
     }
@@ -573,7 +543,9 @@ export class DashboardService {
 
         while (currentDate <= endDate) {
             dates.push(
-                `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`,
+                `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1)
+                    .toString()
+                    .padStart(2, '0')}`,
             );
             counts.push(0);
             currentDate.setDate(currentDate.getDate() + 1);
@@ -603,7 +575,7 @@ export class DashboardService {
                 })),
             };
         } catch (error) {
-            this.logger.error(`Error getting recent orders: ${error.message}`);
+            // Critical error handling – no logger output here
             return { orders: [] };
         }
     }

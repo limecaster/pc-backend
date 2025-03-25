@@ -68,9 +68,6 @@ export class ProductSpecificationService {
         const session = driver.session();
 
         try {
-            this.logger.log(`Fetching specifications for ${productIds.length} products in batch`);
-            
-            // Use a parameterized Cypher query to get all products at once
             const query = `
                 MATCH (p)
                 WHERE p.id IN $productIds
@@ -95,8 +92,6 @@ export class ProductSpecificationService {
                 
                 specificationsMap[id] = properties as ProductSpecDto;
             });
-            
-            this.logger.log(`Successfully fetched specifications for ${Object.keys(specificationsMap).length} products`);
             
             return specificationsMap;
         } catch (error) {
@@ -477,11 +472,6 @@ export class ProductSpecificationService {
                     if (values && values.length > 0) {
                         const paramName = `subcatValues${index}`;
 
-                        // Log each filter being applied
-                        this.logger.log(
-                            `Applying Neo4j filter: ${key} = ${JSON.stringify(values)}`,
-                        );
-
                         // Handle numeric properties with units
                         if (
                             [
@@ -552,24 +542,11 @@ export class ProductSpecificationService {
             // Ensure we get distinct product IDs
             cypher += ` RETURN DISTINCT p.id AS id`;
 
-            // Log the query and parameters for debugging
-            this.logger.log(`Neo4j query: ${cypher}`);
-            this.logger.log(`Neo4j query params: ${JSON.stringify(params)}`);
-
             // Execute the query
             const result = await session.run(cypher, params);
 
             // Process and log results
             const ids = result.records.map((record) => record.get('id'));
-            this.logger.log(
-                `Neo4j returned ${ids.length} matching product IDs`,
-            );
-
-            if (ids.length > 0) {
-                this.logger.log(`Sample IDs: ${ids.slice(0, 3).join(', ')}...`);
-            } else {
-                this.logger.warn('No product IDs matched the filters in Neo4j');
-            }
 
             return ids;
         } catch (error) {

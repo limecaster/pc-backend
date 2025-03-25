@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PCConfiguration } from './entities/pc-configuration.entity';
@@ -32,9 +32,7 @@ export class PCConfigurationService {
 
             const savedConfiguration =
                 await this.pcConfigurationRepository.save(configuration);
-            this.logger.log(
-                `Created PC configuration with ID: ${savedConfiguration.id}`,
-            );
+            // Removed non-critical logging.
             return savedConfiguration;
         } catch (error) {
             this.logger.error(
@@ -51,9 +49,7 @@ export class PCConfigurationService {
                 order: { updatedAt: 'DESC' },
             });
 
-            this.logger.log(
-                `Found ${configurations.length} PC configurations for customer ${customerId}`,
-            );
+            // Removed non-critical logging.
             return configurations;
         } catch (error) {
             this.logger.error(
@@ -70,11 +66,11 @@ export class PCConfigurationService {
             });
 
             if (!configuration) {
-                this.logger.warn(`PC configuration with ID ${id} not found`);
+                // Removed non-critical logging.
                 return null;
             }
 
-            this.logger.log(`Found PC configuration with ID ${id}`);
+            // Removed non-critical logging.
             return configuration;
         } catch (error) {
             this.logger.error(
@@ -120,7 +116,7 @@ export class PCConfigurationService {
 
             const updatedConfiguration =
                 await this.pcConfigurationRepository.save(configuration);
-            this.logger.log(`Updated PC configuration with ID ${id}`);
+            // Removed non-critical logging.
             return updatedConfiguration;
         } catch (error) {
             this.logger.error(
@@ -144,7 +140,7 @@ export class PCConfigurationService {
             configuration.status = 'deleted';
             await this.pcConfigurationRepository.save(configuration);
 
-            this.logger.log(`Deleted PC configuration with ID ${id}`);
+            // Removed non-critical logging.
         } catch (error) {
             this.logger.error(
                 `Error removing PC configuration ${id}: ${error.message}`,

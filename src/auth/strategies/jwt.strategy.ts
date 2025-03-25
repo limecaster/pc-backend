@@ -21,13 +21,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     async validate(payload: any) {
-        this.logger.debug(`JWT payload validation: ${JSON.stringify(payload)}`);
-
-        // Ensure the role is included
-        if (!payload.role) {
-            this.logger.warn('JWT missing role information');
-        }
-
         // Check if payload contains required fields
         if (!payload.sub) {
             this.logger.error('JWT payload missing user ID');
@@ -49,9 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         // For customers, validate that they exist in the database
         const user = await this.customerService.findById(payload.sub);
         if (!user) {
-            this.logger.error(
-                `User with ID ${payload.sub} not found in database`,
-            );
+            this.logger.error(`User with ID ${payload.sub} not found in database`);
             throw new UnauthorizedException('User not found');
         }
 

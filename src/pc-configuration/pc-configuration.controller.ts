@@ -33,9 +33,6 @@ export class PCConfigurationController {
         try {
             // Add the customer ID from the authenticated user
             const customerId = req.user.id;
-            this.logger.log(
-                `Creating new PC configuration for customer ${customerId}`,
-            );
 
             return await this.pcConfigurationService.create(
                 customerId,
@@ -55,9 +52,6 @@ export class PCConfigurationController {
         try {
             // Get customer ID from authenticated user
             const customerId = req.user.id;
-            this.logger.log(
-                `Getting all PC configurations for customer ${customerId}`,
-            );
 
             return await this.pcConfigurationService.findAllByCustomerId(
                 customerId,
@@ -125,7 +119,6 @@ export class PCConfigurationController {
             }
 
             // Update the configuration
-            this.logger.log(`Updating PC configuration ${id}`);
             return await this.pcConfigurationService.update(id, updateDto);
         } catch (error) {
             this.logger.error(
@@ -157,7 +150,6 @@ export class PCConfigurationController {
             }
 
             // Delete the configuration
-            this.logger.log(`Deleting PC configuration ${id}`);
             await this.pcConfigurationService.remove(id);
 
             return {

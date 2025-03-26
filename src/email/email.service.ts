@@ -172,19 +172,19 @@ export class EmailService {
      * Sends an OTP code for order tracking verification
      * @param to Email to send to
      * @param otp OTP code
-     * @param orderId Order ID being tracked
+     * @param orderNumber Order number being tracked
      */
     async sendOrderTrackingOTP(
         to: string,
         otp: string,
-        orderId: string,
+        orderNumber: string,
     ): Promise<void> {
         const subject = 'Mã xác thực theo dõi đơn hàng B Store';
         const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e7e9; border-radius: 5px;">
         <h2 style="color: #333; text-align: center;">Xác thực theo dõi đơn hàng B Store</h2>
         <p>Xin chào,</p>
-        <p>Chúng tôi nhận được yêu cầu theo dõi thông tin đơn hàng #${orderId}. Vui lòng sử dụng mã OTP dưới đây để xác thực:</p>
+        <p>Chúng tôi nhận được yêu cầu theo dõi thông tin đơn hàng #${orderNumber}. Vui lòng sử dụng mã OTP dưới đây để xác thực:</p>
         <div style="background-color: #f5f5f5; padding: 15px; text-align: center; margin: 20px 0; border-radius: 4px;">
           <h3 style="margin: 0; font-size: 24px; letter-spacing: 5px;">${otp}</h3>
         </div>
@@ -196,6 +196,35 @@ export class EmailService {
 
         await this.sendMail(to, subject, html);
     }
+
+    // /**
+    //  * Sends an OTP code for order tracking verification
+    //  * @param to Email to send to
+    //  * @param otp OTP code
+    //  * @param orderId Order ID being tracked
+    //  */
+    // async sendOrderTrackingOTP(
+    //     to: string,
+    //     otp: string,
+    //     orderId: string,
+    // ): Promise<void> {
+    //     const subject = 'Mã xác thực theo dõi đơn hàng B Store';
+    //     const html = `
+    //   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e7e9; border-radius: 5px;">
+    //     <h2 style="color: #333; text-align: center;">Xác thực theo dõi đơn hàng B Store</h2>
+    //     <p>Xin chào,</p>
+    //     <p>Chúng tôi nhận được yêu cầu theo dõi thông tin đơn hàng #${orderId}. Vui lòng sử dụng mã OTP dưới đây để xác thực:</p>
+    //     <div style="background-color: #f5f5f5; padding: 15px; text-align: center; margin: 20px 0; border-radius: 4px;">
+    //       <h3 style="margin: 0; font-size: 24px; letter-spacing: 5px;">${otp}</h3>
+    //     </div>
+    //     <p>Mã OTP này có hiệu lực trong 15 phút. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+    //     <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.</p>
+    //     <p style="margin-top: 30px;">Trân trọng,<br>Đội ngũ B Store</p>
+    //   </div>
+    // `;
+
+    //     await this.sendMail(to, subject, html);
+    // }
 
     /**
      * Sends an email notification when an order is approved

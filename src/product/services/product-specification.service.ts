@@ -95,7 +95,7 @@ export class ProductSpecificationService {
             
             return specificationsMap;
         } catch (error) {
-            this.logger.error(`Error batch fetching specifications: ${error.message}`);
+            this.logger.error(`Error batch fetching specifications: ${error.message}`, error.stack);
             throw new Error(`Failed to batch fetch specifications: ${error.message}`);
         } finally {
             await session.close();
@@ -545,7 +545,7 @@ export class ProductSpecificationService {
             // Execute the query
             const result = await session.run(cypher, params);
 
-            // Process and log results
+            // Process results
             const ids = result.records.map((record) => record.get('id'));
 
             return ids;

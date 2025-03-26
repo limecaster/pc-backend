@@ -13,6 +13,7 @@ import { OrderStatusService } from './services/order-status.service';
 import { OrderInventoryService } from './services/order-inventory.service';
 import { OrderDisplayService } from './services/order-display.service';
 import { PaymentModule } from '../payment/payment.module';
+import { ProductModule } from '../product/product.module'; // Import ProductModule
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PaymentModule } from '../payment/payment.module';
     forwardRef(() => PaymentModule),
     EmailModule,
     ScheduleModule.forRoot(),
+    ProductModule, // Add ProductModule to imports
   ],
   controllers: [OrderController],
   providers: [

@@ -20,7 +20,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '../auth/enums/role.enum';
 import { CheckoutService } from '../checkout/checkout.service';
-import { SendOTPDto, VerifyOTPDto } from './dto/track-order.dto';
 import { EmailService } from '../email/email.service';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 
@@ -286,6 +285,151 @@ export class OrderController {
             return {
                 success: false,
                 message: error.message,
+            };
+        }
+    }
+
+    @UseGuards(OptionalJwtAuthGuard) 
+    @Get('track/:identifier')
+    async trackOrder(
+        @Param('identifier') identifier: string,
+        @Request() req,
+    ) {
+        try {
+            
+            // Check if user is authenticated (has valid JWT)
+            const isAuthenticated = !!req.user;
+            const userId = req.user?.id;
+            
+            // Find the order (can be by ID or order number)
+            let order;
+            const isNumeric = !isNaN(Number(identifier));
+            
+            if (isNumeric) {
+                order = await this.orderService.getOrderTrackingInfo(parseInt(identifier), true);
+            } else {
+                order = await this.orderService.getOrderTrackingInfo(identifier, true);
+            }
+
+            if (!order) {
+                return {
+                    success: false,
+                    message: `Không tìm thấy đơn hàng với mã ${identifier}`,
+                };
+            }
+
+            // For authenticated users, check if they own the order
+            const isOrderOwner = isAuthenticated ? 
+                await this.orderService.checkOrderTrackingPermission(order.id, userId) : 
+                false;
+
+            // IMPORTANT: For non-authenticated users, always require verification
+            if (!isAuthenticated || (isAuthenticated && !isOrderOwner)) {
+                return {
+                    success: true,
+                    order: order,
+                    requiresVerification: true,
+                    isAuthenticated: isAuthenticated,
+                    isOwner: false
+                };
+            }
+            
+            // User is authenticated and owns the order - no verification needed
+            const fullOrderData = await this.orderService.getOrderTrackingInfo(order.id, false);
+            return {
+                success: true,
+                order: fullOrderData,
+                requiresVerification: false,
+                isAuthenticated: true,
+                isOwner: true
+            };
+        } catch (error) {
+            this.logger.error(`Error tracking order: ${error.message}`);
+            return {
+                success: false,
+                message: error.message || 'Error tracking order',
+            };
+        }
+    }
+
+    @Post('track/request-otp')
+    async requestTrackingOTP(@Body() body: { orderNumber: string, email: string }) {
+        try {
+            const { orderNumber, email } = body;
+            
+            if (!orderNumber || !email) {
+                return {
+                    success: false,
+                    message: 'Order number and email are required',
+                };
+            }
+
+            const otp = await this.orderService.generateTrackingOTP(orderNumber, email);
+            
+            await this.emailService.sendOrderTrackingOTP(email, otp, orderNumber);
+
+            return {
+                success: true,
+                message: 'OTP sent successfully',
+            };
+        } catch (error) {
+            this.logger.error(`Error requesting OTP: ${error.message}`);
+            return {
+                success: false,
+                message: error.message || 'Error requesting OTP',
+            };
+        }
+    }
+
+    // Update the alias endpoint to support both new and old formats
+    @Post('track/send-otp')
+    async sendTrackingOTP(@Body() body: { orderId?: string, orderNumber?: string, email: string }) {
+        // Handle both formats for backward compatibility
+        const { orderId, orderNumber, email } = body;
+        
+        return this.requestTrackingOTP({ 
+            orderNumber: orderNumber || orderId, // Use orderNumber if provided, fall back to orderId
+            email 
+        });
+    }
+
+    @Post('track/verify-otp')
+    async verifyTrackingOTP(
+        @Body() body: { orderNumber: string, email: string, otp: string }
+    ) {
+        try {
+            const { orderNumber, email, otp } = body;
+            
+            if (!orderNumber || !email || !otp) {
+                return {
+                    success: false,
+                    message: 'Order number, email, and OTP are required',
+                };
+            }
+
+            
+            const isValid = await this.orderService.verifyTrackingOTP(orderNumber, email, otp);
+            
+            if (!isValid) {
+                return {
+                    success: false,
+                    message: 'Invalid or expired OTP',
+                };
+            }
+
+            // Get full order details
+            const orderData = await this.orderService.getOrderTrackingInfo(orderNumber, false);
+            
+            return {
+                success: true,
+                message: 'OTP verified successfully',
+                order: orderData,
+            };
+        } catch (error) {
+            this.logger.error(`Error verifying OTP: ${error.message}`);
+            return {
+                success: false,
+                message: error.message || 'Error verifying OTP',
             };
         }
     }

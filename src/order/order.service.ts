@@ -166,24 +166,47 @@ export class OrderService {
         }
     }
 
-    async getOrderTrackingInfo(orderId: number | string, limitedInfo: boolean = false) {
-        return this.orderDisplayService.getOrderTrackingInfo(orderId, limitedInfo);
+    // Update to prioritize orderNumber over id
+    async getOrderTrackingInfo(identifier: string | number, limitedInfo: boolean = false) {
+        // Try to find by orderNumber first (most user-friendly approach)
+        let order;
+        
+        if (typeof identifier === 'string' && isNaN(Number(identifier))) {
+            // This is definitely an order number (non-numeric string)
+           
+            order = await this.orderDisplayService.getOrderTrackingInfo(identifier, limitedInfo);
+            console.log(order);
+        } else {
+            // This might be an ID or a numeric orderNumber
+            // Try orderNumber first
+            
+            order = await this.orderDisplayService.getOrderTrackingInfo(identifier.toString(), limitedInfo);
+            
+            // If not found, try by ID as a fallback for backward compatibility
+            if (!order && (typeof identifier === 'number' || !isNaN(Number(identifier)))) {
+                
+                order = await this.orderDisplayService.getOrderTrackingInfoById(Number(identifier), limitedInfo);
+            }
+        }
+        
+        return order;
     }
 
     async verifyOrderAccess(orderId: number, verificationData: string): Promise<boolean> {
         return this.orderTrackingService.verifyOrderAccess(orderId, verificationData);
     }
 
-    async generateTrackingOTP(orderId: string | number, email: string): Promise<string> {
-        return this.orderTrackingService.generateTrackingOTP(orderId, email);
+    async generateTrackingOTP(identifier: string | number, email: string): Promise<string> {
+        return this.orderTrackingService.generateTrackingOTP(identifier, email);
     }
 
-    async verifyTrackingOTP(orderId: string | number, email: string, otp: string): Promise<boolean> {
-        return this.orderTrackingService.verifyTrackingOTP(orderId, email, otp);
+    async verifyTrackingOTP(identifier: string | number, email: string, otp: string): Promise<boolean> {
+        return this.orderTrackingService.verifyTrackingOTP(identifier, email, otp);
     }
 
-    async checkOrderTrackingPermission(orderId: number, userId?: number): Promise<boolean> {
-        return this.orderTrackingService.checkOrderTrackingPermission(orderId, userId);
+    // Update to work with order numbers
+    async checkOrderTrackingPermission(identifier: string | number, userId?: number): Promise<boolean> {
+        return this.orderTrackingService.checkOrderTrackingPermission(identifier, userId);
     }
 
     async markDiscountUsageRecorded(orderId: number): Promise<Order> {

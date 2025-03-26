@@ -2,12 +2,12 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 't
 import { Order } from './order.entity';
 import { Product } from '../product/product.entity';
 
-@Entity('order_items')
+@Entity('Order_Detail')
 export class OrderItem {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column()
+    @Column({default: 1})
     quantity: number;
     
     // Add price field

@@ -21,33 +21,21 @@ export class OrderTrackingService {
 
     /**
      * Generate a tracking OTP for an order
-     * @param orderId The order ID or order number
+     * @param identifier The order number or ID
      * @param email Email to send the OTP to
      * @returns The generated OTP
      */
     async generateTrackingOTP(
-        orderId: string | number,
+        identifier: string | number,
         email: string,
     ): Promise<string> {
-        // Verify the order exists
-        let order;
-        const isNumeric = !isNaN(Number(orderId));
-        if (isNumeric) {
-            order = await this.orderRepository.findOne({
-                where: { id: Number(orderId) },
-                relations: ['customer'],
-            });
-        } else {
-            order = await this.orderRepository.findOne({
-                where: { orderNumber: orderId as string },
-                relations: ['customer'],
-            });
-        }
+        // Find the order first
+        const order = await this.findOrderByIdentifier(identifier);
 
         if (!order) {
-            this.logger.error(`Order with identifier ${orderId} not found`);
+            this.logger.error(`Order with identifier ${identifier} not found`);
             throw new NotFoundException(
-                `Order with identifier ${orderId} not found`,
+                `Không tìm thấy đơn hàng với mã ${identifier}`,
             );
         }
 
@@ -62,10 +50,10 @@ export class OrderTrackingService {
 
         if (!isValidEmail) {
             this.logger.error(
-                `Unauthorized access attempt for order ${orderId} with email ${email}`,
+                `Unauthorized access attempt for order ${order.orderNumber} with email ${email}`,
             );
             throw new UnauthorizedException(
-                'Email is not associated with this order',
+                'Email không trùng khớp với đơn hàng này',
             );
         }
 
@@ -76,8 +64,8 @@ export class OrderTrackingService {
         const expiry = new Date();
         expiry.setMinutes(expiry.getMinutes() + 15);
 
-        // Use order ID for consistent key (in case orderNumber was provided)
-        const otpKey = `${order.id}-${email}`;
+        // Use consistent key based on orderNumber and email
+        const otpKey = `${order.orderNumber}-${email}`;
 
         // Store the OTP
         this.otpStore.set(otpKey, {
@@ -93,37 +81,26 @@ export class OrderTrackingService {
 
     /**
      * Verify a tracking OTP for an order
-     * @param orderId The order ID or order number
+     * @param identifier The order number or ID
      * @param email Email associated with the order
      * @param otp OTP to verify
      * @returns True if OTP is valid, false otherwise
      */
     async verifyTrackingOTP(
-        orderId: string | number,
+        identifier: string | number,
         email: string,
         otp: string,
     ): Promise<boolean> {
-        // First, find the order to get the consistent ID
-        let order;
-
-        // Handle both numeric IDs and order numbers
-        if (typeof orderId === 'number' || !isNaN(Number(orderId))) {
-            order = await this.orderRepository.findOne({
-                where: { id: typeof orderId === 'number' ? orderId : Number(orderId) },
-            });
-        } else {
-            order = await this.orderRepository.findOne({
-                where: { orderNumber: orderId as string },
-            });
-        }
+        // First, find the order to get the consistent order number
+        const order = await this.findOrderByIdentifier(identifier);
 
         if (!order) {
-            this.logger.error(`Order ${orderId} not found during OTP verification`);
+            this.logger.error(`Order ${identifier} not found during OTP verification`);
             return false;
         }
 
-        // Use order.id to ensure the key matches what was used in generateTrackingOTP
-        const otpKey = `${order.id}-${email}`;
+        // Use order.orderNumber as the key
+        const otpKey = `${order.orderNumber}-${email}`;
 
         const storedData = this.otpStore.get(otpKey);
 
@@ -134,7 +111,7 @@ export class OrderTrackingService {
 
         // Check if OTP has expired
         if (storedData.expires < new Date()) {
-            this.logger.error(`OTP for order ${orderId} has expired`);
+            this.logger.error(`OTP for order ${order.orderNumber} has expired`);
             this.otpStore.delete(otpKey);
             return false;
         }
@@ -147,11 +124,36 @@ export class OrderTrackingService {
             this.otpStore.delete(otpKey);
         } else {
             this.logger.error(
-                `Invalid OTP for order ${orderId}. Expected: ${storedData.otp}, Got: ${otp}`,
+                `Invalid OTP for order ${order.orderNumber}. Expected: ${storedData.otp}, Got: ${otp}`,
             );
         }
 
         return isValid;
+    }
+
+    /**
+     * Helper method to find an order by either ID or order number
+     */
+    private async findOrderByIdentifier(identifier: string | number): Promise<Order | null> {
+        let order: Order = null;
+        
+        // First try to find by order number (string identifier)
+        if (typeof identifier === 'string') {
+            order = await this.orderRepository.findOne({
+                where: { orderNumber: identifier },
+                relations: ['customer'],
+            });
+        }
+        
+        // If not found and the identifier could be numeric, try as ID
+        if (!order && (typeof identifier === 'number' || !isNaN(Number(identifier)))) {
+            order = await this.orderRepository.findOne({
+                where: { id: typeof identifier === 'number' ? identifier : Number(identifier) },
+                relations: ['customer'],
+            });
+        }
+        
+        return order;
     }
 
     /**
@@ -168,26 +170,28 @@ export class OrderTrackingService {
 
     /**
      * Check if a user has permission to track an order
-     * @param orderId Order ID to track
+     * @param identifier Order number or ID to track
      * @param userId User ID (if authenticated)
      * @returns True if user has permission, false otherwise
      */
     async checkOrderTrackingPermission(
-        orderId: number,
+        identifier: string | number,
         userId?: number,
     ): Promise<boolean> {
-        const order = await this.orderRepository.findOne({
-            where: { id: orderId },
-            relations: ['customer'],
-        });
+        const order = await this.findOrderByIdentifier(identifier);
 
         if (!order) {
-            this.logger.error(`Order ${orderId} not found during permission check`);
+            this.logger.error(`Order ${identifier} not found during permission check`);
             return false;
         }
 
-        // If user is authenticated, check if they own the order
-        if (userId && order.customer && order.customer.id === userId) {
+        // If no user ID provided, permission denied
+        if (!userId) {
+            return false;
+        }
+        
+        // Check if the authenticated user owns the order
+        if (order.customer && order.customer.id === userId) {
             return true;
         }
 

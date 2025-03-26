@@ -36,6 +36,9 @@ import { DiscountModule } from '../discount/discount.module';
         ProductRatingService,
         ProductElasticsearchService,
     ],
-    exports: [ProductService],
+    exports: [
+        ProductService,
+        ProductSpecificationService,
+    ],
 })
 export class ProductModule {}

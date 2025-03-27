@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ManualBuildService } from '../build/manual-build.service';
 import { AutoBuildService } from '../build/auto-build.service';
 
@@ -20,47 +20,26 @@ export class BuildController {
         'Vỏ case': ['Case'],
         'Quạt tản nhiệt': ['CPUCooler'],
         'Màn hình': ['Monitor'],
-        // Replace generic categories with specific ones
         'Bàn phím': ['Keyboard'],
         Chuột: ['Mouse'],
         'Card mạng không dây': ['WiFiCard'],
         'Card mạng có dây': ['WiredNetworkCard'],
         'Kem tản nhiệt': ['ThermalPaste'],
-        // Remove these generic categories
-        // 'Thiết bị ngoại vi': ['Keyboard', 'Mouse', 'Speaker'],
-        // 'Card mở rộng': ['WiredNetworkCard', 'WiFiCard'],
-        // 'Phụ kiện khác': ['ThermalPaste'],
+
+        Motherboard: ['Motherboard'],
+        GraphicsCard: ['GraphicsCard'],
+        PowerSupply: ['PowerSupply'],
+        Case: ['Case'],
+        CPUCooler: ['CPUCooler'],
+        Monitor: ['Monitor'],
+        Keyboard: ['Keyboard'],
+        Mouse: ['Mouse'],
+        WiFiCard: ['WiFiCard'],
+        WiredNetworkCard: ['WiredNetworkCard'],
+        ThermalPaste: ['ThermalPaste'],
+        InternalHardDrive: ['InternalHardDrive'],
+
     };
-
-    // @Get()
-    // async findCompatibleParts(
-    //   @Query('name') name: string,
-    //   @Query('otherName') otherPartTypeName: string,
-    // ) {
-    //   return this.manualBuildService.findCompatibleParts(name, otherPartTypeName);
-    // }
-
-    // @Get('label')
-    // async getCompatiblePartsByLabel(
-    //   @Query('name') name: string,
-    //   @Query('label') label: string,
-    // ) {
-    //   return this.manualBuildService.getCompatiblePartsByLabel(name, label);
-    // }
-
-    // @Get('check-compatibility/:newPartLabel/:newPartName')
-    // async checkCompatibilityAcrossLabels(
-    //   @Param('newPartLabel') newPartLabel: string,
-    //   @Param('newPartName') newPartName: string,
-    //   @Query('selectedParts') selectedParts: string,
-    // ) {
-    //   const parsedSelectedParts = this.parseSelectedParts(JSON.parse(selectedParts));
-    //   return this.manualBuildService.checkCompatibilityAcrossLabels(
-    //     newPartName,
-    //     newPartLabel,
-    //     parsedSelectedParts,
-    //   );
-    // }
 
     @Get('manual-build/compatible-parts')
     async getSpecificPartTypeCompatibleWithSelectedParts(
@@ -73,26 +52,24 @@ export class BuildController {
     ) {
         try {
             const parsedSelectedParts = this.parseSelectedParts(selectedParts);
-            const targetLabels =
-                this.mappingFrontendLabelToNeo4jLabel[targetLabel] || [];
 
-            if (targetLabels.length === 0) {
+            if (targetLabel.length === 0) {
                 throw new Error(`Invalid target label: ${targetLabel}`);
             }
 
             const pageNumber = parseInt(page, 10) || 1;
             const pageSize = parseInt(limit, 10) || 10;
-
-            // Always get compatible parts with filtering first
+  
+            // Get compatible parts with SSD/HDD specific filtering
             const compatibleParts =
                 await this.manualBuildService.getSpecificPartTypeCompatibleWithSelectedParts(
                     parsedSelectedParts,
-                    targetLabels,
+                    targetLabel,
                     searchTerm,
                     sortOption,
                 );
 
-            // Then handle pagination on the already filtered results
+            // Handle pagination on the filtered results
             const startIndex = (pageNumber - 1) * pageSize;
             const endIndex = startIndex + pageSize;
             const items = compatibleParts.slice(startIndex, endIndex);

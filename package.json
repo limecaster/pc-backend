@@ -50,7 +50,8 @@
         "rxjs": "^7.8.2",
         "socket.io": "^4.8.1",
         "stream": "^0.0.3",
-        "typeorm": "^0.3.21"
+        "typeorm": "^0.3.21",
+        "kafkajs": "^2.2.4"
     },
     "devDependencies": {
         "@nestjs/cli": "^11.0.5",

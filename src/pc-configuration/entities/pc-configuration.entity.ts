@@ -4,7 +4,9 @@ import {
     Column,
     CreateDateColumn,
     UpdateDateColumn,
+    OneToMany,
 } from 'typeorm';
+import { PCConfigurationProduct } from './pc-configuration-product.entity';
 
 @Entity({ name: 'PC_Configuration' })
 export class PCConfiguration {
@@ -20,13 +22,17 @@ export class PCConfiguration {
     @Column({ nullable: true })
     purpose: string;
 
-    @Column({ type: 'json' })
-    products: Record<string, any>;
+    // Remove the products JSON field and add OneToMany relation
+    @OneToMany(() => PCConfigurationProduct, product => product.configuration, {
+        cascade: true,
+        eager: true,
+    })
+    products: PCConfigurationProduct[];
 
     @Column({
         name: 'total_price',
         type: 'decimal',
-        precision: 10,
+        precision: 15,
         scale: 2,
         nullable: true,
     })

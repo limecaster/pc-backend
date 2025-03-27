@@ -176,3 +176,26 @@ CREATE TABLE PC_Configuration_Product (
     product_id UUID REFERENCES Product(id) ON DELETE CASCADE,
     PRIMARY KEY (pc_configuration_id, product_id)
 );
+
+-- User Behavior Tracking Table
+CREATE TABLE User_Behavior (
+    id SERIAL PRIMARY KEY,
+    event_id UUID DEFAULT uuid_generate_v4(),
+    customer_id INT REFERENCES Customer(id) ON DELETE SET NULL,
+    session_id VARCHAR(255), -- For tracking anonymous users
+    event_type VARCHAR(50) NOT NULL, -- e.g., 'product_click', 'add_to_cart', etc.
+    entity_id VARCHAR(100), -- ID of the related entity (product, category, etc.)
+    entity_type VARCHAR(50), -- Type of the entity (product, category, etc.)
+    page_url TEXT, -- URL of the page where the event occurred
+    referrer_url TEXT, -- Referrer URL
+    device_info JSONB, -- Information about the device (browser, OS, etc.)
+    ip_address VARCHAR(50),
+    event_data JSONB, -- Additional event data
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Add index for faster queries
+CREATE INDEX idx_user_behavior_event_type ON User_Behavior(event_type);
+CREATE INDEX idx_user_behavior_customer_id ON User_Behavior(customer_id);
+CREATE INDEX idx_user_behavior_entity_id ON User_Behavior(entity_id);
+CREATE INDEX idx_user_behavior_created_at ON User_Behavior(created_at);

@@ -6,6 +6,9 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import * as dotenv from 'dotenv';
 import * as bodyParser from 'body-parser';
+import { MicroserviceOptions } from '@nestjs/microservices';
+import { getKafkaConfig } from './events/kafka/kafka.config';
+import { ConfigService } from '@nestjs/config';
 
 // Load environment variables
 dotenv.config();
@@ -17,7 +20,7 @@ async function bootstrap() {
     });
 
     // Define allowed origins
-    const allowedOrigins = ['http://localhost:3000'];
+    const allowedOrigins = ['http://localhost:3000', '*'];
     if (process.env.FRONTEND_URL) {
         allowedOrigins.push(process.env.FRONTEND_URL);
     }
@@ -56,6 +59,14 @@ async function bootstrap() {
     logger.debug(
         `Database: ${process.env.POSTGRES_NAME} @ ${process.env.POSTGRES_HOST}`,
     );
+
+    // Get ConfigService from app
+    const configService = app.get(ConfigService);
+    
+    // Connect Kafka microservice with proper config
+    const kafkaConfig = getKafkaConfig(configService);
+    app.connectMicroservice<MicroserviceOptions>(kafkaConfig);
+    await app.startAllMicroservices();
 
     const port = process.env.PORT ?? 3001;
     await app.listen(port);

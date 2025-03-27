@@ -10,7 +10,7 @@ import { DiscountModule } from '../discount/discount.module';
 @Module({
     imports: [
         HttpModule,
-        forwardRef(() => CheckoutModule), // Break circular dependency
+        forwardRef(() => CheckoutModule),
         forwardRef(() => OrderModule),
         DiscountModule, 
         ConfigModule,

@@ -29,6 +29,7 @@ import { RatingModule } from './rating/rating.module';
 import { PCConfigurationModule } from './pc-configuration/pc-configuration.module';
 import { AccountModule } from './dashboard/account/account.module';
 import { DiscountModule } from './discount/discount.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
     imports: [
@@ -66,6 +67,7 @@ import { DiscountModule } from './discount/discount.module';
         PCConfigurationModule,
         AccountModule,
         DiscountModule,
+        EventsModule,
     ],
     controllers: [
         AppController,

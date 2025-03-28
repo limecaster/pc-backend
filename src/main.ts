@@ -20,7 +20,7 @@ async function bootstrap() {
     });
 
     // Define allowed origins
-    const allowedOrigins = ['http://localhost:3000', '*'];
+    const allowedOrigins = ['*', 'http://192.168.1.28:3000'];
     if (process.env.FRONTEND_URL) {
         allowedOrigins.push(process.env.FRONTEND_URL);
     }

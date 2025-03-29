@@ -14,6 +14,8 @@ import {
     HttpException,
     HttpStatus,
     Body,
+    Delete,
+    Put,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { ProductDetailsDto } from './dto/product-response.dto';
@@ -24,6 +26,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
+import { HotSalesService } from './services/hot-sales.service';
 
 interface PaginatedProductsResponse {
     products: ProductDetailsDto[];
@@ -39,6 +42,7 @@ export class ProductController {
     constructor(
         private readonly productService: ProductService,
         private readonly cloudinaryService: CloudinaryConfigService,
+        private readonly hotSalesService: HotSalesService,
     ) {}
 
     @Get('debug/simple-list')
@@ -406,6 +410,83 @@ export class ProductController {
             throw new InternalServerErrorException(
                 `Failed to fetch products batch with discounts: ${error.message}`
             );
+        }
+    }
+
+    @Get('hot-sales')
+    async getHotSalesProducts(): Promise<ProductDetailsDto[]> {
+        try {
+            // Get product IDs from hot sales
+            const productIds = await this.hotSalesService.findAllProductIds();
+            
+            // Get the actual products with discounts
+            const products = await this.productService.getProductsWithDiscounts(productIds);
+            
+            return products.map(product => this.ensureProductInfo(product));
+        } catch (error) {
+            throw new InternalServerErrorException('Failed to retrieve hot sales products');
+        }
+    }
+
+    @Post('admin/hot-sales/:productId')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    async addToHotSales(
+        @Param('productId') productId: string,
+        @Body() data: { displayOrder?: number },
+    ): Promise<{ success: boolean; message: string }> {
+        try {
+            await this.hotSalesService.add(productId, data.displayOrder || 0);
+            return {
+                success: true,
+                message: 'Product added to hot sales successfully',
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            throw new InternalServerErrorException(`Failed to add product to hot sales: ${error.message}`);
+        }
+    }
+
+    @Delete('admin/hot-sales/:productId')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    async removeFromHotSales(
+        @Param('productId') productId: string,
+    ): Promise<{ success: boolean; message: string }> {
+        try {
+            await this.hotSalesService.remove(productId);
+            return {
+                success: true,
+                message: 'Product removed from hot sales successfully',
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            throw new InternalServerErrorException(`Failed to remove product from hot sales: ${error.message}`);
+        }
+    }
+
+    @Put('admin/hot-sales/:productId/order')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    async updateHotSalesOrder(
+        @Param('productId') productId: string,
+        @Body() data: { displayOrder: number },
+    ): Promise<{ success: boolean; message: string }> {
+        try {
+            await this.hotSalesService.updateDisplayOrder(productId, data.displayOrder);
+            return {
+                success: true,
+                message: 'Hot sales display order updated successfully',
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            throw new InternalServerErrorException(`Failed to update hot sales order: ${error.message}`);
         }
     }
 

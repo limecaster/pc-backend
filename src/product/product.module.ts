@@ -15,11 +15,16 @@ import { ProductSpecificationService } from './services/product-specification.se
 import { ProductRatingService } from './services/product-rating.service';
 import { ProductElasticsearchService } from './services/product-elasticsearch.service';
 import { DiscountModule } from '../discount/discount.module';
+import { HotSales } from './entities/hot-sales.entity';
+import { HotSalesService } from './services/hot-sales.service';
 
 @Module({
     imports: [
         ConfigModule,
-        TypeOrmModule.forFeature([Product]),
+        TypeOrmModule.forFeature([
+            Product,
+            HotSales,
+        ]),
         CloudinaryModule,
         DiscountModule,
     ],
@@ -35,6 +40,7 @@ import { DiscountModule } from '../discount/discount.module';
         ProductSpecificationService,
         ProductRatingService,
         ProductElasticsearchService,
+        HotSalesService,
     ],
     exports: [
         ProductService,

@@ -139,7 +139,7 @@ export class ProductSpecificationService {
                         case 'manufacturer':
                             query = `
                                 MATCH (p:CPU) 
-                                WHERE p.manufacturer IS NOT NULL 
+                                WHERE p.manufacturer IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.manufacturer AS value
                                 ORDER BY value
                             `;
@@ -147,7 +147,7 @@ export class ProductSpecificationService {
                         case 'socket':
                             query = `
                                 MATCH (p:CPU) 
-                                WHERE p.socket IS NOT NULL 
+                                WHERE p.socket IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.socket AS value
                                 ORDER BY value
                             `;
@@ -155,7 +155,7 @@ export class ProductSpecificationService {
                         case 'series':
                             query = `
                                 MATCH (p:CPU) 
-                                WHERE p.series IS NOT NULL 
+                                WHERE p.series IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.series AS value
                                 ORDER BY value
                             `;
@@ -163,7 +163,7 @@ export class ProductSpecificationService {
                         case 'microarchitecture':
                             query = `
                                 MATCH (p:CPU) 
-                                WHERE p.microarchitecture IS NOT NULL 
+                                WHERE p.microarchitecture IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.microarchitecture AS value
                                 ORDER BY value
                             `;
@@ -171,7 +171,7 @@ export class ProductSpecificationService {
                         case 'coreCount':
                             query = `
                                 MATCH (p:CPU) 
-                                WHERE p.coreCount IS NOT NULL 
+                                WHERE p.coreCount IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT toString(p.coreCount) + ' nhân' AS value
                                 ORDER BY value
                             `;
@@ -179,7 +179,7 @@ export class ProductSpecificationService {
                         case 'performanceCoreClock':
                             query = `
                                 MATCH (p:CPU) 
-                                WHERE p.performanceCoreClock IS NOT NULL 
+                                WHERE p.performanceCoreClock IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT toString(p.performanceCoreClock) + ' GHz' AS value
                                 ORDER BY value
                             `;
@@ -196,7 +196,7 @@ export class ProductSpecificationService {
                         case 'manufacturer':
                             query = `
                                 MATCH (p:Motherboard) 
-                                WHERE p.manufacturer IS NOT NULL 
+                                WHERE p.manufacturer IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.manufacturer AS value
                                 ORDER BY value
                             `;
@@ -204,7 +204,7 @@ export class ProductSpecificationService {
                         case 'chipset':
                             query = `
                                 MATCH (p:Motherboard) 
-                                WHERE p.chipset IS NOT NULL 
+                                WHERE p.chipset IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.chipset AS value
                                 ORDER BY value
                             `;
@@ -212,7 +212,7 @@ export class ProductSpecificationService {
                         case 'socketCPU':
                             query = `
                                 MATCH (p:Motherboard) 
-                                WHERE p.socketCPU IS NOT NULL 
+                                WHERE p.socketCPU IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.socketCPU AS value
                                 ORDER BY value
                             `;
@@ -220,7 +220,7 @@ export class ProductSpecificationService {
                         case 'formFactor':
                             query = `
                                 MATCH (p:Motherboard) 
-                                WHERE p.formFactor IS NOT NULL 
+                                WHERE p.formFactor IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.formFactor AS value
                                 ORDER BY value
                             `;
@@ -228,7 +228,7 @@ export class ProductSpecificationService {
                         case 'memoryType':
                             query = `
                                 MATCH (p:Motherboard) 
-                                WHERE p.memoryType IS NOT NULL 
+                                WHERE p.memoryType IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.memoryType AS value
                                 ORDER BY value
                             `;
@@ -236,9 +236,19 @@ export class ProductSpecificationService {
                         case 'memoryMax':
                             query = `
                                 MATCH (p:Motherboard) 
-                                WHERE p.memoryMax IS NOT NULL 
-                                RETURN DISTINCT toString(p.memoryMax) + ' GB' AS value
+                                WHERE p.memoryMax IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                WITH DISTINCT toString(p.memoryMax) + ' GB' AS value, p.memoryMax AS max
+                                RETURN value
                                 ORDER BY p.memoryMax
+                            `;
+                            break;
+                        case 'memorySlots':
+                            query = `
+                                MATCH (p:Motherboard)
+                                WHERE p.memorySlots IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                WITH DISTINCT toString(p.memorySlots) + ' khe' AS value, p.memorySlots AS slots
+                                RETURN value
+                                ORDER BY slots
                             `;
                             break;
                         default:
@@ -253,7 +263,7 @@ export class ProductSpecificationService {
                         case 'manufacturer':
                             query = `
                                 MATCH (p:RAM) 
-                                WHERE p.manufacturer IS NOT NULL 
+                                WHERE p.manufacturer IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.manufacturer AS value
                                 ORDER BY value
                             `;
@@ -261,7 +271,7 @@ export class ProductSpecificationService {
                         case 'speed':
                             query = `
                                 MATCH (p:RAM) 
-                                WHERE p.speed IS NOT NULL 
+                                WHERE p.speed IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.speed AS value
                                 ORDER BY value
                             `;
@@ -269,7 +279,7 @@ export class ProductSpecificationService {
                         case 'moduleSize':
                             query = `
                                 MATCH (p:RAM) 
-                                WHERE p.moduleSize IS NOT NULL 
+                                WHERE p.moduleSize IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 WITH DISTINCT toString(p.moduleSize) + ' GB' AS value, p.moduleSize AS size
                                 RETURN value
                                 ORDER BY size
@@ -278,7 +288,7 @@ export class ProductSpecificationService {
                         case 'moduleNumber':
                             query = `
                                 MATCH (p:RAM) 
-                                WHERE p.moduleNumber IS NOT NULL 
+                                WHERE p.moduleNumber IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 WITH DISTINCT toString(p.moduleNumber) + ' thanh' AS value, p.moduleNumber AS num
                                 RETURN value
                                 ORDER BY num
@@ -287,7 +297,7 @@ export class ProductSpecificationService {
                         case 'color':
                             query = `
                                 MATCH (p:RAM) 
-                                WHERE p.color IS NOT NULL 
+                                WHERE p.color IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.color AS value
                                 ORDER BY value
                             `;
@@ -295,7 +305,7 @@ export class ProductSpecificationService {
                         case 'casLatency':
                             query = `
                                 MATCH (p:RAM) 
-                                WHERE p.casLatency IS NOT NULL 
+                                WHERE p.casLatency IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 WITH DISTINCT 'CL' + toString(toInteger(p.casLatency)) AS value, p.casLatency AS latency
                                 RETURN value
                                 ORDER BY latency
@@ -313,7 +323,7 @@ export class ProductSpecificationService {
                         case 'series':
                             query = `
                                 MATCH (p:GraphicsCard) 
-                                WHERE p.series IS NOT NULL 
+                                WHERE p.series IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.series AS value
                                 ORDER BY value
                             `;
@@ -321,7 +331,7 @@ export class ProductSpecificationService {
                         case 'manufacturer':
                             query = `
                                 MATCH (p:GraphicsCard) 
-                                WHERE p.manufacturer IS NOT NULL 
+                                WHERE p.manufacturer IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.manufacturer AS value
                                 ORDER BY value
                             `;
@@ -329,7 +339,7 @@ export class ProductSpecificationService {
                         case 'chipset':
                             query = `
                                 MATCH (p:GraphicsCard) 
-                                WHERE p.chipset IS NOT NULL 
+                                WHERE p.chipset IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.chipset AS value
                                 ORDER BY value
                             `;
@@ -337,7 +347,7 @@ export class ProductSpecificationService {
                         case 'memory':
                             query = `
                                 MATCH (p:GraphicsCard) 
-                                WHERE p.memory IS NOT NULL 
+                                WHERE p.memory IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 WITH DISTINCT toString(p.memory) + ' GB' AS value, p.memory AS mem
                                 RETURN value
                                 ORDER BY mem
@@ -346,7 +356,7 @@ export class ProductSpecificationService {
                         case 'memoryType':
                             query = `
                                 MATCH (p:GraphicsCard) 
-                                WHERE p.memoryType IS NOT NULL 
+                                WHERE p.memoryType IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.memoryType AS value
                                 ORDER BY value
                             `;
@@ -354,7 +364,7 @@ export class ProductSpecificationService {
                         case 'cooling':
                             query = `
                                 MATCH (p:GraphicsCard) 
-                                WHERE p.cooling IS NOT NULL 
+                                WHERE p.cooling IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 WITH DISTINCT toString(p.cooling) + ' quạt' AS value, p.cooling AS cool
                                 RETURN value
                                 ORDER BY cool
@@ -363,7 +373,7 @@ export class ProductSpecificationService {
                         case 'tdp':
                             query = `
                                 MATCH (p:GraphicsCard) 
-                                WHERE p.tdp IS NOT NULL 
+                                WHERE p.tdp IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 WITH DISTINCT toString(p.tdp) + ' W' AS value, p.tdp AS power
                                 RETURN value
                                 ORDER BY power
@@ -381,7 +391,7 @@ export class ProductSpecificationService {
                         case 'manufacturer':
                             query = `
                                 MATCH (p:InternalHardDrive) 
-                                WHERE p.manufacturer IS NOT NULL 
+                                WHERE p.manufacturer IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.manufacturer AS value
                                 ORDER BY value
                             `;
@@ -389,7 +399,7 @@ export class ProductSpecificationService {
                         case 'type':
                             query = `
                                 MATCH (p:InternalHardDrive) 
-                                WHERE p.type IS NOT NULL 
+                                WHERE p.type IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.type AS value
                                 ORDER BY value
                             `;
@@ -397,7 +407,7 @@ export class ProductSpecificationService {
                         case 'interface':
                             query = `
                                 MATCH (p:InternalHardDrive) 
-                                WHERE p.interface IS NOT NULL 
+                                WHERE p.interface IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.interface AS value
                                 ORDER BY value
                             `;
@@ -405,7 +415,7 @@ export class ProductSpecificationService {
                         case 'formFactor':
                             query = `
                                 MATCH (p:InternalHardDrive) 
-                                WHERE p.formFactor IS NOT NULL 
+                                WHERE p.formFactor IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 RETURN DISTINCT p.formFactor AS value
                                 ORDER BY value
                             `;
@@ -413,7 +423,7 @@ export class ProductSpecificationService {
                         case 'capacity':
                             query = `
                                 MATCH (p:InternalHardDrive) 
-                                WHERE p.capacity IS NOT NULL 
+                                WHERE p.capacity IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
                                 WITH DISTINCT 
                                     CASE 
                                         WHEN p.capacity >= 1000 THEN toString(toInteger(p.capacity/1000)) + ' TB' 
@@ -429,7 +439,122 @@ export class ProductSpecificationService {
                             );
                     }
                     break;
-
+                
+                case 'PowerSupply':
+                    switch (subcategory) {
+                        case 'manufacturer':
+                            query = `
+                                MATCH (p:PowerSupply)
+                                WHERE p.manufacturer IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                RETURN DISTINCT p.manufacturer AS value
+                                ORDER BY value
+                            `;
+                            break;
+                        case 'wattage':
+                            query = `
+                                MATCH (p:PowerSupply)
+                                WHERE p.wattage IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                WITH DISTINCT toString(p.wattage) + ' W' AS value, p.wattage AS watts
+                                RETURN value
+                                ORDER BY watts
+                            `;
+                            break;
+                        case 'efficiencyRating':
+                            query = `
+                                MATCH (p:PowerSupply)
+                                WHERE p.efficiencyRating IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                RETURN DISTINCT p.efficiencyRating AS value
+                                ORDER BY value
+                            `;
+                            break;
+                        case 'type':
+                            query = `
+                                MATCH (p:PowerSupply)
+                                WHERE p.type IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                RETURN DISTINCT p.type AS value
+                                ORDER BY value
+                            `;
+                            break;
+                        default:
+                            throw new Error(
+                                `Unknown PowerSupply subcategory: ${subcategory}`,
+                            );
+                    }
+                    break;
+                case 'Case':
+                    switch (subcategory) {
+                        case 'manufacturer':
+                            query = `
+                                MATCH (p:Case)
+                                WHERE p.manufacturer IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                RETURN DISTINCT p.manufacturer AS value
+                                ORDER BY value
+                            `;
+                            break;
+                        case 'type':
+                            query = `
+                                MATCH (p:Case)
+                                WHERE p.type IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                RETURN DISTINCT p.type AS value
+                                ORDER BY value
+                            `;
+                            break;
+                        default:
+                            throw new Error(
+                                `Unknown Case subcategory: ${subcategory}`,
+                            );
+                    }
+                    break;
+                case 'Monitor':
+                    switch (subcategory) {
+                        case 'manufacturer':
+                            query = `
+                                MATCH (p:Monitor)
+                                WHERE p.manufacturer IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                RETURN DISTINCT p.manufacturer AS value
+                                ORDER BY value
+                            `;
+                            break;
+                        case 'screenSize':
+                            query = `
+                                MATCH (p:Monitor)
+                                WHERE p.screenSize IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                WITH DISTINCT toString(p.screenSize) + ' inch' AS value, p.screenSize AS size
+                                RETURN value
+                                ORDER BY size
+                            `;
+                            break;
+                        case 'resolution':
+                            query = `
+                                MATCH (p:Monitor)
+                                WHERE p.resolution IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                RETURN DISTINCT p.resolution AS value
+                                ORDER BY value
+                            `;
+                            break;
+                        case 'refreshRate':
+                            query = `
+                                MATCH (p:Monitor)
+                                WHERE p.refreshRate IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                WITH DISTINCT toString(p.refreshRate) + ' Hz' AS value, p.refreshRate AS rate
+                                RETURN value
+                                ORDER BY rate
+                            `;
+                            break;
+                        case 'panelType':
+                            query = `
+                                MATCH (p:Monitor)
+                                WHERE p.panelType IS NOT NULL AND p.price > 0 AND p.price IS NOT NULL
+                                RETURN DISTINCT p.panelType AS value
+                                ORDER BY value
+                            `;
+                            break;
+                        default:
+                            throw new Error(
+                                `Unknown Monitor subcategory: ${subcategory}`,
+                            );
+                    }
+                    break;
                 default:
                     throw new Error(`Unknown category: ${category}`);
             }

@@ -30,6 +30,7 @@ import { PCConfigurationModule } from './pc-configuration/pc-configuration.modul
 import { AccountModule } from './dashboard/account/account.module';
 import { DiscountModule } from './discount/discount.module';
 import { EventsModule } from './events/events.module';
+import { CmsModule } from './cms/cms.module';
 
 @Module({
     imports: [
@@ -68,6 +69,7 @@ import { EventsModule } from './events/events.module';
         AccountModule,
         DiscountModule,
         EventsModule,
+        CmsModule,
     ],
     controllers: [
         AppController,

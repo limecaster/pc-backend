@@ -38,4 +38,5 @@ export class ProductDetailsDto {
     size?: string;
     status?: string;
     stockQuantity?: number;
+    createdAt?: Date | string;
 }

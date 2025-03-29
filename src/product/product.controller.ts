@@ -490,6 +490,102 @@ export class ProductController {
         }
     }
 
+    @Get('hot-sales-filtered')
+    async getFilteredHotSalesProducts(
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 12,
+        @Query('brands') brandsParam?: string,
+        @Query('minPrice') minPrice?: number,
+        @Query('maxPrice') maxPrice?: number,
+        @Query('minRating') minRating?: number,
+        @Query('sortBy') sortBy: string = 'popular',
+        @Query('search') search?: string,
+    ): Promise<PaginatedProductsResponse> {
+        try {
+            const brands = brandsParam ? brandsParam.split(',') : undefined;
+            
+            // Get all hot sales product IDs
+            const hotSalesProductIds = await this.hotSalesService.findAllProductIds();
+            
+            if (hotSalesProductIds.length === 0) {
+                return { products: [], total: 0, pages: 0, page };
+            }
+            
+            // Get products with discounts
+            let products = await this.productService.getProductsWithDiscounts(hotSalesProductIds);
+            
+            // Apply filters
+            if (brands && brands.length > 0) {
+                products = products.filter(product => brands.includes(product.brand));
+            }
+            
+            if (minPrice !== undefined) {
+                products = products.filter(product => product.price >= minPrice);
+            }
+            
+            if (maxPrice !== undefined) {
+                products = products.filter(product => product.price <= maxPrice);
+            }
+            
+            if (minRating !== undefined) {
+                products = products.filter(product => product.rating >= minRating);
+            }
+            
+            // Apply search filter if provided
+            if (search && search.trim() !== '') {
+                const normalizedSearch = search.toLowerCase().trim();
+                products = products.filter(product => 
+                    product.name.toLowerCase().includes(normalizedSearch) || 
+                    (product.description && product.description.toLowerCase().includes(normalizedSearch))
+                );
+            }
+            
+            // Get total before pagination for response
+            const total = products.length;
+            
+            // Apply sorting
+            if (sortBy) {
+                switch (sortBy) {
+                    case 'price-asc':
+                        products.sort((a, b) => a.price - b.price);
+                        break;
+                    case 'price-desc':
+                        products.sort((a, b) => b.price - a.price);
+                        break;
+                    case 'newest':
+                        products.sort((a, b) => {
+                            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                            return dateB - dateA;
+                        });
+                        break;
+                    case 'rating':
+                        products.sort((a, b) => b.rating - a.rating);
+                        break;
+                    case 'discount':
+                        products.sort((a, b) => (b.discountPercentage || 0) - (a.discountPercentage || 0));
+                        break;
+                    // Default is 'popular', no need to sort
+                }
+            }
+            
+            // Apply pagination
+            const pages = Math.ceil(total / limit);
+            const startIndex = (page - 1) * limit;
+            const paginatedProducts = products.slice(startIndex, startIndex + limit);
+            
+            return {
+                products: paginatedProducts.map(product => this.ensureProductInfo(product)),
+                total,
+                pages,
+                page
+            };
+        } catch (error) {
+            this.logger.error(`Error fetching filtered hot sales: ${error.message}`);
+            throw new InternalServerErrorException('Failed to retrieve filtered hot sales products');
+        }
+    }
+
     @Get(':slug')
     async findBySlug(@Param('slug') slug: string): Promise<ProductDetailsDto> {
         try {

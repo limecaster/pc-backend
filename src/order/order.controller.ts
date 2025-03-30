@@ -35,6 +35,7 @@ export class OrderController {
     ) {}
 
     @Get(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
     async getOrderById(@Param('id') id: string, @Request() req) {
         try {
             const order = await this.orderService.findOrderWithItems(parseInt(id));
@@ -49,7 +50,6 @@ export class OrderController {
             const isOwner = isAuthenticated && order.customerId === req.user?.id;
             const isStaffOrAdmin =
                 req.user?.role === Role.STAFF || req.user?.role === Role.ADMIN;
-
             if (!isPaymentVerification && (!isAuthenticated || (!isOwner && !isStaffOrAdmin))) {
                 return {
                     success: true,
@@ -79,6 +79,7 @@ export class OrderController {
                     customerEmail: order.customer?.email || (order as any).guestEmail,
                     customerPhone: order.customer?.phoneNumber || (order as any).guestPhone || 'Không có thông tin',
                     deliveryAddress: order.deliveryAddress || 'Không có thông tin',
+                    paymentMethod: order.paymentMethod || 'PayOS',
                     items: order.items?.map(item => ({
                         id: item.product?.id || 'unknown',
                         name: item.product?.name || 'Unknown Product',
@@ -434,4 +435,59 @@ export class OrderController {
         }
     }
 
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN, Role.STAFF)
+    @Get('admin/all')
+    async getAllOrders(
+        @Query('page') page: number = 1,
+        @Query('limit') limit: number = 10,
+        @Query('status') status?: OrderStatus,
+        @Query('search') search?: string,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+        @Query('sortBy') sortBy: string = 'orderDate',
+        @Query('sortOrder') sortOrder: 'ASC' | 'DESC' = 'DESC',
+    ) {
+        try {
+            const filters: any = {};
+            
+            if (status) {
+                filters.status = status;
+            }
+            
+            if (search) {
+                filters.search = search;
+            }
+            
+            if (startDate) {
+                filters.startDate = new Date(startDate);
+            }
+            
+            if (endDate) {
+                filters.endDate = new Date(endDate);
+            }
+
+            const { orders, total, pages } = await this.orderService.findAllOrders({
+                page,
+                limit,
+                filters,
+                sortBy,
+                sortOrder,
+            });
+
+            return {
+                success: true,
+                orders,
+                total,
+                pages,
+                currentPage: page,
+            };
+        } catch (error) {
+            this.logger.error(`Error fetching all orders: ${error.message}`);
+            return {
+                success: false,
+                message: error.message,
+            };
+        }
+    }
 }

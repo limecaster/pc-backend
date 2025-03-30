@@ -106,7 +106,12 @@ CREATE TABLE Order_Detail (
     order_id INT REFERENCES Orders(id) ON DELETE CASCADE,
     product_id UUID REFERENCES Product(id) ON DELETE SET NULL,
     product_quantity INT NOT NULL,
-    sub_price DECIMAL(15,2) NOT NULL
+    sub_price DECIMAL(15,2) NOT NULL,
+    discount_id INT REFERENCES Discount(id) ON DELETE SET NULL,
+    discount_amount DECIMAL(15,2) DEFAULT 0,
+    discount_type VARCHAR(20) CHECK (discount_type IN ('percentage', 'fixed', 'none')),
+    original_price DECIMAL(15,2),
+    final_price DECIMAL(15,2)
 );
 
 -- Wishlist Table

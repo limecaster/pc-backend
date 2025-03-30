@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsObject, IsUUID, IsNumber, IsNumberString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsObject, IsUUID, IsNumber, IsNumberString, IsIn } from 'class-validator';
 
 export class CreateEventDto {
     @IsNotEmpty()
@@ -9,9 +9,9 @@ export class CreateEventDto {
     @IsNumberString()
     customerId?: string;
 
-    @IsOptional()
+    @IsNotEmpty()
     @IsString()
-    sessionId?: string;
+    sessionId: string;
 
     @IsOptional()
     @IsString()
@@ -58,4 +58,29 @@ export class ProductClickEventDto extends CreateEventDto {
     @IsOptional()
     @IsNumber()
     price?: number;
+}
+
+export class DiscountUsageEventDto {
+    @IsNotEmpty()
+    @IsString()
+    orderId: string;
+
+    @IsOptional()
+    @IsString()
+    customerId?: string;
+
+    @IsIn(['manual', 'automatic'])
+    @IsString()
+    discountType: 'manual' | 'automatic';
+
+    @IsNotEmpty()
+    @IsObject()
+    discountData: {
+        discountAmount: number;
+        manualDiscountId?: number;
+        appliedDiscountIds?: string[];
+        orderTotal: number;
+        orderSubtotal: number;
+        savingsPercent: number;
+    };
 }

@@ -7,7 +7,6 @@ import {
     Put, 
     Delete, 
     UseGuards, 
-    Logger,
     Query,
     BadRequestException
 } from '@nestjs/common';
@@ -20,7 +19,6 @@ import { CreateDiscountDto, UpdateDiscountDto } from './dto/discount.dto';
 
 @Controller('discounts')
 export class DiscountController {
-    private readonly logger = new Logger(DiscountController.name);
 
     constructor(private readonly discountService: DiscountService) {}
 
@@ -28,7 +26,6 @@ export class DiscountController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
     async findAll() {
-        this.logger.log('Getting all discounts for admin');
         const discounts = await this.discountService.findAll();
         return { success: true, discounts };
     }
@@ -37,7 +34,6 @@ export class DiscountController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
     async getStatistics() {
-        this.logger.log('Getting discount statistics');
         return await this.discountService.getStatistics();
     }
 
@@ -45,7 +41,6 @@ export class DiscountController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
     async create(@Body() createDiscountDto: CreateDiscountDto) {
-        this.logger.log(`Creating new discount: ${createDiscountDto.discountCode}`);
         return await this.discountService.create(createDiscountDto);
     }
 
@@ -53,7 +48,6 @@ export class DiscountController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
     async findOne(@Param('id') id: string) {
-        this.logger.log(`Getting discount with id: ${id}`);
         return await this.discountService.findOne(+id);
     }
 
@@ -61,7 +55,6 @@ export class DiscountController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
     async update(@Param('id') id: string, @Body() updateDiscountDto: UpdateDiscountDto) {
-        this.logger.log(`Updating discount with id: ${id}`);
         return await this.discountService.update(+id, updateDiscountDto);
     }
 
@@ -69,13 +62,11 @@ export class DiscountController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
     async remove(@Param('id') id: string) {
-        this.logger.log(`Deleting discount with id: ${id}`);
         return await this.discountService.remove(+id);
     }
 
     @Get('code/:code')
     async findByCode(@Param('code') code: string) {
-        this.logger.log(`Getting discount by code: ${code}`);
         return await this.discountService.findByCode(code);
     }
 
@@ -86,8 +77,7 @@ export class DiscountController {
         productIds?: string[];
         productPrices?: Record<string, number>; 
     }) {
-        this.logger.log(`Validating discount code: ${data.code} for order amount: ${data.orderAmount}`);
-        
+        // Validate required input values.
         if (!data.code) {
             throw new BadRequestException('Discount code is required');
         }
@@ -135,9 +125,6 @@ export class DiscountController {
         orderAmount?: number;
         productPrices?: Record<string, number>; 
     }) {
-        this.logger.log(`Fetching automatic discounts for cart with ${options.productIds?.length || 0} products`);
-        
- 
         const discounts = await this.discountService.getAutomaticDiscounts({
             ...options
         });

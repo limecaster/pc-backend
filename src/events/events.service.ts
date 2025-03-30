@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between, MoreThan, LessThan } from 'typeorm';
 import { UserBehavior } from './entities/user-behavior.entity';
-import { CreateEventDto, ProductClickEventDto } from './dto/create-event.dto';
+import { CreateEventDto, ProductClickEventDto, DiscountUsageEventDto } from './dto/create-event.dto';
+import { plainToClass } from 'class-transformer';
 
 @Injectable()
 export class EventsService {
@@ -166,5 +167,149 @@ export class EventsService {
             where: { eventType },
             order: { createdAt: 'DESC' },
         });
+    }
+
+    async createDiscountUsageEvent(discountUsageDto: any): Promise<UserBehavior> {
+        try {
+            const newEvent = plainToClass(UserBehavior, {
+                eventType: 'discount_usage',
+                customerId: discountUsageDto.customerId,
+                sessionId: discountUsageDto.sessionId || 'system',
+                entityId: discountUsageDto.orderId,
+                entityType: 'order',
+                ipAddress: discountUsageDto.ipAddress,
+                eventData: {
+                    orderId: discountUsageDto.orderId,
+                    discountType: discountUsageDto.discountType,
+                    ...discountUsageDto.discountData
+                }
+            });
+
+            return await this.userBehaviorRepository.save(newEvent);
+        } catch (error) {
+            this.logger.error(`Error creating discount usage event: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async getDiscountAnalytics(query: { startDate?: string, endDate?: string, discountId?: string }) {
+        try {
+            const whereClause: any = {
+                eventType: 'discount_usage',
+            };
+
+            if (query.startDate && query.endDate) {
+                whereClause.createdAt = Between(
+                    new Date(query.startDate),
+                    new Date(query.endDate)
+                );
+            } else if (query.startDate) {
+                whereClause.createdAt = MoreThan(new Date(query.startDate));
+            } else if (query.endDate) {
+                whereClause.createdAt = LessThan(new Date(query.endDate));
+            }
+
+            const events = await this.userBehaviorRepository.find({
+                where: whereClause,
+                order: { createdAt: 'DESC' }
+            });
+
+            // Process events to extract analytics data
+            const analyticsData = {
+                totalDiscountAmount: 0,
+                uniqueOrders: new Set(),
+                uniqueCustomers: new Set(),
+                discountUsageByType: {
+                    manual: 0,
+                    automatic: 0
+                },
+                discountUsageByDiscount: {},
+                averageSavingsPercent: 0,
+                usageByDay: {}
+            };
+
+            let totalSavingsPercent = 0;
+            let savingsCount = 0;
+
+            events.forEach(event => {
+                if (!event.eventData) return;
+                
+                analyticsData.totalDiscountAmount += Number(event.eventData.discountAmount || 0);
+                analyticsData.uniqueOrders.add(event.eventData.orderId);
+                
+                if (event.customerId) {
+                    analyticsData.uniqueCustomers.add(event.customerId);
+                }
+                
+                // Track usage by discount type
+                if (event.eventData.discountType) {
+                    analyticsData.discountUsageByType[event.eventData.discountType]++;
+                }
+                
+                // Track usage by specific discount
+                if (event.eventData.discountIds && Array.isArray(event.eventData.discountIds)) {
+                    event.eventData.discountIds.forEach(discountId => {
+                        if (!analyticsData.discountUsageByDiscount[discountId]) {
+                            analyticsData.discountUsageByDiscount[discountId] = 0;
+                        }
+                        analyticsData.discountUsageByDiscount[discountId]++;
+                    });
+                } else if (event.eventData.manualDiscountId) {
+                    const discountId = String(event.eventData.manualDiscountId);
+                    if (!analyticsData.discountUsageByDiscount[discountId]) {
+                        analyticsData.discountUsageByDiscount[discountId] = 0;
+                    }
+                    analyticsData.discountUsageByDiscount[discountId]++;
+                }
+                
+                // Track average savings percent
+                if (typeof event.eventData.savingsPercent === 'number') {
+                    totalSavingsPercent += event.eventData.savingsPercent;
+                    savingsCount++;
+                }
+                
+                // Track usage by day
+                const date = new Date(event.createdAt).toISOString().split('T')[0];
+                if (!analyticsData.usageByDay[date]) {
+                    analyticsData.usageByDay[date] = 0;
+                }
+                analyticsData.usageByDay[date]++;
+            });
+            
+            // Calculate average savings
+            if (savingsCount > 0) {
+                analyticsData.averageSavingsPercent = totalSavingsPercent / savingsCount;
+            }
+            
+            return {
+                totalDiscountAmount: analyticsData.totalDiscountAmount,
+                uniqueOrdersCount: analyticsData.uniqueOrders.size,
+                uniqueCustomersCount: analyticsData.uniqueCustomers.size,
+                discountUsageByType: analyticsData.discountUsageByType,
+                discountUsageByDiscount: analyticsData.discountUsageByDiscount,
+                averageSavingsPercent: analyticsData.averageSavingsPercent,
+                usageByDay: analyticsData.usageByDay
+            };
+        } catch (error) {
+            this.logger.error(`Error getting discount analytics: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async getProductDiscountUsage(query: { productId?: string, discountId?: string }) {
+        try {
+            // This would query the OrderItem table to get product-specific discount usage
+            // For this, we'll need to create a custom query or repository method
+            
+            // Implementation would depend on your database structure and requirements
+            // This is a placeholder for the actual implementation
+            
+            return {
+                message: 'Feature to be implemented based on OrderItem discount tracking'
+            };
+        } catch (error) {
+            this.logger.error(`Error getting product discount usage: ${error.message}`);
+            throw error;
+        }
     }
 }

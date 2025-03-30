@@ -188,6 +188,7 @@ export class StaffController {
     }
 
     @Get('pending-orders')
+    @Roles(Role.STAFF)
     async getPendingOrders() {
         this.logger.log('Staff retrieving pending orders');
         try {
@@ -210,6 +211,7 @@ export class StaffController {
     }
 
     @Post('orders/:id/approve')
+    @Roles(Role.STAFF)
     async approveOrder(@Param('id') orderId: string, @Request() req) {
         const staffId = req.user.id;
         this.logger.log(`Staff ${staffId} approving order ${orderId}`);
@@ -286,6 +288,7 @@ export class StaffController {
     }
 
     @Post('orders/:orderId/reject')
+    @Roles(Role.STAFF)
     async rejectOrder(
         @Param('orderId') orderId: string,
         @Body() data: { reason: string },
@@ -343,6 +346,7 @@ export class StaffController {
     }
 
     @Get('dashboard')
+    @Roles(Role.STAFF)
     async getDashboardStats() {
         this.logger.log('Staff retrieving dashboard statistics');
 

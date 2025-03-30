@@ -1,6 +1,6 @@
-import { Controller, Post, Body, Get, Param, UseGuards, Req, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, UseGuards, Req, Logger, HttpException, HttpStatus, Query } from '@nestjs/common';
 import { EventsService } from './events.service';
-import { CreateEventDto, ProductClickEventDto } from './dto/create-event.dto';
+import { CreateEventDto, ProductClickEventDto, DiscountUsageEventDto } from './dto/create-event.dto';
 import { ProducerService } from './kafka/producer.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Request } from 'express';
@@ -68,6 +68,25 @@ export class EventsController {
         }
     }
 
+    @Post('discount-usage')
+    async trackDiscountUsage(@Body() discountUsageDto: DiscountUsageEventDto, @Req() req: Request) {
+        try {
+            // Add IP address to event data
+            const ipAddress = req.ip || req.connection.remoteAddress;
+            
+            // Track the discount usage event
+            const event = await this.eventsService.createDiscountUsageEvent({
+                ...discountUsageDto,
+                ipAddress
+            });
+            
+            return { success: true, eventId: event.id };
+        } catch (error) {
+            console.error('Error tracking discount usage:', error);
+            return { success: false, message: error.message };
+        }
+    }
+
     @UseGuards(JwtAuthGuard)
     @Get('customer/:id')
     async getCustomerEvents(@Param('id') id: string) {
@@ -83,5 +102,29 @@ export class EventsController {
     @Get('type/:eventType')
     async getEventsByType(@Param('eventType') eventType: string) {
         return this.eventsService.getEventsByType(eventType);
+    }
+    
+    @UseGuards(JwtAuthGuard)
+    @Get('discount-analytics')
+    async getDiscountAnalytics(@Query() query: { startDate?: string, endDate?: string, discountId?: string }) {
+        try {
+            const analytics = await this.eventsService.getDiscountAnalytics(query);
+            return { success: true, data: analytics };
+        } catch (error) {
+            console.error('Error fetching discount analytics:', error);
+            return { success: false, message: error.message };
+        }
+    }
+    
+    @UseGuards(JwtAuthGuard)
+    @Get('product-discount-usage')
+    async getProductDiscountUsage(@Query() query: { productId?: string, discountId?: string }) {
+        try {
+            const usageData = await this.eventsService.getProductDiscountUsage(query);
+            return { success: true, data: usageData };
+        } catch (error) {
+            console.error('Error fetching product discount usage:', error);
+            return { success: false, message: error.message };
+        }
     }
 }

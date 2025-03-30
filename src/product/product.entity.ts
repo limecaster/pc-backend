@@ -47,6 +47,9 @@ export class Product {
     @Column({ nullable: true, type: 'decimal', precision: 15, scale: 2 })
     discount?: number;
 
+    @Column({ nullable: true })
+    imageUrl?: string;
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 

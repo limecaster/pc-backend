@@ -638,6 +638,25 @@ export class ProductController {
         }
     }
 
+    // @Post('admin/migrate-images')
+    // @UseGuards(JwtAuthGuard, RolesGuard)
+    // @Roles(Role.ADMIN)
+    // async migrateImagesFromNeo4j(): Promise<{ success: boolean; message: string; migrated: number }> {
+    //     try {
+    //         const result = await this.productService.migrateImagesFromNeo4j();
+    //         return {
+    //             success: true,
+    //             message: 'Image URLs successfully migrated from Neo4j',
+    //             migrated: result.migratedCount
+    //         };
+    //     } catch (error) {
+    //         this.logger.error(`Failed to migrate images from Neo4j: ${error.message}`);
+    //         throw new InternalServerErrorException(
+    //             `Failed to migrate images: ${error.message}`
+    //         );
+    //     }
+    // }
+
     private ensureProductDiscountInfo(product: any): any {
         const MIN_DISCOUNT_PERCENT = 1.0;
         const MIN_DISCOUNT_AMOUNT = 50000;

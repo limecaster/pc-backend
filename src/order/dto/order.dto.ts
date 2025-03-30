@@ -30,3 +30,40 @@ export class OrderDto {
     customerId?: number;
     staffId?: number;
 }
+
+export class OrderItemDto {
+    id: number;
+    productId: string;
+    productName: string;
+    quantity: number;
+    price: number;
+    
+    // Add discount-related fields
+    discountId?: number;
+    discountCode?: string;
+    discountName?: string;
+    discountAmount?: number;
+    discountType?: 'percentage' | 'fixed' | 'none';
+    originalPrice?: number;
+    finalPrice?: number;
+}
+
+export class OrderDiscountAnalyticsDto {
+    orderId: number;
+    orderNumber: string;
+    orderDate: Date;
+    total: number;
+    subtotal: number;
+    totalDiscountAmount: number;
+    items: {
+        productId: string;
+        productName: string;
+        quantity: number;
+        originalPrice: number;
+        finalPrice: number;
+        discountAmount: number;
+        discountId: number;
+        discountCode: string;
+        discountType: string;
+    }[];
+}

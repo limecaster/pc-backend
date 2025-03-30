@@ -241,4 +241,127 @@ export class OrderService {
             return null;
         }
     }
+
+    /**
+     * Find all orders with pagination, filtering and sorting
+     */
+    async findAllOrders({
+        page = 1,
+        limit = 10,
+        filters = {},
+        sortBy = 'orderDate',
+        sortOrder = 'DESC',
+    }: {
+        page: number;
+        limit: number;
+        filters?: any;
+        sortBy?: string;
+        sortOrder?: 'ASC' | 'DESC';
+    }) {
+        try {
+            // Start building the query
+            let query = this.orderRepository
+                .createQueryBuilder('order')
+                .leftJoinAndSelect('order.customer', 'customer')
+                .leftJoinAndSelect('order.items', 'items')
+                .leftJoinAndSelect('items.product', 'product');
+
+            // Apply filters
+            if (filters.status) {
+                query = query.andWhere('order.status = :status', { status: filters.status });
+            }
+
+            // Fix: Search by order number or customer name using individual conditions
+            if (filters.search) {
+                const searchTerm = `%${filters.search}%`;
+                query = query.andWhere(
+                    '("order"."order_number" ILIKE :searchTerm OR ' +
+                    'LOWER("customer"."firstname") LIKE LOWER(:searchTerm) OR ' +
+                    'LOWER("customer"."lastname") LIKE LOWER(:searchTerm) OR ' +
+                    'LOWER(CONCAT("customer"."firstname", \' \', "customer"."lastname")) LIKE LOWER(:searchTerm) OR ' +
+                    '"customer"."email" ILIKE :searchTerm OR ' +
+                    '"customer"."phone_number" LIKE :searchTerm )',
+                    { searchTerm }
+                );
+            }
+
+            // Date range filters
+            if (filters.startDate) {
+                query = query.andWhere('order.orderDate >= :startDate', { 
+                    startDate: filters.startDate 
+                });
+            }
+
+            if (filters.endDate) {
+                // Add 1 day to include the end date fully
+                const endDate = new Date(filters.endDate);
+                endDate.setDate(endDate.getDate() + 1);
+                
+                query = query.andWhere('order.orderDate < :endDate', { 
+                    endDate: endDate
+                });
+            }
+
+            // Get total count for pagination
+            const total = await query.getCount();
+            
+            // Apply sorting with proper TypeORM syntax
+            if (sortBy && sortOrder) {
+                // Handle some special cases - most sorting will be on order table
+                if (sortBy === 'customerName') {
+                    query = query.orderBy('CONCAT(customer.firstname, \' \', customer.lastname)', sortOrder);
+                } else {
+                    // Use the TypeORM alias syntax without manual quoting
+                    query = query.orderBy(`order.${sortBy}`, sortOrder);
+                }
+            }
+
+            // Apply pagination
+            const skip = (page - 1) * limit;
+            query = query.skip(skip).take(limit);
+
+            // Execute query
+            const orders = await query.getMany();
+
+            // Calculate total pages
+            const pages = Math.ceil(total / limit);
+
+            // Map to DTO format
+            const mappedOrders = orders.map(order => {
+                return {
+                    id: order.id,
+                    orderNumber: order.orderNumber,
+                    orderDate: order.orderDate,
+                    status: order.status,
+                    total: order.total,
+                    subtotal: order.subtotal || order.total,
+                    discountAmount: order.discountAmount || 0,
+                    shippingFee: order.shippingFee || 0,
+                    customerName: order.customer
+                        ? `${order.customer.firstname || ''} ${order.customer.lastname || ''}`
+                        : 'Không có thông tin',
+                    customerEmail: order.customer?.email || order.guestEmail,
+                    customerPhone: order.customer?.phoneNumber  || 'Không có thông tin',
+                    deliveryAddress: order.deliveryAddress || 'Không có thông tin',
+                    paymentMethod: order.paymentMethod || 'PayOS',
+                    items: order.items?.map(item => ({
+                        id: item.product?.id || 'unknown',
+                        name: item.product?.name || 'Unknown Product',
+                        price: item.price || 0,
+                        quantity: item.quantity || 0,
+                        imageUrl: item.product?.imageUrl || 'image/image-placeholder.webp',
+                    })) || [],
+                };
+            });
+
+            return {
+                orders: mappedOrders,
+                total,
+                pages,
+            };
+        } catch (error) {
+            this.logger.error(`Error finding all orders: ${error.message}`);
+            throw new Error(`Failed to find all orders: ${error.message}`);
+        }
+    }
 }

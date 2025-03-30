@@ -9,6 +9,7 @@ import { ProductSpecificationService } from './services/product-specification.se
 import { ProductRatingService } from './services/product-rating.service';
 import { ProductElasticsearchService } from './services/product-elasticsearch.service';
 import { DiscountService } from '../discount/discount.service';
+import { Neo4jConfigService } from '../../config/neo4j.config';
 
 @Injectable()
 export class ProductService {
@@ -23,6 +24,7 @@ export class ProductService {
         private readonly productElasticsearchService: ProductElasticsearchService,
         private readonly utilsService: UtilsService,
         private readonly discountService: DiscountService,
+        private readonly neo4jConfigService: Neo4jConfigService,
     ) {}
 
     async findBySlug(slug: string): Promise<ProductDetailsDto> {
@@ -948,4 +950,64 @@ export class ProductService {
             throw new InternalServerErrorException('Failed to retrieve product list');
         }
     }
+
+    // /**
+    //  * Migrate image URLs from Neo4j to PostgreSQL
+    //  */
+    // async migrateImagesFromNeo4j(): Promise<{ migratedCount: number }> {
+    //     const logger = new Logger('migrateImagesFromNeo4j');
+    //     logger.log('Starting image URL migration from Neo4j to PostgreSQL');
+        
+    //     try {
+    //         // Get all products from PostgreSQL
+    //         const products = await this.productRepository.find();
+    //         logger.log(`Found ${products.length} products in PostgreSQL`);
+            
+    //         let migratedCount = 0;
+    //         let errorCount = 0;
+            
+    //         // Get Neo4j driver from config service
+    //         const driver = this.neo4jConfigService.getDriver();
+    //         const session = driver.session();
+            
+    //         try {
+    //             // Process each product
+    //             for (const product of products) {
+    //                 try {
+    //                     // Query Neo4j for the product's image URL
+    //                     const result = await session.run(
+    //                         'MATCH (p {id: $id}) RETURN p.imageUrl as imageUrl',
+    //                         { id: product.id }
+    //                     );
+                        
+    //                     const imageUrl = result.records[0]?.get('imageUrl');
+                        
+    //                     if (imageUrl) {
+    //                         // Update the PostgreSQL product with the image URL
+    //                         product.imageUrl = imageUrl;
+    //                         await this.productRepository.save(product);
+    //                         migratedCount++;
+                            
+    //                         if (migratedCount % 50 === 0) {
+    //                             logger.log(`Migrated ${migratedCount} products so far`);
+    //                         }
+    //                     }
+    //                 } catch (err) {
+    //                     errorCount++;
+    //                     logger.error(`Error migrating product ${product.id}: ${err.message}`);
+    //                     // Continue with the next product
+    //                 }
+    //             }
+    //         } finally {
+    //             // Close the session when done
+    //             await session.close();
+    //         }
+            
+    //         logger.log(`Migration completed. Migrated: ${migratedCount}, Errors: ${errorCount}`);
+    //         return { migratedCount };
+    //     } catch (error) {
+    //         logger.error(`Migration failed: ${error.message}`);
+    //         throw new Error(`Failed to migrate image URLs: ${error.message}`);
+    //     }
+    // }
 }

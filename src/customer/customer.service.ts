@@ -502,4 +502,77 @@ export class CustomerService {
             throw new InternalServerErrorException('Failed to retrieve customer list');
         }
     }
+
+    async updateStatus(id: number, status: string): Promise<Customer> {
+        const customer = await this.findOne(id);
+        if (!customer) {
+            throw new NotFoundException(`Customer with ID ${id} not found`);
+        }
+
+        customer.status = status;
+        return this.customerRepository.save(customer);
+    }
+
+    async findAllCustomers({
+        page = 1,
+        limit = 10,
+        search = '',
+        status = '',
+        sortBy = 'createdAt',
+        sortOrder = 'DESC',
+    }: {
+        page: number;
+        limit: number;
+        search?: string;
+        status?: string;
+        sortBy?: string;
+        sortOrder?: 'ASC' | 'DESC';
+    }) {
+        try {
+            // Create query builder
+            let queryBuilder = this.customerRepository.createQueryBuilder('customer');
+
+            // Apply filters
+            if (status) {
+                queryBuilder = queryBuilder.andWhere('customer.status = :status', { status });
+            }
+
+            if (search) {
+                queryBuilder = queryBuilder.andWhere(
+                    '(customer.email LIKE :search OR ' +
+                    'customer.username LIKE :search OR ' +
+                    'customer.firstname LIKE :search OR ' +
+                    'customer.lastname LIKE :search OR ' +
+                    'customer.phoneNumber LIKE :search)',
+                    { search: `%${search}%` }
+                );
+            }
+
+            // Get total count for pagination
+            const total = await queryBuilder.getCount();
+
+            // Add sorting
+            if (sortBy && sortOrder) {
+                queryBuilder = queryBuilder.orderBy(`customer.${sortBy}`, sortOrder);
+            }
+
+            // Add pagination
+            const skip = (page - 1) * limit;
+            queryBuilder = queryBuilder.skip(skip).take(limit);
+
+            // Execute query
+            const customers = await queryBuilder.getMany();
+
+            // Calculate total pages
+            const pages = Math.ceil(total / limit);
+
+            return {
+                customers,
+                total,
+                pages,
+            };
+        } catch (error) {
+            throw new Error(`Failed to fetch customers: ${error.message}`);
+        }
+    }
 }

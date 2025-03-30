@@ -12,6 +12,7 @@ import {
     Inject,
     forwardRef,
     Query,
+    BadRequestException,
 } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -484,6 +485,45 @@ export class OrderController {
             };
         } catch (error) {
             this.logger.error(`Error fetching all orders: ${error.message}`);
+            return {
+                success: false,
+                message: error.message,
+            };
+        }
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN, Role.STAFF)
+    @Get('admin/customer/:id')
+    async getOrdersByCustomerId(@Param('id') id: string) {
+        try {
+            const customerId = parseInt(id);
+            if (isNaN(customerId)) {
+                throw new BadRequestException('Invalid customer ID');
+            }
+
+            const orders = await this.orderService.findOrdersByCustomerId(customerId);
+
+            // Format orders for admin display
+            const formattedOrders = orders.map(order => ({
+                id: order.id,
+                orderNumber: order.orderNumber,
+                orderDate: order.orderDate,
+                status: order.status,
+                total: order.total,
+                subtotal: order.subtotal || order.total,
+                discountAmount: order.discountAmount || 0,
+                shippingFee: order.shippingFee || 0,
+                paymentMethod: order.paymentMethod || 'PayOS',
+                items: order.items?.length || 0,
+            }));
+
+            return {
+                success: true,
+                orders: formattedOrders,
+            };
+        } catch (error) {
+            this.logger.error(`Error fetching orders for customer ${id}: ${error.message}`);
             return {
                 success: false,
                 message: error.message,

@@ -188,10 +188,16 @@ export class PaymentController {
             if (orderId && isPaid) {
                 try {
                     // First get the order to verify its existence and status
-                    const order = await this.orderService.findOrderWithItems(parseInt(orderId));
+                    const order = await this.orderService.findOrderWithItems(
+                        parseInt(orderId),
+                    );
 
                     if (!order) {
-                        return { success: false, message: 'Order not found', orderId };
+                        return {
+                            success: false,
+                            message: 'Order not found',
+                            orderId,
+                        };
                     }
 
                     // Check if the order is in a state that can be updated
@@ -203,30 +209,31 @@ export class PaymentController {
                         );
 
                         return {
-                            success: true, 
+                            success: true,
                             message: 'Payment successful, order status updated',
                             orderId,
-                            status: 'PAYMENT_SUCCESS'
+                            status: 'PAYMENT_SUCCESS',
                         };
                     } else {
                         return {
                             success: false,
                             message: `Order ${orderId} is in ${order.status} state and cannot be updated`,
-                            orderId
+                            orderId,
                         };
                     }
                 } catch (error) {
                     return {
                         success: false,
                         message: `Error updating order status: ${error.message}`,
-                        orderId
+                        orderId,
                     };
                 }
             }
 
             return {
                 success: false,
-                message: 'Could not process payment success. Please check order status manually.',
+                message:
+                    'Could not process payment success. Please check order status manually.',
                 paymentStatus,
                 paymentCode,
             };

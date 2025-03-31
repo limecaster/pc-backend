@@ -224,7 +224,9 @@ export class ProductQueryService {
      * @param productIds Array of product IDs to fetch
      * @returns Array of products with basic information
      */
-    async getProductsWithDiscounts(productIds: string[]): Promise<ProductDetailsDto[]> {
+    async getProductsWithDiscounts(
+        productIds: string[],
+    ): Promise<ProductDetailsDto[]> {
         try {
             if (!productIds || productIds.length === 0) {
                 return [];
@@ -232,7 +234,7 @@ export class ProductQueryService {
 
             // Get products from database
             const products = await this.productRepository.find({
-                where: { id: In(productIds), status: 'active' }
+                where: { id: In(productIds), status: 'active' },
             });
 
             if (!products || products.length === 0) {
@@ -240,13 +242,17 @@ export class ProductQueryService {
             }
 
             // Transform to ProductDetailsDto with minimum necessary fields
-            const productDtos = products.map(product => {
+            const productDtos = products.map((product) => {
                 return {
                     id: product.id.toString(),
                     name: product.name,
                     price: parseFloat(product.price.toString()),
-                    originalPrice: product.originalPrice ? parseFloat(product.originalPrice.toString()) : undefined,
-                    discount: product.discount ? parseFloat(product.discount.toString()) : undefined,
+                    originalPrice: product.originalPrice
+                        ? parseFloat(product.originalPrice.toString())
+                        : undefined,
+                    discount: product.discount
+                        ? parseFloat(product.discount.toString())
+                        : undefined,
                     category: product.category || '',
                     stockQuantity: product.stockQuantity,
                     description: product.description || '',
@@ -255,15 +261,19 @@ export class ProductQueryService {
                     rating: 0,
                     reviewCount: 0,
                     imageUrl: '',
-                    specifications: {},  
+                    specifications: {},
                     brand: '',
                 };
             });
 
-            return (productDtos as unknown) as ProductDetailsDto[];
+            return productDtos as unknown as ProductDetailsDto[];
         } catch (error) {
-            this.logger.error(`Error getting products with discounts: ${error.message}`);
-            throw new Error(`Failed to get products with discounts: ${error.message}`);
+            this.logger.error(
+                `Error getting products with discounts: ${error.message}`,
+            );
+            throw new Error(
+                `Failed to get products with discounts: ${error.message}`,
+            );
         }
     }
 }

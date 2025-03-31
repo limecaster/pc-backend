@@ -14,7 +14,7 @@ import { OrderItem } from './order-item.entity';
 export enum OrderStatus {
     PENDING_APPROVAL = 'pending_approval',
     APPROVED = 'approved',
-    PAYMENT_SUCCESS = 'payment_success', // Add new payment success status
+    PAYMENT_SUCCESS = 'payment_success',
     PAYMENT_FAILURE = 'payment_failure',
     PROCESSING = 'processing',
     SHIPPING = 'shipping',
@@ -31,7 +31,7 @@ export class Order {
     @Column({ unique: true, name: 'order_number', nullable: true })
     orderNumber: string;
 
-    @Column({ type: 'decimal', precision: 10, scale: 2, name: 'total_price' })
+    @Column({ type: 'decimal', precision: 15, scale: 2, name: 'total_price' })
     total: number;
 
     @Column({ nullable: true })
@@ -97,13 +97,13 @@ export class Order {
     // Add fields to store discount information
     @Column({ type: 'simple-array', nullable: true })
     appliedDiscountIds?: string[];
-    
+
     @Column({ nullable: true })
     manualDiscountId?: number;
-    
+
     @Column({ nullable: true, type: 'decimal', precision: 10, scale: 2 })
     discountAmount?: number;
-    
+
     @Column({ default: false })
     discountUsageRecorded: boolean;
 

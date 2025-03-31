@@ -1,4 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, Index, CreateDateColumn } from 'typeorm';
+import {
+    Entity,
+    Column,
+    PrimaryGeneratedColumn,
+    ManyToOne,
+    JoinColumn,
+    Index,
+    CreateDateColumn,
+} from 'typeorm';
 import { Customer } from '../../customer/customer.entity';
 
 @Entity('User_Behavior')
@@ -6,7 +14,11 @@ export class UserBehavior {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column({ type: 'uuid', name: 'event_id', default: () => 'uuid_generate_v4()' })
+    @Column({
+        type: 'uuid',
+        name: 'event_id',
+        default: () => 'uuid_generate_v4()',
+    })
     eventId: string;
 
     @Column({ nullable: true })

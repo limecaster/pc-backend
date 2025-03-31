@@ -81,11 +81,13 @@ export class ProductRatingService {
      * Get ratings for multiple products in one query
      * Prevents N+1 query problem by batching rating lookups
      */
-    async getRatingsInBatch(productIds: string[]): Promise<Record<string, { rating: number; reviewCount: number }>> {
+    async getRatingsInBatch(
+        productIds: string[],
+    ): Promise<Record<string, { rating: number; reviewCount: number }>> {
         if (!productIds || productIds.length === 0) {
             return {};
         }
-        
+
         const pool = this.postgresConfigService.getPool();
 
         try {
@@ -101,23 +103,26 @@ export class ProductRatingService {
             `;
 
             const result = await pool.query(query, [productIds]);
-            
+
             // Create a map of product ID -> rating data
-            const ratingsMap: Record<string, { rating: number; reviewCount: number }> = {};
-            
+            const ratingsMap: Record<
+                string,
+                { rating: number; reviewCount: number }
+            > = {};
+
             // Initialize all requested products with default values
-            productIds.forEach(id => {
+            productIds.forEach((id) => {
                 ratingsMap[id] = { rating: 0, reviewCount: 0 };
             });
-            
+
             // Update with actual values for products that have ratings
-            result.rows.forEach(row => {
-                ratingsMap[row.product_id] = { 
+            result.rows.forEach((row) => {
+                ratingsMap[row.product_id] = {
                     rating: parseFloat(row.avg_rating) || 0,
-                    reviewCount: parseInt(row.count) || 0 
+                    reviewCount: parseInt(row.count) || 0,
                 };
             });
-            
+
             return ratingsMap;
         } catch (error) {
             throw new Error(`Failed to batch fetch ratings: ${error.message}`);

@@ -46,17 +46,20 @@ export class ProductController {
     ) {}
 
     @Get('debug/simple-list')
-    async debugSimpleProductList(): Promise<{ status: string, message: string }> {
+    async debugSimpleProductList(): Promise<{
+        status: string;
+        message: string;
+    }> {
         try {
             const products = await this.productService.getSimpleProductList();
-            return { 
-                status: 'success', 
-                message: `Controller working correctly. Found ${products.products.length} products.` 
+            return {
+                status: 'success',
+                message: `Controller working correctly. Found ${products.products.length} products.`,
             };
         } catch (error) {
-            return { 
-                status: 'error', 
-                message: `Controller working, but service error: ${error.message}` 
+            return {
+                status: 'error',
+                message: `Controller working, but service error: ${error.message}`,
             };
         }
     }
@@ -65,12 +68,22 @@ export class ProductController {
     async getSimpleProductList(
         @Query('search') search?: string,
         @Query('page') page: number = 1,
-        @Query('limit') limit: number = 10
-    ): Promise<{ products: { id: string, name: string }[], total: number, pages: number }> {
+        @Query('limit') limit: number = 10,
+    ): Promise<{
+        products: { id: string; name: string }[];
+        total: number;
+        pages: number;
+    }> {
         try {
-            return await this.productService.getSimpleProductList(search, page, limit);
+            return await this.productService.getSimpleProductList(
+                search,
+                page,
+                limit,
+            );
         } catch (error) {
-            throw new InternalServerErrorException('Failed to retrieve product list');
+            throw new InternalServerErrorException(
+                'Failed to retrieve product list',
+            );
         }
     }
 
@@ -80,22 +93,23 @@ export class ProductController {
             if (!ids) {
                 return { success: true, stocks: {} };
             }
-            
-            const productIds = ids.split(',').filter(id => id);
-            
+
+            const productIds = ids.split(',').filter((id) => id);
+
             if (productIds.length === 0) {
                 return { success: true, stocks: {} };
             }
-            
-            const stocks = await this.productService.getStockQuantities(productIds);
+
+            const stocks =
+                await this.productService.getStockQuantities(productIds);
             return {
                 success: true,
-                stocks
+                stocks,
             };
         } catch (error) {
             throw new HttpException(
                 `Failed to get product stock quantities: ${error.message}`,
-                HttpStatus.INTERNAL_SERVER_ERROR
+                HttpStatus.INTERNAL_SERVER_ERROR,
             );
         }
     }
@@ -131,11 +145,11 @@ export class ProductController {
             );
 
             if (result.products && Array.isArray(result.products)) {
-                result.products = result.products.map(product => 
-                    this.ensureProductInfo(product)
+                result.products = result.products.map((product) =>
+                    this.ensureProductInfo(product),
                 );
             }
-            
+
             return result;
         } catch (error) {
             throw new InternalServerErrorException(
@@ -247,11 +261,11 @@ export class ProductController {
             );
 
             if (result.products && Array.isArray(result.products)) {
-                result.products = result.products.map(product => 
-                    this.ensureProductInfo(product)
+                result.products = result.products.map((product) =>
+                    this.ensureProductInfo(product),
                 );
             }
-            
+
             return result;
         } catch (error) {
             if (error instanceof BadRequestException) {
@@ -284,7 +298,7 @@ export class ProductController {
     async getLandingPageProducts(): Promise<ProductDetailsDto[]> {
         try {
             const products = await this.productService.getLandingPageProducts();
-            return products.map(product => this.ensureProductInfo(product));
+            return products.map((product) => this.ensureProductInfo(product));
         } catch (error) {
             throw new InternalServerErrorException(
                 'Failed to retrieve landing page products',
@@ -315,11 +329,11 @@ export class ProductController {
             );
 
             if (result.products && Array.isArray(result.products)) {
-                result.products = result.products.map(product => 
-                    this.ensureProductInfo(product)
+                result.products = result.products.map((product) =>
+                    this.ensureProductInfo(product),
                 );
             }
-            
+
             return result;
         } catch (error) {
             throw new InternalServerErrorException('Failed to search products');
@@ -393,22 +407,26 @@ export class ProductController {
 
     @Post('batch-with-discounts')
     async getProductsWithDiscounts(
-        @Body() data: { productIds: string[] }
+        @Body() data: { productIds: string[] },
     ): Promise<{ success: boolean; products: ProductDetailsDto[] }> {
         try {
             if (!data.productIds || data.productIds.length === 0) {
                 return { success: true, products: [] };
             }
-            
-            const products = await this.productService.getProductsWithDiscounts(data.productIds);
-            
+
+            const products = await this.productService.getProductsWithDiscounts(
+                data.productIds,
+            );
+
             return {
                 success: true,
-                products: products.map(product => this.ensureProductInfo(product)),
+                products: products.map((product) =>
+                    this.ensureProductInfo(product),
+                ),
             };
         } catch (error) {
             throw new InternalServerErrorException(
-                `Failed to fetch products batch with discounts: ${error.message}`
+                `Failed to fetch products batch with discounts: ${error.message}`,
             );
         }
     }
@@ -418,13 +436,16 @@ export class ProductController {
         try {
             // Get product IDs from hot sales
             const productIds = await this.hotSalesService.findAllProductIds();
-            
+
             // Get the actual products with discounts
-            const products = await this.productService.getProductsWithDiscounts(productIds);
-            
-            return products.map(product => this.ensureProductInfo(product));
+            const products =
+                await this.productService.getProductsWithDiscounts(productIds);
+
+            return products.map((product) => this.ensureProductInfo(product));
         } catch (error) {
-            throw new InternalServerErrorException('Failed to retrieve hot sales products');
+            throw new InternalServerErrorException(
+                'Failed to retrieve hot sales products',
+            );
         }
     }
 
@@ -445,7 +466,9 @@ export class ProductController {
             if (error instanceof NotFoundException) {
                 throw error;
             }
-            throw new InternalServerErrorException(`Failed to add product to hot sales: ${error.message}`);
+            throw new InternalServerErrorException(
+                `Failed to add product to hot sales: ${error.message}`,
+            );
         }
     }
 
@@ -465,7 +488,9 @@ export class ProductController {
             if (error instanceof NotFoundException) {
                 throw error;
             }
-            throw new InternalServerErrorException(`Failed to remove product from hot sales: ${error.message}`);
+            throw new InternalServerErrorException(
+                `Failed to remove product from hot sales: ${error.message}`,
+            );
         }
     }
 
@@ -477,7 +502,10 @@ export class ProductController {
         @Body() data: { displayOrder: number },
     ): Promise<{ success: boolean; message: string }> {
         try {
-            await this.hotSalesService.updateDisplayOrder(productId, data.displayOrder);
+            await this.hotSalesService.updateDisplayOrder(
+                productId,
+                data.displayOrder,
+            );
             return {
                 success: true,
                 message: 'Hot sales display order updated successfully',
@@ -486,7 +514,9 @@ export class ProductController {
             if (error instanceof NotFoundException) {
                 throw error;
             }
-            throw new InternalServerErrorException(`Failed to update hot sales order: ${error.message}`);
+            throw new InternalServerErrorException(
+                `Failed to update hot sales order: ${error.message}`,
+            );
         }
     }
 
@@ -503,46 +533,62 @@ export class ProductController {
     ): Promise<PaginatedProductsResponse> {
         try {
             const brands = brandsParam ? brandsParam.split(',') : undefined;
-            
+
             // Get all hot sales product IDs
-            const hotSalesProductIds = await this.hotSalesService.findAllProductIds();
-            
+            const hotSalesProductIds =
+                await this.hotSalesService.findAllProductIds();
+
             if (hotSalesProductIds.length === 0) {
                 return { products: [], total: 0, pages: 0, page };
             }
-            
+
             // Get products with discounts
-            let products = await this.productService.getProductsWithDiscounts(hotSalesProductIds);
-            
+            let products =
+                await this.productService.getProductsWithDiscounts(
+                    hotSalesProductIds,
+                );
+
             // Apply filters
             if (brands && brands.length > 0) {
-                products = products.filter(product => brands.includes(product.brand));
+                products = products.filter((product) =>
+                    brands.includes(product.brand),
+                );
             }
-            
+
             if (minPrice !== undefined) {
-                products = products.filter(product => product.price >= minPrice);
+                products = products.filter(
+                    (product) => product.price >= minPrice,
+                );
             }
-            
+
             if (maxPrice !== undefined) {
-                products = products.filter(product => product.price <= maxPrice);
+                products = products.filter(
+                    (product) => product.price <= maxPrice,
+                );
             }
-            
+
             if (minRating !== undefined) {
-                products = products.filter(product => product.rating >= minRating);
+                products = products.filter(
+                    (product) => product.rating >= minRating,
+                );
             }
-            
+
             // Apply search filter if provided
             if (search && search.trim() !== '') {
                 const normalizedSearch = search.toLowerCase().trim();
-                products = products.filter(product => 
-                    product.name.toLowerCase().includes(normalizedSearch) || 
-                    (product.description && product.description.toLowerCase().includes(normalizedSearch))
+                products = products.filter(
+                    (product) =>
+                        product.name.toLowerCase().includes(normalizedSearch) ||
+                        (product.description &&
+                            product.description
+                                .toLowerCase()
+                                .includes(normalizedSearch)),
                 );
             }
-            
+
             // Get total before pagination for response
             const total = products.length;
-            
+
             // Apply sorting
             if (sortBy) {
                 switch (sortBy) {
@@ -554,8 +600,12 @@ export class ProductController {
                         break;
                     case 'newest':
                         products.sort((a, b) => {
-                            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                            const dateA = a.createdAt
+                                ? new Date(a.createdAt).getTime()
+                                : 0;
+                            const dateB = b.createdAt
+                                ? new Date(b.createdAt).getTime()
+                                : 0;
                             return dateB - dateA;
                         });
                         break;
@@ -563,26 +613,39 @@ export class ProductController {
                         products.sort((a, b) => b.rating - a.rating);
                         break;
                     case 'discount':
-                        products.sort((a, b) => (b.discountPercentage || 0) - (a.discountPercentage || 0));
+                        products.sort(
+                            (a, b) =>
+                                (b.discountPercentage || 0) -
+                                (a.discountPercentage || 0),
+                        );
                         break;
                     // Default is 'popular', no need to sort
                 }
             }
-            
+
             // Apply pagination
             const pages = Math.ceil(total / limit);
             const startIndex = (page - 1) * limit;
-            const paginatedProducts = products.slice(startIndex, startIndex + limit);
-            
+            const paginatedProducts = products.slice(
+                startIndex,
+                startIndex + limit,
+            );
+
             return {
-                products: paginatedProducts.map(product => this.ensureProductInfo(product)),
+                products: paginatedProducts.map((product) =>
+                    this.ensureProductInfo(product),
+                ),
                 total,
                 pages,
-                page
+                page,
             };
         } catch (error) {
-            this.logger.error(`Error fetching filtered hot sales: ${error.message}`);
-            throw new InternalServerErrorException('Failed to retrieve filtered hot sales products');
+            this.logger.error(
+                `Error fetching filtered hot sales: ${error.message}`,
+            );
+            throw new InternalServerErrorException(
+                'Failed to retrieve filtered hot sales products',
+            );
         }
     }
 
@@ -663,9 +726,11 @@ export class ProductController {
 
         if (product.originalPrice && product.originalPrice > product.price) {
             const priceDifference = product.originalPrice - product.price;
-            const percentDifference = (priceDifference / product.originalPrice) * 100;
+            const percentDifference =
+                (priceDifference / product.originalPrice) * 100;
 
-            const isSignificantPercent = percentDifference >= MIN_DISCOUNT_PERCENT;
+            const isSignificantPercent =
+                percentDifference >= MIN_DISCOUNT_PERCENT;
             const isSignificantAmount = priceDifference >= MIN_DISCOUNT_AMOUNT;
 
             if (isSignificantPercent || isSignificantAmount) {
@@ -686,17 +751,24 @@ export class ProductController {
     private ensureProductInfo(product: any): any {
         product = this.ensureProductDiscountInfo(product);
 
-        if (!product.categories || !Array.isArray(product.categories) || product.categories.length === 0) {
+        if (
+            !product.categories ||
+            !Array.isArray(product.categories) ||
+            product.categories.length === 0
+        ) {
             product.categories = [];
 
-            if (product.category && typeof product.category === 'string' && 
-                !product.categories.includes(product.category)) {
+            if (
+                product.category &&
+                typeof product.category === 'string' &&
+                !product.categories.includes(product.category)
+            ) {
                 product.categories.push(product.category);
             }
 
             this.addSpecificCategoryMappings(product);
         }
-        
+
         return product;
     }
 
@@ -704,14 +776,14 @@ export class ProductController {
         const name = product.name?.toLowerCase() || '';
 
         if (
-            name.includes('rtx') || 
-            name.includes('gtx') || 
-            name.includes('geforce') || 
-            name.includes('radeon') || 
+            name.includes('rtx') ||
+            name.includes('gtx') ||
+            name.includes('geforce') ||
+            name.includes('radeon') ||
             name.includes('graphics card')
         ) {
             const gpuCategories = ['GPU', 'GraphicsCard', 'Graphics Card'];
-            gpuCategories.forEach(category => {
+            gpuCategories.forEach((category) => {
                 if (!product.categories.includes(category)) {
                     product.categories.push(category);
                 }

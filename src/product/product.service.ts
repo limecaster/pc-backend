@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+    Injectable,
+    NotFoundException,
+    Logger,
+    InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -96,7 +101,9 @@ export class ProductService {
             };
 
             // Apply automatic discounts
-            const productsWithDiscounts = await this.applyAutomaticDiscounts([productDetails]);
+            const productsWithDiscounts = await this.applyAutomaticDiscounts([
+                productDetails,
+            ]);
 
             return productsWithDiscounts[0];
         } catch (error) {
@@ -244,28 +251,33 @@ export class ProductService {
         if (!products || products.length === 0) {
             return [];
         }
-        
+
         try {
             // Get all product IDs for batch fetching
-            const productIds = products.map(product => product.id);
-            
+            const productIds = products.map((product) => product.id);
+
             // Batch fetch specifications and ratings for all products at once
             const [specificationsMap, ratingsMap] = await Promise.all([
                 this.productSpecService.getSpecificationsInBatch(productIds),
-                this.productRatingService.getRatingsInBatch(productIds)
+                this.productRatingService.getRatingsInBatch(productIds),
             ]);
-            
+
             // Map each product to its enriched DTO
-            const productDetails = products.map(product => {
+            const productDetails = products.map((product) => {
                 const id = product.id;
                 const specifications = specificationsMap[id] || {};
-                const { rating, reviewCount } = ratingsMap[id] || { rating: 0, reviewCount: 0 };
-                
+                const { rating, reviewCount } = ratingsMap[id] || {
+                    rating: 0,
+                    reviewCount: 0,
+                };
+
                 return {
                     id: id.toString(),
                     name: product.name,
                     price: parseFloat(product.price.toString()),
-                    originalPrice: product.originalPrice ? parseFloat(product.originalPrice.toString()) : undefined,
+                    originalPrice: product.originalPrice
+                        ? parseFloat(product.originalPrice.toString())
+                        : undefined,
                     rating: rating,
                     reviewCount: reviewCount,
                     imageUrl: specifications['imageUrl'] || '',
@@ -278,77 +290,102 @@ export class ProductService {
                     stockQuantity: product.stockQuantity,
                 };
             });
-            
+
             // Use type assertion to ensure compatibility with ProductDetailsDto[]
-            return this.applyAutomaticDiscounts(productDetails as ProductDetailsDto[]);
+            return this.applyAutomaticDiscounts(
+                productDetails as ProductDetailsDto[],
+            );
         } catch (error) {
-            this.logger.error(`Error enriching products with details: ${error.message}`);
+            this.logger.error(
+                `Error enriching products with details: ${error.message}`,
+            );
             throw error;
         }
     }
 
     // Optimize discount service to minimize API calls
-    async applyAutomaticDiscounts(products: ProductDetailsDto[]): Promise<ProductDetailsDto[]> {
+    async applyAutomaticDiscounts(
+        products: ProductDetailsDto[],
+    ): Promise<ProductDetailsDto[]> {
         if (!products || products.length === 0) {
             return products;
         }
-        
+
         try {
             // Instead of making separate API calls per category, collect all data upfront
-            
+
             // Extract all unique product IDs and categories
-            const allProductIds = products.map(product => product.id);
-            
+            const allProductIds = products.map((product) => product.id);
+
             // Collect all unique categories (each product has exactly one category)
-            const allCategories = Array.from(new Set(
-                products.map(product => product.category).filter(Boolean)
-            ));
-            
+            const allCategories = Array.from(
+                new Set(
+                    products.map((product) => product.category).filter(Boolean),
+                ),
+            );
+
             // Make a single API call to get all applicable discounts
-            const allDiscounts = await this.discountService.getAutomaticDiscounts({
-                productIds: allProductIds,
-                categoryNames: allCategories,
-                orderAmount: 0
-            });
-            
+            const allDiscounts =
+                await this.discountService.getAutomaticDiscounts({
+                    productIds: allProductIds,
+                    categoryNames: allCategories,
+                    orderAmount: 0,
+                });
+
             // Process each product with the complete discount information
-            return products.map(product => {
+            return products.map((product) => {
                 // Find applicable discounts for this product
-                const applicableDiscounts = allDiscounts.filter(discount => 
-                    discount.targetType === 'all' || 
-                    (discount.targetType === 'products' && discount.productIds?.includes(product.id)) ||
-                    (discount.targetType === 'categories' && product.category && 
-                     discount.categoryNames?.includes(product.category))
+                const applicableDiscounts = allDiscounts.filter(
+                    (discount) =>
+                        discount.targetType === 'all' ||
+                        (discount.targetType === 'products' &&
+                            discount.productIds?.includes(product.id)) ||
+                        (discount.targetType === 'categories' &&
+                            product.category &&
+                            discount.categoryNames?.includes(product.category)),
                 );
-                
+
                 // If we have applicable discounts, find the best one and apply it
                 if (applicableDiscounts.length > 0) {
-                    const bestDiscount = this.findBestDiscount(applicableDiscounts, product.price);
-                    
+                    const bestDiscount = this.findBestDiscount(
+                        applicableDiscounts,
+                        product.price,
+                    );
+
                     if (bestDiscount) {
                         // Apply discount logic
                         product.originalPrice = product.price;
-                        
+
                         if (bestDiscount.type === 'percentage') {
-                            product.discountPercentage = bestDiscount.discountAmount;
-                            product.price = product.price * (1 - bestDiscount.discountAmount/100);
+                            product.discountPercentage =
+                                bestDiscount.discountAmount;
+                            product.price =
+                                product.price *
+                                (1 - bestDiscount.discountAmount / 100);
                         } else {
-                            const discountAmount = Math.min(bestDiscount.discountAmount, product.price);
-                            product.discountPercentage = Math.round((discountAmount / product.originalPrice) * 100);
+                            const discountAmount = Math.min(
+                                bestDiscount.discountAmount,
+                                product.price,
+                            );
+                            product.discountPercentage = Math.round(
+                                (discountAmount / product.originalPrice) * 100,
+                            );
                             product.price = product.price - discountAmount;
                         }
-                        
+
                         product.price = Math.round(product.price);
                         product.isDiscounted = true;
                         product.discountSource = 'automatic';
                         product.discountType = bestDiscount.type;
                     }
                 }
-                
+
                 return product;
             });
         } catch (error) {
-            this.logger.error(`Error applying automatic discounts: ${error.message}`);
+            this.logger.error(
+                `Error applying automatic discounts: ${error.message}`,
+            );
             return products;
         }
     }
@@ -358,26 +395,28 @@ export class ProductService {
         if (!discounts || discounts.length === 0) {
             return null;
         }
-        
+
         // Calculate actual discount amounts
-        const discountsWithValues = discounts.map(discount => {
+        const discountsWithValues = discounts.map((discount) => {
             let discountValue = 0;
-            
+
             if (discount.type === 'percentage') {
                 discountValue = productPrice * (discount.discountAmount / 100);
             } else {
                 discountValue = Math.min(discount.discountAmount, productPrice);
             }
-            
+
             return {
                 ...discount,
-                calculatedValue: discountValue
+                calculatedValue: discountValue,
             };
         });
-        
+
         // Sort by discount value descending
-        discountsWithValues.sort((a, b) => b.calculatedValue - a.calculatedValue);
-        
+        discountsWithValues.sort(
+            (a, b) => b.calculatedValue - a.calculatedValue,
+        );
+
         // Return the discount with highest value
         return discountsWithValues[0];
     }
@@ -386,58 +425,70 @@ export class ProductService {
      * Get multiple products by IDs with discounts pre-calculated
      * Optimized to avoid N+1 queries
      */
-    async getProductsWithDiscounts(productIds: string[]): Promise<ProductDetailsDto[]> {
+    async getProductsWithDiscounts(
+        productIds: string[],
+    ): Promise<ProductDetailsDto[]> {
         try {
             if (!productIds || productIds.length === 0) {
                 return [];
             }
 
             // Use ProductQueryService to get basic product data
-            const products = await this.productQueryService.getProductsWithDiscounts(productIds);
-            
+            const products =
+                await this.productQueryService.getProductsWithDiscounts(
+                    productIds,
+                );
+
             // Batch fetch additional data
             const idsNeedingImages = products
-                .filter(product => !product.imageUrl)
-                .map(product => product.id);
+                .filter((product) => !product.imageUrl)
+                .map((product) => product.id);
             const idsNeedingRatings = products
-                .filter(product => product.rating === 0)
-                .map(product => product.id);
-            
+                .filter((product) => product.rating === 0)
+                .map((product) => product.id);
+
             // Batch fetch specifications and ratings
             const [specificationsMap, ratingsMap] = await Promise.all([
-                idsNeedingImages.length > 0 
-                    ? this.productSpecService.getSpecificationsInBatch(idsNeedingImages)
+                idsNeedingImages.length > 0
+                    ? this.productSpecService.getSpecificationsInBatch(
+                          idsNeedingImages,
+                      )
                     : {},
                 idsNeedingRatings.length > 0
-                    ? this.productRatingService.getRatingsInBatch(idsNeedingRatings)
-                    : {}
+                    ? this.productRatingService.getRatingsInBatch(
+                          idsNeedingRatings,
+                      )
+                    : {},
             ]);
-            
+
             // Enrich products with the fetched data
-            const enrichedProducts = products.map(product => {
+            const enrichedProducts = products.map((product) => {
                 // Add specifications data if needed
                 if (!product.imageUrl && specificationsMap[product.id]) {
                     const specs = specificationsMap[product.id];
                     product.imageUrl = specs['imageUrl'] || '';
                     product.brand = specs['manufacturer'] || '';
                 }
-                
+
                 // Add ratings data if needed
                 if (product.rating === 0 && ratingsMap[product.id]) {
                     const ratingData = ratingsMap[product.id];
                     product.rating = ratingData.rating;
                     product.reviewCount = ratingData.reviewCount;
                 }
-                
+
                 return product;
             });
 
             // Apply automatic discounts before returning
             return this.applyAutomaticDiscounts(enrichedProducts);
-            
         } catch (error) {
-            this.logger.error(`Error getting products with discounts: ${error.message}`);
-            throw new Error(`Failed to get products with discounts: ${error.message}`);
+            this.logger.error(
+                `Error getting products with discounts: ${error.message}`,
+            );
+            throw new Error(
+                `Failed to get products with discounts: ${error.message}`,
+            );
         }
     }
 
@@ -876,36 +927,43 @@ export class ProductService {
      * @param ids Array of product IDs or comma-separated string of IDs
      * @returns Object mapping product IDs to their stock quantities
      */
-    async getStockQuantities(ids: string[] | string): Promise<Record<string, number>> {
+    async getStockQuantities(
+        ids: string[] | string,
+    ): Promise<Record<string, number>> {
         try {
             // Handle both array and comma-separated string formats
             let productIds: string[];
             if (typeof ids === 'string') {
-                productIds = ids.split(',').map(id => id.trim());
+                productIds = ids.split(',').map((id) => id.trim());
             } else {
                 productIds = ids;
             }
-   
+
             // Remove any duplicates
-            const uniqueIds = [...new Set(productIds)].filter(id => id);
-            
+            const uniqueIds = [...new Set(productIds)].filter((id) => id);
+
             if (uniqueIds.length === 0) {
                 return {};
             }
-            
+
             // Find products with these IDs
             const products = await this.productRepository.find({
                 where: { id: In(uniqueIds) },
-                select: ['id', 'stockQuantity']
+                select: ['id', 'stockQuantity'],
             });
-            
+
             // Create a mapping of id -> stock_quantity
-            return products.reduce((stocks, product) => {
-                stocks[product.id] = product.stockQuantity;
-                return stocks;
-            }, {} as Record<string, number>);
+            return products.reduce(
+                (stocks, product) => {
+                    stocks[product.id] = product.stockQuantity;
+                    return stocks;
+                },
+                {} as Record<string, number>,
+            );
         } catch (error) {
-            this.logger.error(`Error getting stock quantities: ${error.message}`);
+            this.logger.error(
+                `Error getting stock quantities: ${error.message}`,
+            );
             return {};
         }
     }
@@ -913,41 +971,53 @@ export class ProductService {
     async getSimpleProductList(
         search?: string,
         page: number = 1,
-        limit: number = 10
-    ): Promise<{ products: { id: string, name: string }[], total: number, pages: number }> {
+        limit: number = 10,
+    ): Promise<{
+        products: { id: string; name: string }[];
+        total: number;
+        pages: number;
+    }> {
         try {
-            const queryBuilder = this.productRepository.createQueryBuilder('product')
+            const queryBuilder = this.productRepository
+                .createQueryBuilder('product')
                 .select(['product.id', 'product.name'])
                 .where('product.status = :status', { status: 'active' });
-            
+
             // Add search condition if search term is provided
             if (search && search.trim() !== '') {
-                queryBuilder.andWhere('LOWER(product.name) LIKE LOWER(:search)', { 
-                    search: `%${search.trim()}%` 
-                });
+                queryBuilder.andWhere(
+                    'LOWER(product.name) LIKE LOWER(:search)',
+                    {
+                        search: `%${search.trim()}%`,
+                    },
+                );
             }
-            
+
             // Get total count for pagination
             const total = await queryBuilder.getCount();
-            
+
             // Add pagination
             const products = await queryBuilder
                 .orderBy('product.name', 'ASC')
                 .skip((page - 1) * limit)
                 .take(limit)
                 .getMany();
-                
+
             // Calculate total pages
             const pages = Math.ceil(total / limit);
-            
+
             return {
                 products,
                 total,
-                pages
+                pages,
             };
         } catch (error) {
-            this.logger.error(`Failed to get simple product list: ${error.message}`);
-            throw new InternalServerErrorException('Failed to retrieve product list');
+            this.logger.error(
+                `Failed to get simple product list: ${error.message}`,
+            );
+            throw new InternalServerErrorException(
+                'Failed to retrieve product list',
+            );
         }
     }
 
@@ -957,19 +1027,19 @@ export class ProductService {
     // async migrateImagesFromNeo4j(): Promise<{ migratedCount: number }> {
     //     const logger = new Logger('migrateImagesFromNeo4j');
     //     logger.log('Starting image URL migration from Neo4j to PostgreSQL');
-        
+
     //     try {
     //         // Get all products from PostgreSQL
     //         const products = await this.productRepository.find();
     //         logger.log(`Found ${products.length} products in PostgreSQL`);
-            
+
     //         let migratedCount = 0;
     //         let errorCount = 0;
-            
+
     //         // Get Neo4j driver from config service
     //         const driver = this.neo4jConfigService.getDriver();
     //         const session = driver.session();
-            
+
     //         try {
     //             // Process each product
     //             for (const product of products) {
@@ -979,15 +1049,15 @@ export class ProductService {
     //                         'MATCH (p {id: $id}) RETURN p.imageUrl as imageUrl',
     //                         { id: product.id }
     //                     );
-                        
+
     //                     const imageUrl = result.records[0]?.get('imageUrl');
-                        
+
     //                     if (imageUrl) {
     //                         // Update the PostgreSQL product with the image URL
     //                         product.imageUrl = imageUrl;
     //                         await this.productRepository.save(product);
     //                         migratedCount++;
-                            
+
     //                         if (migratedCount % 50 === 0) {
     //                             logger.log(`Migrated ${migratedCount} products so far`);
     //                         }
@@ -1002,7 +1072,7 @@ export class ProductService {
     //             // Close the session when done
     //             await session.close();
     //         }
-            
+
     //         logger.log(`Migration completed. Migrated: ${migratedCount}, Errors: ${errorCount}`);
     //         return { migratedCount };
     //     } catch (error) {

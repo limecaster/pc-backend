@@ -15,16 +15,16 @@ export class OrderDto {
     deliveryAddress?: string;
     paymentMethod?: string;
     paymentStatus?: string;
-    
+
     // Add missing guest fields
     guestEmail?: string;
     guestName?: string;
     guestPhone?: string;
-    
+
     // Add missing date fields
     createdAt?: Date;
     updatedAt?: Date;
-    
+
     items: OrderItem[];
     customer?: Customer;
     customerId?: number;
@@ -37,7 +37,7 @@ export class OrderItemDto {
     productName: string;
     quantity: number;
     price: number;
-    
+
     // Add discount-related fields
     discountId?: number;
     discountCode?: string;

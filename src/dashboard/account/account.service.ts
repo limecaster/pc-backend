@@ -58,7 +58,6 @@ export class AccountService {
             throw new NotFoundException('Customer not found');
         }
 
-
         // Split the full name into first and last name (simple approach)
         const nameParts = profileDto.fullName.trim().split(' ');
         let firstname = '';

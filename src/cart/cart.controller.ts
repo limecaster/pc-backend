@@ -30,7 +30,9 @@ export class CartController {
         const userId = req.user?.id;
 
         if (!userId) {
-            this.logger.error('User not authenticated or missing ID in addToCart');
+            this.logger.error(
+                'User not authenticated or missing ID in addToCart',
+            );
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
@@ -57,7 +59,9 @@ export class CartController {
         const userId = req.user?.id;
 
         if (!userId) {
-            this.logger.error('User not authenticated or missing ID in addMultipleToCart');
+            this.logger.error(
+                'User not authenticated or missing ID in addMultipleToCart',
+            );
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
@@ -83,7 +87,9 @@ export class CartController {
         const userId = req.user?.id;
 
         if (!userId) {
-            this.logger.error('User not authenticated or missing ID in updateCartItem');
+            this.logger.error(
+                'User not authenticated or missing ID in updateCartItem',
+            );
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
@@ -110,7 +116,9 @@ export class CartController {
         const userId = req.user?.id;
 
         if (!userId) {
-            this.logger.error('User not authenticated or missing ID in removeCartItem');
+            this.logger.error(
+                'User not authenticated or missing ID in removeCartItem',
+            );
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );
@@ -133,7 +141,9 @@ export class CartController {
         const userId = req.user?.id;
 
         if (!userId) {
-            this.logger.error('User not authenticated or missing ID in getCart');
+            this.logger.error(
+                'User not authenticated or missing ID in getCart',
+            );
             throw new BadRequestException(
                 'User not authenticated or missing ID',
             );

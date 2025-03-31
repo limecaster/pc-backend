@@ -1,6 +1,16 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+    Entity,
+    Column,
+    PrimaryGeneratedColumn,
+    CreateDateColumn,
+    UpdateDateColumn,
+} from 'typeorm';
 
-export type DiscountTargetType = 'all' | 'products' | 'categories' | 'customers';
+export type DiscountTargetType =
+    | 'all'
+    | 'products'
+    | 'categories'
+    | 'customers';
 
 @Entity('Discount')
 export class Discount {
@@ -22,7 +32,12 @@ export class Discount {
     @Column({ name: 'end_date' })
     endDate: Date;
 
-    @Column({ name: 'discount_amount', type: 'decimal', precision: 15, scale: 2 })
+    @Column({
+        name: 'discount_amount',
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
+    })
     discountAmount: number;
 
     @Column()
@@ -56,7 +71,13 @@ export class Discount {
     @Column({ default: 0 })
     usageCount: number;
 
-    @Column({ nullable: true, type: 'decimal', precision: 15, scale: 2, default: 0 })
+    @Column({
+        nullable: true,
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
+        default: 0,
+    })
     totalSavingsAmount: number;
 
     @CreateDateColumn({ name: 'created_at' })

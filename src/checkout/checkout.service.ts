@@ -58,7 +58,8 @@ export class CheckoutService {
 
             // Calculate order number
             const orderCount = await queryRunner.manager.count(Order);
-            const orderNumber = 'B' + (100000 + orderCount + 1).toString().substring(1);
+            const orderNumber =
+                'B' + (100000 + orderCount + 1).toString().substring(1);
 
             // Create a new order
             const order = new Order();
@@ -69,7 +70,7 @@ export class CheckoutService {
             order.status = OrderStatus.PENDING_APPROVAL;
             order.paymentMethod = createOrderDto.paymentMethod;
             order.deliveryAddress = createOrderDto.deliveryAddress;
-            
+
             // Store notes in another field if 'notes' property doesn't exist
             if (createOrderDto.notes) {
                 // Uncomment one of these options based on what exists in your Order entity
@@ -77,18 +78,25 @@ export class CheckoutService {
                 // order.orderNotes = createOrderDto.notes; // if it's named 'orderNotes'
                 // or don't set any notes field if it doesn't exist in the entity
             }
-            
+
             // Add discount information if provided
-            if (createOrderDto.discountAmount && createOrderDto.discountAmount > 0) {
+            if (
+                createOrderDto.discountAmount &&
+                createOrderDto.discountAmount > 0
+            ) {
                 order.discountAmount = createOrderDto.discountAmount;
-                
+
                 // Store manual discount ID if provided
                 if (createOrderDto.manualDiscountId) {
                     order.manualDiscountId = createOrderDto.manualDiscountId;
                 }
                 // Store automatic discount IDs if provided
-                else if (createOrderDto.appliedDiscountIds && createOrderDto.appliedDiscountIds.length > 0) {
-                    order.appliedDiscountIds = createOrderDto.appliedDiscountIds;
+                else if (
+                    createOrderDto.appliedDiscountIds &&
+                    createOrderDto.appliedDiscountIds.length > 0
+                ) {
+                    order.appliedDiscountIds =
+                        createOrderDto.appliedDiscountIds;
                 }
             }
 
@@ -103,18 +111,20 @@ export class CheckoutService {
                 });
 
                 if (!product) {
-                    throw new Error(`Product with ID ${item.productId} not found`);
+                    throw new Error(
+                        `Product with ID ${item.productId} not found`,
+                    );
                 }
 
                 const orderItem = new OrderItem();
                 orderItem.order = savedOrder;
                 orderItem.product = product;
                 orderItem.quantity = item.quantity;
-                
+
                 // Fix: Use type assertion to set properties that might have different names in OrderItem entity
                 // This bypasses TypeScript checking - the actual property name should be verified
                 (orderItem as any).price = item.price; // Use type assertion to bypass TypeScript check
-                (orderItem as any).subPrice = item.price * item.quantity; 
+                (orderItem as any).subPrice = item.price * item.quantity;
 
                 orderItems.push(orderItem);
             }
@@ -156,34 +166,36 @@ export class CheckoutService {
 
                 // Create order items with proper relationship handling
                 const orderItems: OrderItem[] = [];
-                
+
                 for (const item of guestOrderDto.items) {
                     // First verify the product exists to prevent FK constraint violation
                     const product = await queryRunner.manager.findOne(Product, {
-                        where: { id: item.productId }
+                        where: { id: item.productId },
                     });
-                    
+
                     // Throw an error if product doesn't exist
                     if (!product) {
-                        throw new Error(`Product with ID ${item.productId} not found`);
+                        throw new Error(
+                            `Product with ID ${item.productId} not found`,
+                        );
                     }
-                    
+
                     // Create order item with proper product reference
                     const orderItem = new OrderItem();
                     orderItem.order = savedOrder;
                     orderItem.product = product; // Use the full product entity
                     orderItem.quantity = item.quantity;
                     orderItem.price = item.price;
-                    
+
                     orderItems.push(orderItem);
                 }
 
                 // Save all order items within the transaction
                 await queryRunner.manager.save(OrderItem, orderItems);
-                
+
                 // Commit transaction
                 await queryRunner.commitTransaction();
-                
+
                 return savedOrder;
             } catch (error) {
                 // Rollback transaction on error

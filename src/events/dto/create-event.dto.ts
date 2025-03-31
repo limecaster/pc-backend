@@ -1,4 +1,13 @@
-import { IsNotEmpty, IsOptional, IsString, IsObject, IsUUID, IsNumber, IsNumberString, IsIn } from 'class-validator';
+import {
+    IsNotEmpty,
+    IsOptional,
+    IsString,
+    IsObject,
+    IsUUID,
+    IsNumber,
+    IsNumberString,
+    IsIn,
+} from 'class-validator';
 
 export class CreateEventDto {
     @IsNotEmpty()

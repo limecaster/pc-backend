@@ -210,7 +210,6 @@ export class AutoBuildService {
             return;
         }
 
-
         for (const part of autoBuildDto.preferredParts) {
             const indexName = this.getIndexName(part.label);
             const query = `CALL db.index.fulltext.queryNodes($indexName, $partname)
@@ -241,8 +240,6 @@ export class AutoBuildService {
         }
         this.preferredPartsCache.userInput = autoBuildDto.userInput;
         this.preferredPartsCache.data = preferredPartsData;
-
-
     }
 
     private getIndexName(label: string): string {
@@ -368,7 +365,6 @@ export class AutoBuildService {
         budgetAllocation: BudgetAllocation,
         sortOption: 'saving' | 'performance' | 'popular',
     ) {
-
         this.shouldRefreshCache(
             budgetAllocation,
             this.preferredPartsCache.userInput,
@@ -453,8 +449,6 @@ export class AutoBuildService {
 
             this.partPools[sortOption][part] = parts;
         }
-
-
     }
 
     // private addPreferredPartsToConfiguration(
@@ -595,7 +589,6 @@ export class AutoBuildService {
         preferredParts: PartsData,
         otherParts: PartsData,
     ): Promise<PCConfiguration> {
-
         const pcConfiguration = new PCConfiguration();
 
         // Use a deep search to fill all parts.
@@ -605,7 +598,6 @@ export class AutoBuildService {
             pcConfiguration,
             0,
         );
-
 
         return pcConfiguration;
     }
@@ -670,7 +662,6 @@ export class AutoBuildService {
 
         // Fallback: if no candidate passed and this part is required, select the first candidate unconditionally.
         if (!candidateFound && this.isRequiredPart(label)) {
-
             pcConfiguration[label] = pool[0];
             if (
                 await this.tryBuildConfiguration(
@@ -745,14 +736,12 @@ export class AutoBuildService {
         );
 
         if (!success || !this.isCompleteConfiguration(configuration)) {
-    
             if (
                 attempts >= 30 ||
                 lastBudgetIncrease >= 3 ||
                 this.calculateTotalCost(configuration) >
                     autoBuildDto.initialBudget * 1.2
             ) {
-             
                 return configuration;
             }
 

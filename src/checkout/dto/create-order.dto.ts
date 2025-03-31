@@ -6,7 +6,7 @@ import {
     ValidateNested,
     IsOptional,
     Min,
-    IsBoolean
+    IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -52,11 +52,11 @@ export class CreateOrderDto {
     @IsOptional()
     @Min(0)
     discountAmount?: number;
-    
+
     @IsNumber()
     @IsOptional()
     manualDiscountId?: number;
-    
+
     @IsArray()
     @IsOptional()
     appliedDiscountIds?: string[];

@@ -39,19 +39,26 @@ export class OrderController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     async getOrderById(@Param('id') id: string, @Request() req) {
         try {
-            const order = await this.orderService.findOrderWithItems(parseInt(id));
+            const order = await this.orderService.findOrderWithItems(
+                parseInt(id),
+            );
 
             if (!order) {
                 this.logger.error(`Order with ID ${id} not found`);
                 throw new NotFoundException(`Order with ID ${id} not found`);
             }
 
-            const isPaymentVerification = req.query.paymentVerification === 'true';
+            const isPaymentVerification =
+                req.query.paymentVerification === 'true';
             const isAuthenticated = req.user?.id;
-            const isOwner = isAuthenticated && order.customerId === req.user?.id;
+            const isOwner =
+                isAuthenticated && order.customerId === req.user?.id;
             const isStaffOrAdmin =
                 req.user?.role === Role.STAFF || req.user?.role === Role.ADMIN;
-            if (!isPaymentVerification && (!isAuthenticated || (!isOwner && !isStaffOrAdmin))) {
+            if (
+                !isPaymentVerification &&
+                (!isAuthenticated || (!isOwner && !isStaffOrAdmin))
+            ) {
                 return {
                     success: true,
                     order: {
@@ -77,17 +84,26 @@ export class OrderController {
                     customerName: order.customer
                         ? `${order.customer.firstname || ''} ${order.customer.lastname || ''}`
                         : (order as any).guestName || 'Không có thông tin',
-                    customerEmail: order.customer?.email || (order as any).guestEmail,
-                    customerPhone: order.customer?.phoneNumber || (order as any).guestPhone || 'Không có thông tin',
-                    deliveryAddress: order.deliveryAddress || 'Không có thông tin',
+                    customerEmail:
+                        order.customer?.email || (order as any).guestEmail,
+                    customerPhone:
+                        order.customer?.phoneNumber ||
+                        (order as any).guestPhone ||
+                        'Không có thông tin',
+                    deliveryAddress:
+                        order.deliveryAddress || 'Không có thông tin',
                     paymentMethod: order.paymentMethod || 'PayOS',
-                    items: order.items?.map(item => ({
-                        id: item.product?.id || 'unknown',
-                        name: item.product?.name || 'Unknown Product',
-                        price: (item as any).price || 0,
-                        quantity: item.quantity || 0,
-                        imageUrl: (item.product as any)?.imageUrl || ((item.product as any)?.images?.[0]) || null,
-                    })) || [],
+                    items:
+                        order.items?.map((item) => ({
+                            id: item.product?.id || 'unknown',
+                            name: item.product?.name || 'Unknown Product',
+                            price: (item as any).price || 0,
+                            quantity: item.quantity || 0,
+                            imageUrl:
+                                (item.product as any)?.imageUrl ||
+                                (item.product as any)?.images?.[0] ||
+                                null,
+                        })) || [],
                 },
             };
         } catch (error) {
@@ -104,14 +120,17 @@ export class OrderController {
     async getUserOrderHistory(@Request() req) {
         try {
             const customerId = req.user.id;
-            const orders = await this.orderService.findOrdersByCustomerId(customerId);
+            const orders =
+                await this.orderService.findOrdersByCustomerId(customerId);
 
             return {
                 success: true,
                 orders,
             };
         } catch (error) {
-            this.logger.error(`Error fetching user order history: ${error.message}`);
+            this.logger.error(
+                `Error fetching user order history: ${error.message}`,
+            );
             return {
                 success: false,
                 message: error.message,
@@ -131,7 +150,9 @@ export class OrderController {
                 orders,
             };
         } catch (error) {
-            this.logger.error(`Error fetching pending orders: ${error.message}`);
+            this.logger.error(
+                `Error fetching pending orders: ${error.message}`,
+            );
             return {
                 success: false,
                 message: error.message,
@@ -155,8 +176,13 @@ export class OrderController {
             );
 
             if (data.status === OrderStatus.APPROVED) {
-                const orderWithDetails = await this.orderService.findOrderWithItems(parseInt(orderId));
-                const customerEmail = orderWithDetails.customer?.email || orderWithDetails.guestEmail;
+                const orderWithDetails =
+                    await this.orderService.findOrderWithItems(
+                        parseInt(orderId),
+                    );
+                const customerEmail =
+                    orderWithDetails.customer?.email ||
+                    orderWithDetails.guestEmail;
 
                 if (customerEmail) {
                     await this.emailService.sendOrderApprovalEmail(
@@ -184,11 +210,15 @@ export class OrderController {
     @Post(':id/cancel')
     async cancelOrder(@Param('id') orderId: string, @Request() req) {
         try {
-            const order = await this.orderService.findOrderWithItems(parseInt(orderId));
+            const order = await this.orderService.findOrderWithItems(
+                parseInt(orderId),
+            );
 
             if (!order) {
                 this.logger.error(`Order with ID ${orderId} not found`);
-                throw new NotFoundException(`Order with ID ${orderId} not found`);
+                throw new NotFoundException(
+                    `Order with ID ${orderId} not found`,
+                );
             }
 
             if (order.customerId !== req.user.id) {
@@ -198,7 +228,11 @@ export class OrderController {
                 };
             }
 
-            if (![OrderStatus.PENDING_APPROVAL, OrderStatus.APPROVED].includes(order.status)) {
+            if (
+                ![OrderStatus.PENDING_APPROVAL, OrderStatus.APPROVED].includes(
+                    order.status,
+                )
+            ) {
                 return {
                     success: false,
                     message: 'This order cannot be cancelled',
@@ -225,13 +259,21 @@ export class OrderController {
 
     @UseGuards(JwtAuthGuard)
     @Post(':id/pay')
-    async initiatePayment(@Param('id') orderId: string, @Request() req, @Body() body: any) {
+    async initiatePayment(
+        @Param('id') orderId: string,
+        @Request() req,
+        @Body() body: any,
+    ) {
         try {
-            const order = await this.orderService.findOrderWithItems(parseInt(orderId));
+            const order = await this.orderService.findOrderWithItems(
+                parseInt(orderId),
+            );
 
             if (!order) {
                 this.logger.error(`Order with ID ${orderId} not found`);
-                throw new NotFoundException(`Order with ID ${orderId} not found`);
+                throw new NotFoundException(
+                    `Order with ID ${orderId} not found`,
+                );
             }
 
             if (order.customerId !== req.user.id) {
@@ -275,7 +317,8 @@ export class OrderController {
                 },
             };
 
-            const paymentResult = await this.checkoutService.processPayment(paymentData);
+            const paymentResult =
+                await this.checkoutService.processPayment(paymentData);
 
             return {
                 success: true,
@@ -291,26 +334,28 @@ export class OrderController {
         }
     }
 
-    @UseGuards(OptionalJwtAuthGuard) 
+    @UseGuards(OptionalJwtAuthGuard)
     @Get('track/:identifier')
-    async trackOrder(
-        @Param('identifier') identifier: string,
-        @Request() req,
-    ) {
+    async trackOrder(@Param('identifier') identifier: string, @Request() req) {
         try {
-            
             // Check if user is authenticated (has valid JWT)
             const isAuthenticated = !!req.user;
             const userId = req.user?.id;
-            
+
             // Find the order (can be by ID or order number)
             let order;
             const isNumeric = !isNaN(Number(identifier));
-            
+
             if (isNumeric) {
-                order = await this.orderService.getOrderTrackingInfo(parseInt(identifier), true);
+                order = await this.orderService.getOrderTrackingInfo(
+                    parseInt(identifier),
+                    true,
+                );
             } else {
-                order = await this.orderService.getOrderTrackingInfo(identifier, true);
+                order = await this.orderService.getOrderTrackingInfo(
+                    identifier,
+                    true,
+                );
             }
 
             if (!order) {
@@ -321,9 +366,12 @@ export class OrderController {
             }
 
             // For authenticated users, check if they own the order
-            const isOrderOwner = isAuthenticated ? 
-                await this.orderService.checkOrderTrackingPermission(order.id, userId) : 
-                false;
+            const isOrderOwner = isAuthenticated
+                ? await this.orderService.checkOrderTrackingPermission(
+                      order.id,
+                      userId,
+                  )
+                : false;
 
             // IMPORTANT: For non-authenticated users, always require verification
             if (!isAuthenticated || (isAuthenticated && !isOrderOwner)) {
@@ -332,18 +380,21 @@ export class OrderController {
                     order: order,
                     requiresVerification: true,
                     isAuthenticated: isAuthenticated,
-                    isOwner: false
+                    isOwner: false,
                 };
             }
-            
+
             // User is authenticated and owns the order - no verification needed
-            const fullOrderData = await this.orderService.getOrderTrackingInfo(order.id, false);
+            const fullOrderData = await this.orderService.getOrderTrackingInfo(
+                order.id,
+                false,
+            );
             return {
                 success: true,
                 order: fullOrderData,
                 requiresVerification: false,
                 isAuthenticated: true,
-                isOwner: true
+                isOwner: true,
             };
         } catch (error) {
             this.logger.error(`Error tracking order: ${error.message}`);
@@ -355,10 +406,12 @@ export class OrderController {
     }
 
     @Post('track/request-otp')
-    async requestTrackingOTP(@Body() body: { orderNumber: string, email: string }) {
+    async requestTrackingOTP(
+        @Body() body: { orderNumber: string; email: string },
+    ) {
         try {
             const { orderNumber, email } = body;
-            
+
             if (!orderNumber || !email) {
                 return {
                     success: false,
@@ -366,9 +419,16 @@ export class OrderController {
                 };
             }
 
-            const otp = await this.orderService.generateTrackingOTP(orderNumber, email);
-            
-            await this.emailService.sendOrderTrackingOTP(email, otp, orderNumber);
+            const otp = await this.orderService.generateTrackingOTP(
+                orderNumber,
+                email,
+            );
+
+            await this.emailService.sendOrderTrackingOTP(
+                email,
+                otp,
+                orderNumber,
+            );
 
             return {
                 success: true,
@@ -385,23 +445,25 @@ export class OrderController {
 
     // Update the alias endpoint to support both new and old formats
     @Post('track/send-otp')
-    async sendTrackingOTP(@Body() body: { orderId?: string, orderNumber?: string, email: string }) {
+    async sendTrackingOTP(
+        @Body() body: { orderId?: string; orderNumber?: string; email: string },
+    ) {
         // Handle both formats for backward compatibility
         const { orderId, orderNumber, email } = body;
-        
-        return this.requestTrackingOTP({ 
+
+        return this.requestTrackingOTP({
             orderNumber: orderNumber || orderId, // Use orderNumber if provided, fall back to orderId
-            email 
+            email,
         });
     }
 
     @Post('track/verify-otp')
     async verifyTrackingOTP(
-        @Body() body: { orderNumber: string, email: string, otp: string }
+        @Body() body: { orderNumber: string; email: string; otp: string },
     ) {
         try {
             const { orderNumber, email, otp } = body;
-            
+
             if (!orderNumber || !email || !otp) {
                 return {
                     success: false,
@@ -409,9 +471,12 @@ export class OrderController {
                 };
             }
 
-            
-            const isValid = await this.orderService.verifyTrackingOTP(orderNumber, email, otp);
-            
+            const isValid = await this.orderService.verifyTrackingOTP(
+                orderNumber,
+                email,
+                otp,
+            );
+
             if (!isValid) {
                 return {
                     success: false,
@@ -420,8 +485,11 @@ export class OrderController {
             }
 
             // Get full order details
-            const orderData = await this.orderService.getOrderTrackingInfo(orderNumber, false);
-            
+            const orderData = await this.orderService.getOrderTrackingInfo(
+                orderNumber,
+                false,
+            );
+
             return {
                 success: true,
                 message: 'OTP verified successfully',
@@ -451,30 +519,31 @@ export class OrderController {
     ) {
         try {
             const filters: any = {};
-            
+
             if (status) {
                 filters.status = status;
             }
-            
+
             if (search) {
                 filters.search = search;
             }
-            
+
             if (startDate) {
                 filters.startDate = new Date(startDate);
             }
-            
+
             if (endDate) {
                 filters.endDate = new Date(endDate);
             }
 
-            const { orders, total, pages } = await this.orderService.findAllOrders({
-                page,
-                limit,
-                filters,
-                sortBy,
-                sortOrder,
-            });
+            const { orders, total, pages } =
+                await this.orderService.findAllOrders({
+                    page,
+                    limit,
+                    filters,
+                    sortBy,
+                    sortOrder,
+                });
 
             return {
                 success: true,
@@ -502,10 +571,11 @@ export class OrderController {
                 throw new BadRequestException('Invalid customer ID');
             }
 
-            const orders = await this.orderService.findOrdersByCustomerId(customerId);
+            const orders =
+                await this.orderService.findOrdersByCustomerId(customerId);
 
             // Format orders for admin display
-            const formattedOrders = orders.map(order => ({
+            const formattedOrders = orders.map((order) => ({
                 id: order.id,
                 orderNumber: order.orderNumber,
                 orderDate: order.orderDate,
@@ -523,7 +593,9 @@ export class OrderController {
                 orders: formattedOrders,
             };
         } catch (error) {
-            this.logger.error(`Error fetching orders for customer ${id}: ${error.message}`);
+            this.logger.error(
+                `Error fetching orders for customer ${id}: ${error.message}`,
+            );
             return {
                 success: false,
                 message: error.message,

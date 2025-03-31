@@ -21,7 +21,7 @@ export class OrderService {
         private orderItemRepository: Repository<OrderItem>,
 
         private connection: Connection,
-        
+
         private orderTrackingService: OrderTrackingService,
         private orderStatusService: OrderStatusService,
         private orderInventoryService: OrderInventoryService,
@@ -110,25 +110,41 @@ export class OrderService {
         return orderDtos;
     }
 
-    async updateOrderStatus(orderId: number, status, staffId?: number): Promise<Order> {
+    async updateOrderStatus(
+        orderId: number,
+        status,
+        staffId?: number,
+    ): Promise<Order> {
         const queryRunner = this.connection.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
-        
+
         try {
-            const currentOrder = await this.orderRepository.findOne({ where: { id: orderId } });
+            const currentOrder = await this.orderRepository.findOne({
+                where: { id: orderId },
+            });
             if (!currentOrder) {
-                this.logger.error(`Cannot update status: Order ${orderId} not found`);
-                throw new NotFoundException(`Order with ID ${orderId} not found`);
+                this.logger.error(
+                    `Cannot update status: Order ${orderId} not found`,
+                );
+                throw new NotFoundException(
+                    `Order with ID ${orderId} not found`,
+                );
             }
 
-            const order = await this.orderStatusService.updateOrderStatus(orderId, status, staffId);
+            const order = await this.orderStatusService.updateOrderStatus(
+                orderId,
+                status,
+                staffId,
+            );
             await queryRunner.manager.save(Order, order);
             await queryRunner.commitTransaction();
 
             return order;
         } catch (error) {
-            this.logger.error(`Error updating order status for order ${orderId}: ${error.message}`);
+            this.logger.error(
+                `Error updating order status for order ${orderId}: ${error.message}`,
+            );
             await queryRunner.rollbackTransaction();
             throw error;
         } finally {
@@ -137,7 +153,8 @@ export class OrderService {
     }
 
     async findPendingApprovalOrders(): Promise<OrderDto[]> {
-        const orders = await this.orderStatusService.findPendingApprovalOrders();
+        const orders =
+            await this.orderStatusService.findPendingApprovalOrders();
 
         const orderDtos: OrderDto[] = [];
 
@@ -157,66 +174,111 @@ export class OrderService {
         return orderDtos;
     }
 
-    async updateShippingOrdersToDelivered(daysInTransit: number = 3): Promise<void> {
+    async updateShippingOrdersToDelivered(
+        daysInTransit: number = 3,
+    ): Promise<void> {
         try {
-            await this.orderStatusService.updateShippingOrdersToDelivered(daysInTransit);
+            await this.orderStatusService.updateShippingOrdersToDelivered(
+                daysInTransit,
+            );
         } catch (error) {
-            this.logger.error(`Error updating shipping orders to delivered: ${error.message}`);
+            this.logger.error(
+                `Error updating shipping orders to delivered: ${error.message}`,
+            );
             throw error;
         }
     }
 
     // Update to prioritize orderNumber over id
-    async getOrderTrackingInfo(identifier: string | number, limitedInfo: boolean = false) {
+    async getOrderTrackingInfo(
+        identifier: string | number,
+        limitedInfo: boolean = false,
+    ) {
         // Try to find by orderNumber first (most user-friendly approach)
         let order;
-        
+
         if (typeof identifier === 'string' && isNaN(Number(identifier))) {
             // This is definitely an order number (non-numeric string)
-           
-            order = await this.orderDisplayService.getOrderTrackingInfo(identifier, limitedInfo);
+
+            order = await this.orderDisplayService.getOrderTrackingInfo(
+                identifier,
+                limitedInfo,
+            );
             console.log(order);
         } else {
             // This might be an ID or a numeric orderNumber
             // Try orderNumber first
-            
-            order = await this.orderDisplayService.getOrderTrackingInfo(identifier.toString(), limitedInfo);
-            
+
+            order = await this.orderDisplayService.getOrderTrackingInfo(
+                identifier.toString(),
+                limitedInfo,
+            );
+
             // If not found, try by ID as a fallback for backward compatibility
-            if (!order && (typeof identifier === 'number' || !isNaN(Number(identifier)))) {
-                
-                order = await this.orderDisplayService.getOrderTrackingInfoById(Number(identifier), limitedInfo);
+            if (
+                !order &&
+                (typeof identifier === 'number' || !isNaN(Number(identifier)))
+            ) {
+                order = await this.orderDisplayService.getOrderTrackingInfoById(
+                    Number(identifier),
+                    limitedInfo,
+                );
             }
         }
-        
+
         return order;
     }
 
-    async verifyOrderAccess(orderId: number, verificationData: string): Promise<boolean> {
-        return this.orderTrackingService.verifyOrderAccess(orderId, verificationData);
+    async verifyOrderAccess(
+        orderId: number,
+        verificationData: string,
+    ): Promise<boolean> {
+        return this.orderTrackingService.verifyOrderAccess(
+            orderId,
+            verificationData,
+        );
     }
 
-    async generateTrackingOTP(identifier: string | number, email: string): Promise<string> {
+    async generateTrackingOTP(
+        identifier: string | number,
+        email: string,
+    ): Promise<string> {
         return this.orderTrackingService.generateTrackingOTP(identifier, email);
     }
 
-    async verifyTrackingOTP(identifier: string | number, email: string, otp: string): Promise<boolean> {
-        return this.orderTrackingService.verifyTrackingOTP(identifier, email, otp);
+    async verifyTrackingOTP(
+        identifier: string | number,
+        email: string,
+        otp: string,
+    ): Promise<boolean> {
+        return this.orderTrackingService.verifyTrackingOTP(
+            identifier,
+            email,
+            otp,
+        );
     }
 
     // Update to work with order numbers
-    async checkOrderTrackingPermission(identifier: string | number, userId?: number): Promise<boolean> {
-        return this.orderTrackingService.checkOrderTrackingPermission(identifier, userId);
+    async checkOrderTrackingPermission(
+        identifier: string | number,
+        userId?: number,
+    ): Promise<boolean> {
+        return this.orderTrackingService.checkOrderTrackingPermission(
+            identifier,
+            userId,
+        );
     }
 
     async markDiscountUsageRecorded(orderId: number): Promise<Order> {
-        const order = await this.orderRepository.findOne({ where: { id: orderId }});
-        
+        const order = await this.orderRepository.findOne({
+            where: { id: orderId },
+        });
+
         if (!order) {
             this.logger.error(`Order with ID ${orderId} not found`);
             throw new NotFoundException(`Order with ID ${orderId} not found`);
         }
-        
+
         order.discountUsageRecorded = true;
         return await this.orderRepository.save(order);
     }
@@ -224,7 +286,7 @@ export class OrderService {
     async findMostRecentPendingPayment(): Promise<Order | null> {
         try {
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-            
+
             const order = await this.orderRepository.findOne({
                 where: {
                     status: OrderStatus.APPROVED,
@@ -234,10 +296,12 @@ export class OrderService {
                     createdAt: 'DESC',
                 },
             });
-            
+
             return order;
         } catch (error) {
-            this.logger.error(`Error finding recent pending payment: ${error.message}`);
+            this.logger.error(
+                `Error finding recent pending payment: ${error.message}`,
+            );
             return null;
         }
     }
@@ -268,7 +332,9 @@ export class OrderService {
 
             // Apply filters
             if (filters.status) {
-                query = query.andWhere('order.status = :status', { status: filters.status });
+                query = query.andWhere('order.status = :status', {
+                    status: filters.status,
+                });
             }
 
             // Fix: Search by order number or customer name using individual conditions
@@ -276,19 +342,19 @@ export class OrderService {
                 const searchTerm = `%${filters.search}%`;
                 query = query.andWhere(
                     '("order"."order_number" ILIKE :searchTerm OR ' +
-                    'LOWER("customer"."firstname") LIKE LOWER(:searchTerm) OR ' +
-                    'LOWER("customer"."lastname") LIKE LOWER(:searchTerm) OR ' +
-                    'LOWER(CONCAT("customer"."firstname", \' \', "customer"."lastname")) LIKE LOWER(:searchTerm) OR ' +
-                    '"customer"."email" ILIKE :searchTerm OR ' +
-                    '"customer"."phone_number" LIKE :searchTerm )',
-                    { searchTerm }
+                        'LOWER("customer"."firstname") LIKE LOWER(:searchTerm) OR ' +
+                        'LOWER("customer"."lastname") LIKE LOWER(:searchTerm) OR ' +
+                        'LOWER(CONCAT("customer"."firstname", \' \', "customer"."lastname")) LIKE LOWER(:searchTerm) OR ' +
+                        '"customer"."email" ILIKE :searchTerm OR ' +
+                        '"customer"."phone_number" LIKE :searchTerm )',
+                    { searchTerm },
                 );
             }
 
             // Date range filters
             if (filters.startDate) {
-                query = query.andWhere('order.orderDate >= :startDate', { 
-                    startDate: filters.startDate 
+                query = query.andWhere('order.orderDate >= :startDate', {
+                    startDate: filters.startDate,
                 });
             }
 
@@ -296,20 +362,23 @@ export class OrderService {
                 // Add 1 day to include the end date fully
                 const endDate = new Date(filters.endDate);
                 endDate.setDate(endDate.getDate() + 1);
-                
-                query = query.andWhere('order.orderDate < :endDate', { 
-                    endDate: endDate
+
+                query = query.andWhere('order.orderDate < :endDate', {
+                    endDate: endDate,
                 });
             }
 
             // Get total count for pagination
             const total = await query.getCount();
-            
+
             // Apply sorting with proper TypeORM syntax
             if (sortBy && sortOrder) {
                 // Handle some special cases - most sorting will be on order table
                 if (sortBy === 'customerName') {
-                    query = query.orderBy('CONCAT(customer.firstname, \' \', customer.lastname)', sortOrder);
+                    query = query.orderBy(
+                        "CONCAT(customer.firstname, ' ', customer.lastname)",
+                        sortOrder,
+                    );
                 } else {
                     // Use the TypeORM alias syntax without manual quoting
                     query = query.orderBy(`order.${sortBy}`, sortOrder);
@@ -327,7 +396,7 @@ export class OrderService {
             const pages = Math.ceil(total / limit);
 
             // Map to DTO format
-            const mappedOrders = orders.map(order => {
+            const mappedOrders = orders.map((order) => {
                 return {
                     id: order.id,
                     orderNumber: order.orderNumber,
@@ -341,16 +410,21 @@ export class OrderService {
                         ? `${order.customer.firstname || ''} ${order.customer.lastname || ''}`
                         : 'Không có thông tin',
                     customerEmail: order.customer?.email || order.guestEmail,
-                    customerPhone: order.customer?.phoneNumber  || 'Không có thông tin',
-                    deliveryAddress: order.deliveryAddress || 'Không có thông tin',
+                    customerPhone:
+                        order.customer?.phoneNumber || 'Không có thông tin',
+                    deliveryAddress:
+                        order.deliveryAddress || 'Không có thông tin',
                     paymentMethod: order.paymentMethod || 'PayOS',
-                    items: order.items?.map(item => ({
-                        id: item.product?.id || 'unknown',
-                        name: item.product?.name || 'Unknown Product',
-                        price: item.price || 0,
-                        quantity: item.quantity || 0,
-                        imageUrl: item.product?.imageUrl || 'image/image-placeholder.webp',
-                    })) || [],
+                    items:
+                        order.items?.map((item) => ({
+                            id: item.product?.id || 'unknown',
+                            name: item.product?.name || 'Unknown Product',
+                            price: item.price || 0,
+                            quantity: item.quantity || 0,
+                            imageUrl:
+                                item.product?.imageUrl ||
+                                'image/image-placeholder.webp',
+                        })) || [],
                 };
             });
 

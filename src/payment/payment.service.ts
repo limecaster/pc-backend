@@ -34,7 +34,9 @@ export class PaymentService {
             const orderCode = Number(timestamp % 100000000);
 
             // Format price and amount values as numbers (NOT strings)
-            const formattedAmount = this.formatCurrencyForPayOS(paymentData.total);
+            const formattedAmount = this.formatCurrencyForPayOS(
+                paymentData.total,
+            );
             const numericAmount = Number(formattedAmount);
             if (numericAmount <= 0) {
                 throw new Error('Amount must be greater than 0');
@@ -47,10 +49,14 @@ export class PaymentService {
             const formattedItems = paymentData.items.map((item) => {
                 const price = Number(this.formatCurrencyForPayOS(item.price));
                 if (price <= 0) {
-                    throw new Error(`Item price for "${item.name}" must be greater than 0`);
+                    throw new Error(
+                        `Item price for "${item.name}" must be greater than 0`,
+                    );
                 }
                 if (price >= 10000000000) {
-                    throw new Error(`Item price for "${item.name}" must be less than 10,000,000,000 VND`);
+                    throw new Error(
+                        `Item price for "${item.name}" must be less than 10,000,000,000 VND`,
+                    );
                 }
                 return {
                     name: item.name.substring(0, 50),
@@ -60,7 +66,9 @@ export class PaymentService {
             });
 
             // Limit description to 25 characters as per API requirement
-            const description = (paymentData.description || 'Thanh toan B Store').substring(0, 25);
+            const description = (
+                paymentData.description || 'Thanh toan B Store'
+            ).substring(0, 25);
 
             // Prepare payment request
             const paymentRequest = {
@@ -69,10 +77,22 @@ export class PaymentService {
                 description,
                 cancelUrl: paymentData.cancelUrl,
                 returnUrl: paymentData.returnUrl,
-                buyerName: (paymentData.customer?.fullName || '').substring(0, 50),
-                buyerEmail: (paymentData.customer?.email || '').substring(0, 50),
-                buyerPhone: (paymentData.customer?.phone || '').substring(0, 20),
-                buyerAddress: (paymentData.customer?.address || '').substring(0, 100),
+                buyerName: (paymentData.customer?.fullName || '').substring(
+                    0,
+                    50,
+                ),
+                buyerEmail: (paymentData.customer?.email || '').substring(
+                    0,
+                    50,
+                ),
+                buyerPhone: (paymentData.customer?.phone || '').substring(
+                    0,
+                    20,
+                ),
+                buyerAddress: (paymentData.customer?.address || '').substring(
+                    0,
+                    100,
+                ),
                 items: formattedItems,
             };
 
@@ -113,7 +133,8 @@ export class PaymentService {
             } else {
                 return {
                     success: false,
-                    message: response.data?.desc || 'Failed to create payment link',
+                    message:
+                        response.data?.desc || 'Failed to create payment link',
                     data: response.data,
                 };
             }
@@ -129,7 +150,9 @@ export class PaymentService {
             this.logger.error('Error creating payment link:', error);
             return {
                 success: false,
-                message: error.message || 'An error occurred during payment processing',
+                message:
+                    error.message ||
+                    'An error occurred during payment processing',
                 error: error.response?.data || error.message,
             };
         }
@@ -204,7 +227,8 @@ export class PaymentService {
             } else {
                 return {
                     success: false,
-                    message: response.data?.desc || 'Failed to check payment status',
+                    message:
+                        response.data?.desc || 'Failed to check payment status',
                     data: response.data,
                 };
             }
@@ -212,7 +236,9 @@ export class PaymentService {
             this.logger.error('Error checking payment status:', error);
             return {
                 success: false,
-                message: error.message || 'An error occurred when checking payment status',
+                message:
+                    error.message ||
+                    'An error occurred when checking payment status',
             };
         }
     }
@@ -235,7 +261,8 @@ export class PaymentService {
             const paymentStatus = payload.status || payload.payment_status;
             const orderCode = payload.orderCode || payload.order_code;
             const orderId = payload.orderId || payload.order_id;
-            const transactionId = payload.transactionId || payload.transaction_id;
+            const transactionId =
+                payload.transactionId || payload.transaction_id;
             if (!paymentStatus || !orderCode) {
                 return {
                     success: false,
@@ -279,7 +306,9 @@ export class PaymentService {
             );
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`Failed to get transaction: ${response.status} - ${errorText}`);
+                throw new Error(
+                    `Failed to get transaction: ${response.status} - ${errorText}`,
+                );
             }
             const data = await response.json();
             return {
@@ -287,7 +316,9 @@ export class PaymentService {
                 data: data,
             };
         } catch (error) {
-            this.logger.error(`Error fetching payment details: ${error.message}`);
+            this.logger.error(
+                `Error fetching payment details: ${error.message}`,
+            );
             return {
                 success: false,
                 message: error.message || 'Failed to get payment details',

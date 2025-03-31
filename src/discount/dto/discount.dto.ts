@@ -1,4 +1,15 @@
-import { IsString, IsNumber, IsNotEmpty, IsEnum, IsOptional, IsDateString, Min, Max, IsArray, IsBoolean } from 'class-validator';
+import {
+    IsString,
+    IsNumber,
+    IsNotEmpty,
+    IsEnum,
+    IsOptional,
+    IsDateString,
+    Min,
+    Max,
+    IsArray,
+    IsBoolean,
+} from 'class-validator';
 import { DiscountTargetType } from '../discount.entity';
 
 export class CreateDiscountDto {
@@ -26,39 +37,45 @@ export class CreateDiscountDto {
     @Min(0)
     discountAmount: number;
 
-    @IsEnum(['percentage', 'fixed'], { message: 'Type must be either "percentage" or "fixed"' })
+    @IsEnum(['percentage', 'fixed'], {
+        message: 'Type must be either "percentage" or "fixed"',
+    })
     type: 'percentage' | 'fixed';
 
-    @IsEnum(['active', 'inactive'], { message: 'Status must be either "active" or "inactive"' })
+    @IsEnum(['active', 'inactive'], {
+        message: 'Status must be either "active" or "inactive"',
+    })
     @IsOptional()
     status?: 'active' | 'inactive';
-    
+
     // New fields for targeting
-    @IsEnum(['all', 'products', 'categories', 'customers'], { message: 'Invalid target type' })
+    @IsEnum(['all', 'products', 'categories', 'customers'], {
+        message: 'Invalid target type',
+    })
     @IsOptional()
     targetType?: DiscountTargetType;
-    
+
     @IsArray()
     @IsOptional()
     productIds?: string[];
-    
+
     @IsArray()
     @IsOptional()
     categoryNames?: string[];
-    
+
     @IsArray()
     @IsOptional()
     customerIds?: string[];
-    
+
     @IsNumber()
     @IsOptional()
     @Min(0)
     minOrderAmount?: number;
-    
+
     @IsBoolean()
     @IsOptional()
     isFirstPurchaseOnly?: boolean;
-    
+
     @IsBoolean()
     @IsOptional()
     isAutomatic?: boolean;
@@ -69,7 +86,7 @@ export class UpdateDiscountDto {
     @IsString()
     @IsOptional()
     discountCode?: string;
-    
+
     @IsString()
     @IsOptional()
     discountName?: string;
@@ -91,40 +108,46 @@ export class UpdateDiscountDto {
     @Min(0)
     discountAmount?: number;
 
-    @IsEnum(['percentage', 'fixed'], { message: 'Type must be either "percentage" or "fixed"' })
+    @IsEnum(['percentage', 'fixed'], {
+        message: 'Type must be either "percentage" or "fixed"',
+    })
     @IsOptional()
     type?: 'percentage' | 'fixed';
 
-    @IsEnum(['active', 'inactive'], { message: 'Status must be either "active" or "inactive"' })
+    @IsEnum(['active', 'inactive'], {
+        message: 'Status must be either "active" or "inactive"',
+    })
     @IsOptional()
     status?: 'active' | 'inactive';
-    
+
     // New fields for targeting
-    @IsEnum(['all', 'products', 'categories', 'customers'], { message: 'Invalid target type' })
+    @IsEnum(['all', 'products', 'categories', 'customers'], {
+        message: 'Invalid target type',
+    })
     @IsOptional()
     targetType?: DiscountTargetType;
-    
+
     @IsArray()
     @IsOptional()
     productIds?: string[];
-    
+
     @IsArray()
     @IsOptional()
     categoryNames?: string[];
-    
+
     @IsArray()
     @IsOptional()
     customerIds?: string[];
-    
+
     @IsNumber()
     @IsOptional()
     @Min(0)
     minOrderAmount?: number;
-    
+
     @IsBoolean()
     @IsOptional()
     isFirstPurchaseOnly?: boolean;
-    
+
     @IsBoolean()
     @IsOptional()
     isAutomatic?: boolean;

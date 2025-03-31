@@ -38,7 +38,6 @@ export class BuildController {
         WiredNetworkCard: ['WiredNetworkCard'],
         ThermalPaste: ['ThermalPaste'],
         InternalHardDrive: ['InternalHardDrive'],
-
     };
 
     @Get('manual-build/compatible-parts')
@@ -59,7 +58,7 @@ export class BuildController {
 
             const pageNumber = parseInt(page, 10) || 1;
             const pageSize = parseInt(limit, 10) || 10;
-  
+
             // Get compatible parts with SSD/HDD specific filtering
             const compatibleParts =
                 await this.manualBuildService.getSpecificPartTypeCompatibleWithSelectedParts(

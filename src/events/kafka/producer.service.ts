@@ -1,4 +1,8 @@
-import { Injectable, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    OnApplicationShutdown,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer, ProducerRecord } from 'kafkajs';
 import { Logger } from '@nestjs/common';
@@ -10,7 +14,9 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
     private readonly logger = new Logger(ProducerService.name);
 
     constructor(private readonly configService: ConfigService) {
-        const brokers = this.configService.get<string>('KAFKA_BROKERS').split(',');
+        const brokers = this.configService
+            .get<string>('KAFKA_BROKERS')
+            .split(',');
         const clientId = this.configService.get<string>('KAFKA_CLIENT_ID');
 
         this.kafka = new Kafka({
@@ -29,7 +35,9 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
             await this.producer.send(record);
             this.logger.debug(`Message sent to topic: ${record.topic}`);
         } catch (error) {
-            this.logger.error(`Error sending message to Kafka: ${error.message}`);
+            this.logger.error(
+                `Error sending message to Kafka: ${error.message}`,
+            );
             throw error;
         }
     }

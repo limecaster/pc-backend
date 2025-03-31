@@ -17,9 +17,13 @@ export class PCConfigurationProduct {
     @Column({ name: 'configuration_id' })
     configurationId: number;
 
-    @ManyToOne(() => PCConfiguration, configuration => configuration.products, {
-        onDelete: 'CASCADE',
-    })
+    @ManyToOne(
+        () => PCConfiguration,
+        (configuration) => configuration.products,
+        {
+            onDelete: 'CASCADE',
+        },
+    )
     @JoinColumn({ name: 'configuration_id' })
     configuration: PCConfiguration;
 
@@ -35,11 +39,11 @@ export class PCConfigurationProduct {
     @Column({ nullable: true })
     name: string;
 
-    @Column({ 
-        type: 'decimal', 
-        precision: 15, 
-        scale: 2, 
-        nullable: true
+    @Column({
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
+        nullable: true,
     })
     price: number;
 

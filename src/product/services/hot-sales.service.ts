@@ -29,7 +29,7 @@ export class HotSalesService {
                 displayOrder: 'ASC',
             },
         });
-        return hotSales.map(item => item.productId);
+        return hotSales.map((item) => item.productId);
     }
 
     async add(productId: string, displayOrder: number = 0): Promise<HotSales> {
@@ -37,9 +37,11 @@ export class HotSalesService {
         const product = await this.productRepository.findOne({
             where: { id: productId },
         });
-        
+
         if (!product) {
-            throw new NotFoundException(`Product with ID ${productId} not found`);
+            throw new NotFoundException(
+                `Product with ID ${productId} not found`,
+            );
         }
 
         // Check if product is already in hot sales
@@ -64,21 +66,28 @@ export class HotSalesService {
 
     async remove(productId: string): Promise<void> {
         const result = await this.hotSalesRepository.delete({ productId });
-        
+
         if (result.affected === 0) {
-            throw new NotFoundException(`Product with ID ${productId} not found in hot sales`);
+            throw new NotFoundException(
+                `Product with ID ${productId} not found in hot sales`,
+            );
         }
     }
 
-    async updateDisplayOrder(productId: string, displayOrder: number): Promise<HotSales> {
+    async updateDisplayOrder(
+        productId: string,
+        displayOrder: number,
+    ): Promise<HotSales> {
         const hotSale = await this.hotSalesRepository.findOne({
             where: { productId },
         });
-        
+
         if (!hotSale) {
-            throw new NotFoundException(`Product with ID ${productId} not found in hot sales`);
+            throw new NotFoundException(
+                `Product with ID ${productId} not found in hot sales`,
+            );
         }
-        
+
         hotSale.displayOrder = displayOrder;
         return this.hotSalesRepository.save(hotSale);
     }

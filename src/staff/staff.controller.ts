@@ -240,8 +240,10 @@ export class StaffController {
                 OrderStatus.APPROVED,
                 staffId,
             );
-            
-            this.logger.log(`Order ${orderId} approved successfully with stock adjustments`);
+
+            this.logger.log(
+                `Order ${orderId} approved successfully with stock adjustments`,
+            );
 
             // Get the complete order with customer details
             const orderWithDetails = await this.orderService.findOrderWithItems(

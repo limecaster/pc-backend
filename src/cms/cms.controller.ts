@@ -18,7 +18,12 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { CmsService } from './cms.service';
-import { CmsContent, ContentType, ContentSection, ContentStatus } from './cms-content.entity';
+import {
+    CmsContent,
+    ContentType,
+    ContentSection,
+    ContentStatus,
+} from './cms-content.entity';
 
 @Controller('cms')
 export class CmsController {
@@ -37,14 +42,18 @@ export class CmsController {
     }
 
     @Get('key/:contentKey')
-    async findByKey(@Param('contentKey') contentKey: string): Promise<CmsContent> {
+    async findByKey(
+        @Param('contentKey') contentKey: string,
+    ): Promise<CmsContent> {
         return this.cmsService.findByKey(contentKey);
     }
 
     @Post()
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
-    async create(@Body() contentData: Partial<CmsContent>): Promise<CmsContent> {
+    async create(
+        @Body() contentData: Partial<CmsContent>,
+    ): Promise<CmsContent> {
         return this.cmsService.create(contentData);
     }
 
@@ -71,11 +80,14 @@ export class CmsController {
     @Roles(Role.ADMIN)
     @UseInterceptors(FileInterceptor('image'))
     async uploadImage(
-        @UploadedFile() file: Express.Multer['File'], 
+        @UploadedFile() file: Express.Multer['File'],
         @Query('folder') folder: string,
     ): Promise<any> {
         try {
-            const result = await this.cmsService.uploadImage(file, folder || 'cms');
+            const result = await this.cmsService.uploadImage(
+                file,
+                folder || 'cms',
+            );
             return {
                 success: true,
                 imageUrl: result.secure_url,
@@ -105,7 +117,9 @@ export class CmsController {
         try {
             return Object.values(ContentSection);
         } catch (error) {
-            this.logger.error(`Failed to get content sections: ${error.message}`);
+            this.logger.error(
+                `Failed to get content sections: ${error.message}`,
+            );
             throw new Error(`Failed to get content sections: ${error.message}`);
         }
     }
@@ -115,7 +129,9 @@ export class CmsController {
         try {
             return Object.values(ContentStatus);
         } catch (error) {
-            this.logger.error(`Failed to get content statuses: ${error.message}`);
+            this.logger.error(
+                `Failed to get content statuses: ${error.message}`,
+            );
             throw new Error(`Failed to get content statuses: ${error.message}`);
         }
     }

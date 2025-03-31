@@ -11,7 +11,7 @@ export class OrderInventoryService {
     constructor(
         @InjectRepository(OrderItem)
         private orderItemRepository: Repository<OrderItem>,
-        
+
         @InjectRepository(Product)
         private productRepository: Repository<Product>,
     ) {}
@@ -23,13 +23,17 @@ export class OrderInventoryService {
      * @param entityManager Optional entity manager for transaction support
      */
     async adjustInventoryForOrder(
-        orderId: number, 
+        orderId: number,
         operation: 'increase' | 'decrease',
-        entityManager?: any
+        entityManager?: any,
     ): Promise<void> {
-        const repo = entityManager ? entityManager.getRepository(OrderItem) : this.orderItemRepository;
-        const productRepo = entityManager ? entityManager.getRepository(Product) : this.productRepository;
-        
+        const repo = entityManager
+            ? entityManager.getRepository(OrderItem)
+            : this.orderItemRepository;
+        const productRepo = entityManager
+            ? entityManager.getRepository(Product)
+            : this.productRepository;
+
         // Get all order items with their products
         const orderItems = await repo.find({
             where: { order: { id: orderId } },
@@ -37,14 +41,18 @@ export class OrderInventoryService {
         });
 
         if (!orderItems || orderItems.length === 0) {
-            this.logger.error(`No items found for order ${orderId} - inventory adjustment failed`);
+            this.logger.error(
+                `No items found for order ${orderId} - inventory adjustment failed`,
+            );
             return;
         }
 
         // Process each order item
         for (const item of orderItems) {
             if (!item.product) {
-                this.logger.error(`Order item ${item.id} has no associated product - inventory adjustment failed`);
+                this.logger.error(
+                    `Order item ${item.id} has no associated product - inventory adjustment failed`,
+                );
                 continue;
             }
 
@@ -53,16 +61,21 @@ export class OrderInventoryService {
             });
 
             if (!product) {
-                this.logger.error(`Product ${item.product.id} not found - inventory adjustment failed`);
+                this.logger.error(
+                    `Product ${item.product.id} not found - inventory adjustment failed`,
+                );
                 continue;
             }
 
             const oldStock = product.stock_quantity;
-            
+
             // Adjust stock based on operation
             if (operation === 'decrease') {
                 // Don't allow negative stock
-                product.stock_quantity = Math.max(0, product.stock_quantity - item.quantity);
+                product.stock_quantity = Math.max(
+                    0,
+                    product.stock_quantity - item.quantity,
+                );
             } else {
                 product.stock_quantity = product.stock_quantity + item.quantity;
             }

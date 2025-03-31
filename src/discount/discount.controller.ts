@@ -1,14 +1,14 @@
-import { 
-    Controller, 
-    Get, 
-    Post, 
-    Body, 
-    Param, 
-    Put, 
-    Delete, 
-    UseGuards, 
+import {
+    Controller,
+    Get,
+    Post,
+    Body,
+    Param,
+    Put,
+    Delete,
+    UseGuards,
     Query,
-    BadRequestException
+    BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -19,7 +19,6 @@ import { CreateDiscountDto, UpdateDiscountDto } from './dto/discount.dto';
 
 @Controller('discounts')
 export class DiscountController {
-
     constructor(private readonly discountService: DiscountService) {}
 
     @Get('admin')
@@ -54,7 +53,10 @@ export class DiscountController {
     @Put(':id')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
-    async update(@Param('id') id: string, @Body() updateDiscountDto: UpdateDiscountDto) {
+    async update(
+        @Param('id') id: string,
+        @Body() updateDiscountDto: UpdateDiscountDto,
+    ) {
         return await this.discountService.update(+id, updateDiscountDto);
     }
 
@@ -71,30 +73,35 @@ export class DiscountController {
     }
 
     @Post('validate')
-    async validateDiscount(@Body() data: { 
-        code: string; 
-        orderAmount: number;
-        productIds?: string[];
-        productPrices?: Record<string, number>; 
-    }) {
+    async validateDiscount(
+        @Body()
+        data: {
+            code: string;
+            orderAmount: number;
+            productIds?: string[];
+            productPrices?: Record<string, number>;
+        },
+    ) {
         // Validate required input values.
         if (!data.code) {
             throw new BadRequestException('Discount code is required');
         }
-        
+
         if (data.orderAmount === undefined || data.orderAmount < 0) {
             throw new BadRequestException('Valid order amount is required');
         }
-        
+
         const validatedDiscount = await this.discountService.validateDiscount(
-            data.code, 
-            data.orderAmount, 
+            data.code,
+            data.orderAmount,
             data.productIds,
-            data.productPrices
+            data.productPrices,
         );
 
         if (!validatedDiscount.valid) {
-            throw new BadRequestException(validatedDiscount.errorMessage || 'Invalid discount code');
+            throw new BadRequestException(
+                validatedDiscount.errorMessage || 'Invalid discount code',
+            );
         }
 
         const actualDiscount = validatedDiscount.discount;
@@ -110,25 +117,28 @@ export class DiscountController {
             data.orderAmount < actualDiscount.minOrderAmount
         ) {
             throw new BadRequestException(
-                `Order must be at least ${actualDiscount.minOrderAmount}`
+                `Order must be at least ${actualDiscount.minOrderAmount}`,
             );
         }
         return validatedDiscount;
     }
 
     @Post('automatic')
-    async getAutomaticDiscounts(@Body() options: {
-        productIds?: string[];
-        categoryNames?: string[];
-        customerId?: string;
-        isFirstPurchase?: boolean;
-        orderAmount?: number;
-        productPrices?: Record<string, number>; 
-    }) {
+    async getAutomaticDiscounts(
+        @Body()
+        options: {
+            productIds?: string[];
+            categoryNames?: string[];
+            customerId?: string;
+            isFirstPurchase?: boolean;
+            orderAmount?: number;
+            productPrices?: Record<string, number>;
+        },
+    ) {
         const discounts = await this.discountService.getAutomaticDiscounts({
-            ...options
+            ...options,
         });
-        
+
         return { success: true, discounts };
     }
 }

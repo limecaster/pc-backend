@@ -9,17 +9,9 @@ import { KafkaConsumer } from './kafka/kafka.consumer';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([UserBehavior]),
-        ConfigModule,
-    ],
+    imports: [TypeOrmModule.forFeature([UserBehavior]), ConfigModule],
     controllers: [EventsController],
-    providers: [
-        EventsService,
-        ProducerService,
-        ConsumerService,
-        KafkaConsumer,
-    ],
+    providers: [EventsService, ProducerService, ConsumerService, KafkaConsumer],
     exports: [EventsService, ProducerService],
 })
 export class EventsModule {}

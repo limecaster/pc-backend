@@ -455,28 +455,38 @@ export class CustomerService {
     }
 
     async getSimpleCustomerList(
-        search?: string, 
-        page: number = 1, 
-        limit: number = 10
-    ): Promise<{ customers: { id: string, name: string }[], total: number, pages: number }> {
+        search?: string,
+        page: number = 1,
+        limit: number = 10,
+    ): Promise<{
+        customers: { id: string; name: string }[];
+        total: number;
+        pages: number;
+    }> {
         try {
-            const queryBuilder = this.customerRepository.createQueryBuilder('customer')
-                .select(['customer.id', 'customer.firstname', 'customer.lastname', 'customer.email'])
+            const queryBuilder = this.customerRepository
+                .createQueryBuilder('customer')
+                .select([
+                    'customer.id',
+                    'customer.firstname',
+                    'customer.lastname',
+                    'customer.email',
+                ])
                 .where('customer.status = :status', { status: 'active' });
-            
+
             // Add search condition if search term is provided
             if (search && search.trim() !== '') {
                 queryBuilder.andWhere(
                     '(LOWER(customer.firstname) LIKE LOWER(:search) OR ' +
-                    'LOWER(customer.lastname) LIKE LOWER(:search) OR ' +
-                    'LOWER(customer.email) LIKE LOWER(:search))', 
-                    { search: `%${search.trim()}%` }
+                        'LOWER(customer.lastname) LIKE LOWER(:search) OR ' +
+                        'LOWER(customer.email) LIKE LOWER(:search))',
+                    { search: `%${search.trim()}%` },
                 );
             }
-            
+
             // Get total count for pagination
             const total = await queryBuilder.getCount();
-            
+
             // Add pagination
             const customers = await queryBuilder
                 .orderBy('customer.lastname', 'ASC')
@@ -484,22 +494,26 @@ export class CustomerService {
                 .skip((page - 1) * limit)
                 .take(limit)
                 .getMany();
-                
+
             // Calculate total pages
             const pages = Math.ceil(total / limit);
-            
+
             // Map to the required format with full names
             return {
-                customers: customers.map(customer => ({
+                customers: customers.map((customer) => ({
                     id: customer.id.toString(),
                     name: `${customer.firstname} ${customer.lastname} (${customer.email})`,
                 })),
                 total,
-                pages
+                pages,
             };
         } catch (error) {
-            this.logger.error(`Failed to get simple customer list: ${error.message}`);
-            throw new InternalServerErrorException('Failed to retrieve customer list');
+            this.logger.error(
+                `Failed to get simple customer list: ${error.message}`,
+            );
+            throw new InternalServerErrorException(
+                'Failed to retrieve customer list',
+            );
         }
     }
 
@@ -530,21 +544,25 @@ export class CustomerService {
     }) {
         try {
             // Create query builder
-            let queryBuilder = this.customerRepository.createQueryBuilder('customer');
+            let queryBuilder =
+                this.customerRepository.createQueryBuilder('customer');
 
             // Apply filters
             if (status) {
-                queryBuilder = queryBuilder.andWhere('customer.status = :status', { status });
+                queryBuilder = queryBuilder.andWhere(
+                    'customer.status = :status',
+                    { status },
+                );
             }
 
             if (search) {
                 queryBuilder = queryBuilder.andWhere(
                     '(customer.email LIKE :search OR ' +
-                    'customer.username LIKE :search OR ' +
-                    'customer.firstname LIKE :search OR ' +
-                    'customer.lastname LIKE :search OR ' +
-                    'customer.phoneNumber LIKE :search)',
-                    { search: `%${search}%` }
+                        'customer.username LIKE :search OR ' +
+                        'customer.firstname LIKE :search OR ' +
+                        'customer.lastname LIKE :search OR ' +
+                        'customer.phoneNumber LIKE :search)',
+                    { search: `%${search}%` },
                 );
             }
 
@@ -553,7 +571,10 @@ export class CustomerService {
 
             // Add sorting
             if (sortBy && sortOrder) {
-                queryBuilder = queryBuilder.orderBy(`customer.${sortBy}`, sortOrder);
+                queryBuilder = queryBuilder.orderBy(
+                    `customer.${sortBy}`,
+                    sortOrder,
+                );
             }
 
             // Add pagination

@@ -16,22 +16,22 @@ import { PaymentModule } from '../payment/payment.module';
 import { ProductModule } from '../product/product.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Order, OrderItem, Product]),
-    forwardRef(() => CheckoutModule),
-    forwardRef(() => PaymentModule),
-    EmailModule,
-    ScheduleModule.forRoot(),
-    ProductModule,
-  ],
-  controllers: [OrderController],
-  providers: [
-    OrderService, 
-    OrderTrackingService,
-    OrderStatusService,
-    OrderInventoryService,
-    OrderDisplayService,
-  ],
-  exports: [OrderService],
+    imports: [
+        TypeOrmModule.forFeature([Order, OrderItem, Product]),
+        forwardRef(() => CheckoutModule),
+        forwardRef(() => PaymentModule),
+        EmailModule,
+        ScheduleModule.forRoot(),
+        ProductModule,
+    ],
+    controllers: [OrderController],
+    providers: [
+        OrderService,
+        OrderTrackingService,
+        OrderStatusService,
+        OrderInventoryService,
+        OrderDisplayService,
+    ],
+    exports: [OrderService],
 })
 export class OrderModule {}

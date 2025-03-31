@@ -222,9 +222,7 @@ export class AuthController {
             if (body.type === 'verification') {
                 await this.customerService.resendVerificationOTP(body.email);
             } else {
-                await this.customerService.createPasswordResetToken(
-                    body.email,
-                );
+                await this.customerService.createPasswordResetToken(body.email);
             }
 
             return {

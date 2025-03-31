@@ -13,23 +13,16 @@ export class BuildGateway {
     @WebSocketServer()
     server: Server;
 
-    
-
     public sendConfigUpdate(config: any) {
         this.server.emit('pcConfigFormed', config);
     }
 
-    handleConnection(client: Socket) {
+    handleConnection(client: Socket) {}
 
-    }
-
-    handleDisconnect(client: Socket) {
-
-    }
+    handleDisconnect(client: Socket) {}
 
     @SubscribeMessage('subscribeAutoBuild')
     handleSubscription(@MessageBody() message: any) {
-
         this.server.emit(
             'autoBuildSubscribed',
             'Auto Build Subscription Successful',

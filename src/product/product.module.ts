@@ -21,10 +21,7 @@ import { HotSalesService } from './services/hot-sales.service';
 @Module({
     imports: [
         ConfigModule,
-        TypeOrmModule.forFeature([
-            Product,
-            HotSales,
-        ]),
+        TypeOrmModule.forFeature([Product, HotSales]),
         CloudinaryModule,
         DiscountModule,
     ],
@@ -42,9 +39,6 @@ import { HotSalesService } from './services/hot-sales.service';
         ProductElasticsearchService,
         HotSalesService,
     ],
-    exports: [
-        ProductService,
-        ProductSpecificationService,
-    ],
+    exports: [ProductService, ProductSpecificationService],
 })
 export class ProductModule {}

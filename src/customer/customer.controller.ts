@@ -15,7 +15,7 @@ import { CustomerService } from './customer.service';
 @Controller('customers')
 export class CustomerController {
     private readonly logger = new Logger(CustomerController.name);
-    
+
     constructor(private readonly customerService: CustomerService) {}
 
     // Updated to support search and pagination
@@ -25,15 +25,27 @@ export class CustomerController {
     async getSimpleCustomerList(
         @Query('search') search?: string,
         @Query('page') page: number = 1,
-        @Query('limit') limit: number = 10
-    ): Promise<{ customers: { id: string, name: string }[], total: number, pages: number }> {
+        @Query('limit') limit: number = 10,
+    ): Promise<{
+        customers: { id: string; name: string }[];
+        total: number;
+        pages: number;
+    }> {
         try {
             // Removed non-critical debug log
-            return await this.customerService.getSimpleCustomerList(search, page, limit);
+            return await this.customerService.getSimpleCustomerList(
+                search,
+                page,
+                limit,
+            );
         } catch (error) {
             // Keeping critical error log
-            this.logger.error(`Error retrieving customer list: ${error.message}`);
-            throw new InternalServerErrorException('Failed to retrieve customer list');
+            this.logger.error(
+                `Error retrieving customer list: ${error.message}`,
+            );
+            throw new InternalServerErrorException(
+                'Failed to retrieve customer list',
+            );
         }
     }
 }

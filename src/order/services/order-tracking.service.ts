@@ -95,7 +95,9 @@ export class OrderTrackingService {
         const order = await this.findOrderByIdentifier(identifier);
 
         if (!order) {
-            this.logger.error(`Order ${identifier} not found during OTP verification`);
+            this.logger.error(
+                `Order ${identifier} not found during OTP verification`,
+            );
             return false;
         }
 
@@ -134,9 +136,11 @@ export class OrderTrackingService {
     /**
      * Helper method to find an order by either ID or order number
      */
-    private async findOrderByIdentifier(identifier: string | number): Promise<Order | null> {
+    private async findOrderByIdentifier(
+        identifier: string | number,
+    ): Promise<Order | null> {
         let order: Order = null;
-        
+
         // First try to find by order number (string identifier)
         if (typeof identifier === 'string') {
             order = await this.orderRepository.findOne({
@@ -144,15 +148,23 @@ export class OrderTrackingService {
                 relations: ['customer'],
             });
         }
-        
+
         // If not found and the identifier could be numeric, try as ID
-        if (!order && (typeof identifier === 'number' || !isNaN(Number(identifier)))) {
+        if (
+            !order &&
+            (typeof identifier === 'number' || !isNaN(Number(identifier)))
+        ) {
             order = await this.orderRepository.findOne({
-                where: { id: typeof identifier === 'number' ? identifier : Number(identifier) },
+                where: {
+                    id:
+                        typeof identifier === 'number'
+                            ? identifier
+                            : Number(identifier),
+                },
                 relations: ['customer'],
             });
         }
-        
+
         return order;
     }
 
@@ -181,7 +193,9 @@ export class OrderTrackingService {
         const order = await this.findOrderByIdentifier(identifier);
 
         if (!order) {
-            this.logger.error(`Order ${identifier} not found during permission check`);
+            this.logger.error(
+                `Order ${identifier} not found during permission check`,
+            );
             return false;
         }
 
@@ -189,7 +203,7 @@ export class OrderTrackingService {
         if (!userId) {
             return false;
         }
-        
+
         // Check if the authenticated user owns the order
         if (order.customer && order.customer.id === userId) {
             return true;
@@ -213,7 +227,9 @@ export class OrderTrackingService {
             });
 
             if (!order) {
-                this.logger.error(`Order ${orderId} not found during access verification`);
+                this.logger.error(
+                    `Order ${orderId} not found during access verification`,
+                );
                 return false;
             }
 

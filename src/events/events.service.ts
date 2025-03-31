@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThan, LessThan } from 'typeorm';
 import { UserBehavior } from './entities/user-behavior.entity';
-import { CreateEventDto, ProductClickEventDto, DiscountUsageEventDto } from './dto/create-event.dto';
+import {
+    CreateEventDto,
+    ProductClickEventDto,
+    DiscountUsageEventDto,
+} from './dto/create-event.dto';
 import { plainToClass } from 'class-transformer';
 
 @Injectable()
@@ -16,7 +20,7 @@ export class EventsService {
 
     async createEvent(createEventDto: CreateEventDto): Promise<UserBehavior> {
         this.logger.log(`Recording event: ${createEventDto.eventType}`);
-        
+
         // Safely convert customerId to number if it's a numeric string
         let customerIdNum: number | null = null;
         if (createEventDto.customerId) {
@@ -26,10 +30,12 @@ export class EventsService {
                     customerIdNum = parsed;
                 }
             } catch (e) {
-                this.logger.warn(`Invalid customerId: ${createEventDto.customerId}`);
+                this.logger.warn(
+                    `Invalid customerId: ${createEventDto.customerId}`,
+                );
             }
         }
-        
+
         const userBehavior = this.userBehaviorRepository.create({
             customerId: customerIdNum,
             sessionId: createEventDto.sessionId,
@@ -46,9 +52,13 @@ export class EventsService {
         return this.userBehaviorRepository.save(userBehavior);
     }
 
-    async handleProductClick(productClickEvent: ProductClickEventDto): Promise<UserBehavior> {
-        this.logger.log(`Product click event received for product: ${productClickEvent.productId}`);
-        
+    async handleProductClick(
+        productClickEvent: ProductClickEventDto,
+    ): Promise<UserBehavior> {
+        this.logger.log(
+            `Product click event received for product: ${productClickEvent.productId}`,
+        );
+
         const eventData = {
             productName: productClickEvent.productName,
             category: productClickEvent.category,
@@ -73,11 +83,13 @@ export class EventsService {
     }
 
     async handleProductView(eventData: any): Promise<UserBehavior> {
-        this.logger.log(`Product view event received for product: ${eventData.entityId || eventData.eventData?.productId}`);
-        
+        this.logger.log(
+            `Product view event received for product: ${eventData.entityId || eventData.eventData?.productId}`,
+        );
+
         // The product data is now inside eventData
         const productId = eventData.entityId || eventData.eventData?.productId;
-        
+
         if (!productId) {
             this.logger.warn('Product view event missing product ID');
         }
@@ -98,11 +110,16 @@ export class EventsService {
         return this.createEvent(createEventDto);
     }
 
-    async handleCartEvent(eventData: any, eventType: string): Promise<UserBehavior> {
-        this.logger.log(`Cart event received: ${eventType} for product: ${eventData.entityId || eventData.eventData?.productId}`);
-        
+    async handleCartEvent(
+        eventData: any,
+        eventType: string,
+    ): Promise<UserBehavior> {
+        this.logger.log(
+            `Cart event received: ${eventType} for product: ${eventData.entityId || eventData.eventData?.productId}`,
+        );
+
         const productId = eventData.entityId || eventData.eventData?.productId;
-        
+
         if (!productId) {
             this.logger.warn(`${eventType} event missing product ID`);
         }
@@ -123,11 +140,16 @@ export class EventsService {
         return this.createEvent(createEventDto);
     }
 
-    async handleOrderEvent(eventData: any, eventType: string): Promise<UserBehavior> {
-        this.logger.log(`Order event received: ${eventType} for order: ${eventData.entityId || eventData.eventData?.orderId}`);
-        
+    async handleOrderEvent(
+        eventData: any,
+        eventType: string,
+    ): Promise<UserBehavior> {
+        this.logger.log(
+            `Order event received: ${eventType} for order: ${eventData.entityId || eventData.eventData?.orderId}`,
+        );
+
         const orderId = eventData.entityId || eventData.eventData?.orderId;
-        
+
         if (!orderId) {
             this.logger.warn(`${eventType} event missing order ID`);
         }
@@ -169,7 +191,9 @@ export class EventsService {
         });
     }
 
-    async createDiscountUsageEvent(discountUsageDto: any): Promise<UserBehavior> {
+    async createDiscountUsageEvent(
+        discountUsageDto: any,
+    ): Promise<UserBehavior> {
         try {
             const newEvent = plainToClass(UserBehavior, {
                 eventType: 'discount_usage',
@@ -181,18 +205,24 @@ export class EventsService {
                 eventData: {
                     orderId: discountUsageDto.orderId,
                     discountType: discountUsageDto.discountType,
-                    ...discountUsageDto.discountData
-                }
+                    ...discountUsageDto.discountData,
+                },
             });
 
             return await this.userBehaviorRepository.save(newEvent);
         } catch (error) {
-            this.logger.error(`Error creating discount usage event: ${error.message}`);
+            this.logger.error(
+                `Error creating discount usage event: ${error.message}`,
+            );
             throw error;
         }
     }
 
-    async getDiscountAnalytics(query: { startDate?: string, endDate?: string, discountId?: string }) {
+    async getDiscountAnalytics(query: {
+        startDate?: string;
+        endDate?: string;
+        discountId?: string;
+    }) {
         try {
             const whereClause: any = {
                 eventType: 'discount_usage',
@@ -201,7 +231,7 @@ export class EventsService {
             if (query.startDate && query.endDate) {
                 whereClause.createdAt = Between(
                     new Date(query.startDate),
-                    new Date(query.endDate)
+                    new Date(query.endDate),
                 );
             } else if (query.startDate) {
                 whereClause.createdAt = MoreThan(new Date(query.startDate));
@@ -211,7 +241,7 @@ export class EventsService {
 
             const events = await this.userBehaviorRepository.find({
                 where: whereClause,
-                order: { createdAt: 'DESC' }
+                order: { createdAt: 'DESC' },
             });
 
             // Process events to extract analytics data
@@ -221,36 +251,46 @@ export class EventsService {
                 uniqueCustomers: new Set(),
                 discountUsageByType: {
                     manual: 0,
-                    automatic: 0
+                    automatic: 0,
                 },
                 discountUsageByDiscount: {},
                 averageSavingsPercent: 0,
-                usageByDay: {}
+                usageByDay: {},
             };
 
             let totalSavingsPercent = 0;
             let savingsCount = 0;
 
-            events.forEach(event => {
+            events.forEach((event) => {
                 if (!event.eventData) return;
-                
-                analyticsData.totalDiscountAmount += Number(event.eventData.discountAmount || 0);
+
+                analyticsData.totalDiscountAmount += Number(
+                    event.eventData.discountAmount || 0,
+                );
                 analyticsData.uniqueOrders.add(event.eventData.orderId);
-                
+
                 if (event.customerId) {
                     analyticsData.uniqueCustomers.add(event.customerId);
                 }
-                
+
                 // Track usage by discount type
                 if (event.eventData.discountType) {
-                    analyticsData.discountUsageByType[event.eventData.discountType]++;
+                    analyticsData.discountUsageByType[
+                        event.eventData.discountType
+                    ]++;
                 }
-                
+
                 // Track usage by specific discount
-                if (event.eventData.discountIds && Array.isArray(event.eventData.discountIds)) {
-                    event.eventData.discountIds.forEach(discountId => {
-                        if (!analyticsData.discountUsageByDiscount[discountId]) {
-                            analyticsData.discountUsageByDiscount[discountId] = 0;
+                if (
+                    event.eventData.discountIds &&
+                    Array.isArray(event.eventData.discountIds)
+                ) {
+                    event.eventData.discountIds.forEach((discountId) => {
+                        if (
+                            !analyticsData.discountUsageByDiscount[discountId]
+                        ) {
+                            analyticsData.discountUsageByDiscount[discountId] =
+                                0;
                         }
                         analyticsData.discountUsageByDiscount[discountId]++;
                     });
@@ -261,26 +301,29 @@ export class EventsService {
                     }
                     analyticsData.discountUsageByDiscount[discountId]++;
                 }
-                
+
                 // Track average savings percent
                 if (typeof event.eventData.savingsPercent === 'number') {
                     totalSavingsPercent += event.eventData.savingsPercent;
                     savingsCount++;
                 }
-                
+
                 // Track usage by day
-                const date = new Date(event.createdAt).toISOString().split('T')[0];
+                const date = new Date(event.createdAt)
+                    .toISOString()
+                    .split('T')[0];
                 if (!analyticsData.usageByDay[date]) {
                     analyticsData.usageByDay[date] = 0;
                 }
                 analyticsData.usageByDay[date]++;
             });
-            
+
             // Calculate average savings
             if (savingsCount > 0) {
-                analyticsData.averageSavingsPercent = totalSavingsPercent / savingsCount;
+                analyticsData.averageSavingsPercent =
+                    totalSavingsPercent / savingsCount;
             }
-            
+
             return {
                 totalDiscountAmount: analyticsData.totalDiscountAmount,
                 uniqueOrdersCount: analyticsData.uniqueOrders.size,
@@ -288,27 +331,35 @@ export class EventsService {
                 discountUsageByType: analyticsData.discountUsageByType,
                 discountUsageByDiscount: analyticsData.discountUsageByDiscount,
                 averageSavingsPercent: analyticsData.averageSavingsPercent,
-                usageByDay: analyticsData.usageByDay
+                usageByDay: analyticsData.usageByDay,
             };
         } catch (error) {
-            this.logger.error(`Error getting discount analytics: ${error.message}`);
+            this.logger.error(
+                `Error getting discount analytics: ${error.message}`,
+            );
             throw error;
         }
     }
 
-    async getProductDiscountUsage(query: { productId?: string, discountId?: string }) {
+    async getProductDiscountUsage(query: {
+        productId?: string;
+        discountId?: string;
+    }) {
         try {
             // This would query the OrderItem table to get product-specific discount usage
             // For this, we'll need to create a custom query or repository method
-            
+
             // Implementation would depend on your database structure and requirements
             // This is a placeholder for the actual implementation
-            
+
             return {
-                message: 'Feature to be implemented based on OrderItem discount tracking'
+                message:
+                    'Feature to be implemented based on OrderItem discount tracking',
             };
         } catch (error) {
-            this.logger.error(`Error getting product discount usage: ${error.message}`);
+            this.logger.error(
+                `Error getting product discount usage: ${error.message}`,
+            );
             throw error;
         }
     }

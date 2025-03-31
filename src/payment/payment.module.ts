@@ -12,7 +12,7 @@ import { DiscountModule } from '../discount/discount.module';
         HttpModule,
         forwardRef(() => CheckoutModule),
         forwardRef(() => OrderModule),
-        DiscountModule, 
+        DiscountModule,
         ConfigModule,
     ],
     controllers: [PaymentController],

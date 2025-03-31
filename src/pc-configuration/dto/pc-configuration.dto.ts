@@ -28,12 +28,15 @@ export class PCConfigurationProductDto {
 
     @IsOptional()
     @IsNumber()
-    @Transform(({ value }) => {   
+    @Transform(({ value }) => {
         if (value === null || value === undefined) {
             return 0;
         }
-        
-        const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : Number(value);        
+
+        const num =
+            typeof value === 'string'
+                ? parseFloat(value.replace(/,/g, ''))
+                : Number(value);
         return isNaN(num) ? 0 : num;
     })
     price?: number;

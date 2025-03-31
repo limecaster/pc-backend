@@ -59,11 +59,13 @@ export class ProductSpecificationService {
      * Get specifications for multiple products in one query
      * Prevents N+1 query problem by batching specification lookups
      */
-    async getSpecificationsInBatch(productIds: string[]): Promise<Record<string, ProductSpecDto>> {
+    async getSpecificationsInBatch(
+        productIds: string[],
+    ): Promise<Record<string, ProductSpecDto>> {
         if (!productIds || productIds.length === 0) {
             return {};
         }
-        
+
         const driver = this.neo4jConfigService.getDriver();
         const session = driver.session();
 
@@ -75,28 +77,36 @@ export class ProductSpecificationService {
             `;
 
             const result = await session.run(query, { productIds });
-            
+
             // Create a map of product ID -> specifications
             const specificationsMap: Record<string, ProductSpecDto> = {};
-            
-            result.records.forEach(record => {
+
+            result.records.forEach((record) => {
                 const id = record.get('id');
                 const properties = record.get('product').properties;
-                
+
                 // Convert Neo4j integer objects to JavaScript numbers
                 for (const key in properties) {
-                    if (properties[key] && typeof properties[key].toNumber === 'function') {
+                    if (
+                        properties[key] &&
+                        typeof properties[key].toNumber === 'function'
+                    ) {
                         properties[key] = properties[key].toNumber();
                     }
                 }
-                
+
                 specificationsMap[id] = properties as ProductSpecDto;
             });
-            
+
             return specificationsMap;
         } catch (error) {
-            this.logger.error(`Error batch fetching specifications: ${error.message}`, error.stack);
-            throw new Error(`Failed to batch fetch specifications: ${error.message}`);
+            this.logger.error(
+                `Error batch fetching specifications: ${error.message}`,
+                error.stack,
+            );
+            throw new Error(
+                `Failed to batch fetch specifications: ${error.message}`,
+            );
         } finally {
             await session.close();
         }
@@ -439,7 +449,7 @@ export class ProductSpecificationService {
                             );
                     }
                     break;
-                
+
                 case 'PowerSupply':
                     switch (subcategory) {
                         case 'manufacturer':

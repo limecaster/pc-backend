@@ -35,7 +35,10 @@ export class CheckoutController {
             );
             let total = createOrderDto.subtotal || 0;
             // Apply discount
-            if (createOrderDto.discountAmount && createOrderDto.discountAmount > 0) {
+            if (
+                createOrderDto.discountAmount &&
+                createOrderDto.discountAmount > 0
+            ) {
                 total -= createOrderDto.discountAmount;
             }
             // Ensure final total >= 0
@@ -48,7 +51,9 @@ export class CheckoutController {
                 finalPrice: total,
             };
         } catch (error) {
-            this.logger.error(`Critical: Error creating order for user #${req.user.id}: ${error.message}`);
+            this.logger.error(
+                `Critical: Error creating order for user #${req.user.id}: ${error.message}`,
+            );
             throw new HttpException(
                 {
                     status: HttpStatus.BAD_REQUEST,
@@ -66,7 +71,9 @@ export class CheckoutController {
                 await this.checkoutService.processPayment(paymentData);
             return result;
         } catch (error) {
-            this.logger.error(`Critical: Error processing payment for order #${paymentData.orderId}: ${error.message}`);
+            this.logger.error(
+                `Critical: Error processing payment for order #${paymentData.orderId}: ${error.message}`,
+            );
             throw new HttpException(
                 {
                     status: HttpStatus.BAD_REQUEST,
@@ -92,7 +99,9 @@ export class CheckoutController {
                 order: result,
             };
         } catch (error) {
-            this.logger.error(`Critical: Error updating order #${data.orderId} status to ${data.status}: ${error.message}`);
+            this.logger.error(
+                `Critical: Error updating order #${data.orderId} status to ${data.status}: ${error.message}`,
+            );
             throw new HttpException(
                 {
                     status: HttpStatus.BAD_REQUEST,
@@ -111,7 +120,9 @@ export class CheckoutController {
 
             return result;
         } catch (error) {
-            this.logger.error(`Critical: Error creating payment link: ${error.message}`);
+            this.logger.error(
+                `Critical: Error creating payment link: ${error.message}`,
+            );
             return {
                 success: false,
                 message:

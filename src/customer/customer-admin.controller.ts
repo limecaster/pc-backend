@@ -81,7 +81,9 @@ export class CustomerAdminController {
                 customer,
             };
         } catch (error) {
-            this.logger.error(`Error fetching customer ${id}: ${error.message}`);
+            this.logger.error(
+                `Error fetching customer ${id}: ${error.message}`,
+            );
             return {
                 success: false,
                 message: error.message,
@@ -108,17 +110,24 @@ export class CustomerAdminController {
             // Check for valid status values
             const validStatuses = ['active', 'inactive', 'banned'];
             if (!validStatuses.includes(status)) {
-                throw new BadRequestException(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+                throw new BadRequestException(
+                    `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+                );
             }
 
-            const customer = await this.customerService.updateStatus(customerId, status);
-            
+            const customer = await this.customerService.updateStatus(
+                customerId,
+                status,
+            );
+
             return {
                 success: true,
                 customer,
             };
         } catch (error) {
-            this.logger.error(`Error updating customer ${id} status: ${error.message}`);
+            this.logger.error(
+                `Error updating customer ${id} status: ${error.message}`,
+            );
             return {
                 success: false,
                 message: error.message,

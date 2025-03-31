@@ -42,7 +42,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         // For customers, validate that they exist in the database
         const user = await this.customerService.findById(payload.sub);
         if (!user) {
-            this.logger.error(`User with ID ${payload.sub} not found in database`);
+            this.logger.error(
+                `User with ID ${payload.sub} not found in database`,
+            );
             throw new UnauthorizedException('User not found');
         }
 

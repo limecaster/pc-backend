@@ -52,7 +52,10 @@ export class ManualBuildService {
         try {
             return await this.runQuery(query, { name, label });
         } catch (error) {
-            this.logger.error('Error getting compatible parts by label:', error);
+            this.logger.error(
+                'Error getting compatible parts by label:',
+                error,
+            );
             throw new Error('Failed to get compatible parts by label');
         }
     }
@@ -65,7 +68,7 @@ export class ManualBuildService {
         const matchStatements = selectedParts
             .map(
                 (part, index) =>
-                    `MATCH (newPart)-[:COMPATIBLE_WITH]-(selected${index}:${part.label} {name: $selectedId${index}})`
+                    `MATCH (newPart)-[:COMPATIBLE_WITH]-(selected${index}:${part.label} {name: $selectedId${index}})`,
             )
             .join(' ');
 
@@ -87,7 +90,10 @@ export class ManualBuildService {
             const result = await this.runQuery(query, params);
             return result.records.length > 0;
         } catch (error) {
-            this.logger.error('Error checking compatibility across labels:', error);
+            this.logger.error(
+                'Error checking compatibility across labels:',
+                error,
+            );
             throw new Error('Failed to check compatibility across labels');
         }
     }
@@ -98,7 +104,7 @@ export class ManualBuildService {
         const matchStatements = selectedParts
             .map(
                 (part, index) =>
-                    `MATCH (selected${index}:${part.label} {name: $selectedId${index}})-[:COMPATIBLE_WITH]-(compatible)`
+                    `MATCH (selected${index}:${part.label} {name: $selectedId${index}})-[:COMPATIBLE_WITH]-(compatible)`,
             )
             .join(' ');
 
@@ -130,7 +136,10 @@ export class ManualBuildService {
 
             return compatibleParts;
         } catch (error) {
-            this.logger.error('Error getting all part type compatible with selected parts:', error);
+            this.logger.error(
+                'Error getting all part type compatible with selected parts:',
+                error,
+            );
             throw new Error('Failed to get part type compatibility');
         }
     }
@@ -143,11 +152,14 @@ export class ManualBuildService {
     ): Promise<any[]> {
         try {
             // First, map the target label to a Neo4j label
-            const mappedTargetLabel = (targetLabel === 'SSD' || targetLabel === 'HDD') ? "InternalHardDrive" : targetLabel;
-            
+            const mappedTargetLabel =
+                targetLabel === 'SSD' || targetLabel === 'HDD'
+                    ? 'InternalHardDrive'
+                    : targetLabel;
+
             // Store the original target label for later use in specific filtering
             const originalTargetLabel = targetLabel;
-            
+
             // Filter selected parts based on whether they have relationships with the target label
             const filteredSelectedParts = await Promise.all(
                 selectedParts.map(async (part) => {
@@ -169,9 +181,7 @@ export class ManualBuildService {
                     const isRelated = result.records[0].get('isRelated');
                     return isRelated ? part : null;
                 }),
-            ).then(
-                (parts) => parts.filter((part) => part !== null),
-            );
+            ).then((parts) => parts.filter((part) => part !== null));
 
             // Case: No selected parts yet - show all compatible parts of the requested type
             if (filteredSelectedParts.length === 0) {
@@ -192,7 +202,9 @@ export class ManualBuildService {
                     query += `
                     AND (compatible.type <> 'SSD' OR compatible.type IS NULL)
                     `;
-                    this.logger.log('Filtering for HDD (non-SSD) storage types');
+                    this.logger.log(
+                        'Filtering for HDD (non-SSD) storage types',
+                    );
                 }
 
                 if (searchTerm) {
@@ -249,10 +261,16 @@ export class ManualBuildService {
             // Add storage type filtering for SSD and HDD
             if (originalTargetLabel === 'SSD') {
                 whereConditions.push("compatible.type = 'SSD'");
-                this.logger.log('Filtering compatible parts for SSD storage type');
+                this.logger.log(
+                    'Filtering compatible parts for SSD storage type',
+                );
             } else if (originalTargetLabel === 'HDD') {
-                whereConditions.push("(compatible.type <> 'SSD' OR compatible.type IS NULL)");
-                this.logger.log('Filtering compatible parts for HDD (non-SSD) storage types');
+                whereConditions.push(
+                    "(compatible.type <> 'SSD' OR compatible.type IS NULL)",
+                );
+                this.logger.log(
+                    'Filtering compatible parts for HDD (non-SSD) storage types',
+                );
             }
 
             if (searchTerm) {
@@ -304,8 +322,13 @@ export class ManualBuildService {
                 this.normalizeProperties(record.get('compatible').properties),
             );
         } catch (error) {
-            this.logger.error('Error getting specific part type compatible with selected parts:', error);
-            throw new Error('Failed to get specific part type compatible with selected parts');
+            this.logger.error(
+                'Error getting specific part type compatible with selected parts:',
+                error,
+            );
+            throw new Error(
+                'Failed to get specific part type compatible with selected parts',
+            );
         }
     }
 
@@ -378,7 +401,10 @@ export class ManualBuildService {
 
             return { items, totalItems };
         } catch (error) {
-            this.logger.error('Error finding parts by labels with pagination:', error);
+            this.logger.error(
+                'Error finding parts by labels with pagination:',
+                error,
+            );
             throw new Error('Failed to find parts by labels with pagination');
         }
     }
@@ -410,10 +436,11 @@ export class ManualBuildService {
             }
 
             for (const label of partLabels) {
-                const isCompatible = await this.checkCompatibilityService.checkCompatibility(
-                    { partData: partRecord, label },
-                    this.pcConfigurationForManualBuild,
-                );
+                const isCompatible =
+                    await this.checkCompatibilityService.checkCompatibility(
+                        { partData: partRecord, label },
+                        this.pcConfigurationForManualBuild,
+                    );
                 if (!isCompatible) {
                     return false;
                 }

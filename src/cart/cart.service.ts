@@ -38,7 +38,10 @@ export class CartService {
             const result = await session.run(query, params);
             return result;
         } catch (error) {
-            this.logger.error(`Neo4j query failed: ${error.message}`, error.stack);
+            this.logger.error(
+                `Neo4j query failed: ${error.message}`,
+                error.stack,
+            );
             throw error;
         }
     }
@@ -159,7 +162,9 @@ export class CartService {
                 });
 
                 if (!cart) {
-                    this.logger.error(`Failed to create cart for user ${userId}`);
+                    this.logger.error(
+                        `Failed to create cart for user ${userId}`,
+                    );
                     throw new Error('Failed to create cart');
                 }
             }

@@ -22,24 +22,39 @@ export class AuthService {
     async validateUser(email: string, password: string): Promise<any> {
         const customer = await this.customerService.findByEmail(email);
         if (!customer) {
-            this.logger.error(`Validation failed: No user found with email: ${email}`);
+            this.logger.error(
+                `Validation failed: No user found with email: ${email}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        const isPasswordValid = await bcrypt.compare(password, customer.password);
+        const isPasswordValid = await bcrypt.compare(
+            password,
+            customer.password,
+        );
         if (!isPasswordValid) {
-            this.logger.error(`Validation failed: Invalid password for email: ${email}`);
+            this.logger.error(
+                `Validation failed: Invalid password for email: ${email}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
 
         if (!customer.isEmailVerified) {
-            this.logger.error(`Validation failed: Email not verified for user ID: ${customer.id}`);
-            throw new UnauthorizedException('Please verify your email before logging in');
+            this.logger.error(
+                `Validation failed: Email not verified for user ID: ${customer.id}`,
+            );
+            throw new UnauthorizedException(
+                'Please verify your email before logging in',
+            );
         }
 
         if (customer.status !== 'active') {
-            this.logger.error(`Validation failed: Inactive account for user ID: ${customer.id}`);
-            throw new UnauthorizedException('Your account has been deactivated. Please contact support.');
+            this.logger.error(
+                `Validation failed: Inactive account for user ID: ${customer.id}`,
+            );
+            throw new UnauthorizedException(
+                'Your account has been deactivated. Please contact support.',
+            );
         }
 
         await this.customerService.updateLoginTimestamp(customer.id);
@@ -69,7 +84,9 @@ export class AuthService {
             { ...payload },
             {
                 expiresIn: '7d',
-                secret: this.configService.get<string>('JWT_SECRET') || 'refreshSecret',
+                secret:
+                    this.configService.get<string>('JWT_SECRET') ||
+                    'refreshSecret',
             },
         );
 
@@ -99,43 +116,65 @@ export class AuthService {
         const customer = await this.customerService.create(userData);
 
         try {
-            const name = `${userData.firstname || ''} ${userData.lastname || ''}`.trim();
+            const name =
+                `${userData.firstname || ''} ${userData.lastname || ''}`.trim();
             await this.emailService.sendVerificationEmail(
                 userData.email,
                 customer.verificationToken,
                 name,
             );
         } catch (error) {
-            this.logger.error(`Failed to send verification email to: ${userData.email}`, error.stack);
+            this.logger.error(
+                `Failed to send verification email to: ${userData.email}`,
+                error.stack,
+            );
         }
 
         const { password: _, ...result } = customer;
         return result;
     }
 
-    async validateUsernameOrEmail(loginId: string, password: string): Promise<any> {
+    async validateUsernameOrEmail(
+        loginId: string,
+        password: string,
+    ): Promise<any> {
         const customer = await this.customerService.findByLoginId(loginId);
 
         if (!customer) {
-            this.logger.error(`Validation failed: No user found with loginId: ${loginId}`);
+            this.logger.error(
+                `Validation failed: No user found with loginId: ${loginId}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        const isPasswordValid = await bcrypt.compare(password, customer.password);
+        const isPasswordValid = await bcrypt.compare(
+            password,
+            customer.password,
+        );
 
         if (!isPasswordValid) {
-            this.logger.error(`Validation failed: Invalid password for loginId: ${loginId}`);
+            this.logger.error(
+                `Validation failed: Invalid password for loginId: ${loginId}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
 
         if (!customer.isEmailVerified) {
-            this.logger.error(`Validation failed: Email not verified for user ID: ${customer.id}`);
-            throw new UnauthorizedException('Please verify your email before logging in');
+            this.logger.error(
+                `Validation failed: Email not verified for user ID: ${customer.id}`,
+            );
+            throw new UnauthorizedException(
+                'Please verify your email before logging in',
+            );
         }
 
         if (customer.status !== 'active') {
-            this.logger.error(`Validation failed: Inactive account for user ID: ${customer.id}`);
-            throw new UnauthorizedException('Your account has been deactivated. Please contact support.');
+            this.logger.error(
+                `Validation failed: Inactive account for user ID: ${customer.id}`,
+            );
+            throw new UnauthorizedException(
+                'Your account has been deactivated. Please contact support.',
+            );
         }
 
         await this.customerService.updateLoginTimestamp(customer.id);
@@ -149,13 +188,20 @@ export class AuthService {
 
         const admin = await this.adminService.findByUsername(username);
         if (!admin) {
-            this.logger.error(`Validation failed: Admin not found with username: ${username}`);
+            this.logger.error(
+                `Validation failed: Admin not found with username: ${username}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
 
-        const passwordValid = await this.comparePasswords(password, admin.password);
+        const passwordValid = await this.comparePasswords(
+            password,
+            admin.password,
+        );
         if (!passwordValid) {
-            this.logger.error(`Validation failed: Invalid password for admin username: ${username}`);
+            this.logger.error(
+                `Validation failed: Invalid password for admin username: ${username}`,
+            );
             throw new UnauthorizedException('Invalid credentials');
         }
 
@@ -179,7 +225,10 @@ export class AuthService {
         };
     }
 
-    async comparePasswords(plainTextPassword: string, hashedPassword: string): Promise<boolean> {
+    async comparePasswords(
+        plainTextPassword: string,
+        hashedPassword: string,
+    ): Promise<boolean> {
         return bcrypt.compare(plainTextPassword, hashedPassword);
     }
 
@@ -190,7 +239,9 @@ export class AuthService {
             });
 
             if (!payload) {
-                this.logger.error('Token refresh failed: Invalid refresh token format');
+                this.logger.error(
+                    'Token refresh failed: Invalid refresh token format',
+                );
                 throw new UnauthorizedException('Invalid refresh token');
             }
 

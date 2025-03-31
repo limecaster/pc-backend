@@ -42,12 +42,23 @@ export class OrderStatusService {
         await this.validateStatusTransition(order.status, status, staffId);
 
         // Handle stock adjustment based on status change
-        if (status === OrderStatus.APPROVED && previousStatus === OrderStatus.PENDING_APPROVAL) {
-            await this.orderInventoryService.adjustInventoryForOrder(orderId, 'decrease');
-        } 
-        else if (status === OrderStatus.CANCELLED && 
-                (previousStatus === OrderStatus.APPROVED || previousStatus === OrderStatus.PAYMENT_SUCCESS)) {
-            await this.orderInventoryService.adjustInventoryForOrder(orderId, 'increase');
+        if (
+            status === OrderStatus.APPROVED &&
+            previousStatus === OrderStatus.PENDING_APPROVAL
+        ) {
+            await this.orderInventoryService.adjustInventoryForOrder(
+                orderId,
+                'decrease',
+            );
+        } else if (
+            status === OrderStatus.CANCELLED &&
+            (previousStatus === OrderStatus.APPROVED ||
+                previousStatus === OrderStatus.PAYMENT_SUCCESS)
+        ) {
+            await this.orderInventoryService.adjustInventoryForOrder(
+                orderId,
+                'increase',
+            );
         }
 
         order.status = status;

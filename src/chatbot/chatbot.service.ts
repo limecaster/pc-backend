@@ -4,7 +4,6 @@ import axios from 'axios';
 
 @Injectable()
 export class ChatbotService {
-
     private readonly api_url: string;
     private readonly logger = new Logger(ChatbotService.name);
 
@@ -12,13 +11,11 @@ export class ChatbotService {
         this.api_url = this.configService.get<string>('CHATBOT_API_URL');
     }
 
-
-
     async clientChat(body: any) {
         const { message } = body;
         try {
             const body = JSON.stringify({ message: message });
-            
+
             const response = await axios.post(
                 `${this.api_url}/client-chat`,
                 body,
@@ -28,6 +25,6 @@ export class ChatbotService {
         } catch (error) {
             this.logger.error(error);
             throw new Error(error);
-        } 
+        }
     }
 }

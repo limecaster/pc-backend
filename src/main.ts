@@ -62,7 +62,7 @@ async function bootstrap() {
 
     // Get ConfigService from app
     const configService = app.get(ConfigService);
-    
+
     // Connect Kafka microservice with proper config
     const kafkaConfig = getKafkaConfig(configService);
     app.connectMicroservice<MicroserviceOptions>(kafkaConfig);

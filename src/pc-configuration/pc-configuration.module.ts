@@ -6,7 +6,9 @@ import { PCConfiguration } from './entities/pc-configuration.entity';
 import { PCConfigurationProduct } from './entities/pc-configuration-product.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([PCConfiguration, PCConfigurationProduct])],
+    imports: [
+        TypeOrmModule.forFeature([PCConfiguration, PCConfigurationProduct]),
+    ],
     controllers: [PCConfigurationController],
     providers: [PCConfigurationService],
     exports: [PCConfigurationService],

@@ -23,10 +23,14 @@ export class PCConfiguration {
     purpose: string;
 
     // Remove the products JSON field and add OneToMany relation
-    @OneToMany(() => PCConfigurationProduct, product => product.configuration, {
-        cascade: true,
-        eager: true,
-    })
+    @OneToMany(
+        () => PCConfigurationProduct,
+        (product) => product.configuration,
+        {
+            cascade: true,
+            eager: true,
+        },
+    )
     products: PCConfigurationProduct[];
 
     @Column({

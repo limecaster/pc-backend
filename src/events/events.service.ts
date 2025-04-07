@@ -81,7 +81,6 @@ export class EventsService {
 
     async handleProductView(eventData: any): Promise<UserBehavior> {
 
-        // The product data is now inside eventData
         const productId = eventData.entityId || eventData.eventData?.productId;
 
         if (!productId) {
@@ -335,11 +334,7 @@ export class EventsService {
         discountId?: string;
     }) {
         try {
-            // This would query the OrderItem table to get product-specific discount usage
-            // For this, we'll need to create a custom query or repository method
 
-            // Implementation would depend on your database structure and requirements
-            // This is a placeholder for the actual implementation
 
             return {
                 message:
@@ -363,9 +358,6 @@ export class EventsService {
         eventData: any,
         eventType: 'session_start' | 'session_end',
     ): Promise<UserBehavior> {
-        this.logger.log(
-            `Session event received: ${eventType} for session: ${eventData.sessionId}`,
-        );
 
         // Parse customerId to number if it's numeric
         let customerIdNum: number | null = null;
@@ -386,7 +378,7 @@ export class EventsService {
             eventType,
             customerId: eventData.customerId,
             sessionId: eventData.sessionId,
-            entityId: eventData.sessionId, // For session events, entityId is the sessionId
+            entityId: eventData.sessionId, 
             entityType: 'session',
             pageUrl: eventData.pageUrl,
             referrerUrl: eventData.referrerUrl,
@@ -394,7 +386,7 @@ export class EventsService {
             ipAddress: eventData.ipAddress,
             eventData: {
                 ...eventData.eventData,
-                // Add any additional session-specific data here
+                
                 timestamp: eventData.eventData?.timestamp || new Date().toISOString(),
             },
         };
@@ -412,9 +404,7 @@ export class EventsService {
         eventData: any,
         eventType: 'user_authenticated' | 'user_logout',
     ): Promise<UserBehavior> {
-        this.logger.log(
-            `Auth event received: ${eventType} for user: ${eventData.customerId || eventData.eventData?.userId}`,
-        );
+
 
         // Parse customerId to number if it's numeric
         let customerIdNum: number | null = null;

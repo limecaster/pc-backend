@@ -33,7 +33,6 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
     async produce(record: ProducerRecord) {
         try {
             await this.producer.send(record);
-            this.logger.debug(`Message sent to topic: ${record.topic}`);
         } catch (error) {
             this.logger.error(
                 `Error sending message to Kafka: ${error.message}`,

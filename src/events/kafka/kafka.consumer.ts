@@ -3,6 +3,7 @@ import { ConsumerService } from './consumer.service';
 import { Logger } from '@nestjs/common';
 import { EventsService } from '../events.service';
 import { ProductClickEventDto } from '../dto/create-event.dto';
+import { ViewedProductsService } from '../services/viewed-products.service';
 
 @Injectable()
 export class KafkaConsumer implements OnModuleInit {
@@ -11,6 +12,7 @@ export class KafkaConsumer implements OnModuleInit {
     constructor(
         private readonly consumerService: ConsumerService,
         private readonly eventsService: EventsService,
+        private readonly viewedProductsService: ViewedProductsService,
     ) {}
 
     async onModuleInit() {
@@ -18,7 +20,7 @@ export class KafkaConsumer implements OnModuleInit {
             { topics: ['user-behavior'] },
             {
                 eachMessage: async ({ topic, partition, message }) => {
-                    this.logger.debug(`Received message from topic ${topic}`);
+
 
                     const messageValue = message.value.toString();
                     try {
@@ -34,6 +36,13 @@ export class KafkaConsumer implements OnModuleInit {
                                 await this.eventsService.handleProductView(
                                     eventData,
                                 );
+                                // Track the product view in the viewed products table
+                                if (eventData.customerId) {
+                                    await this.viewedProductsService.trackProductView(
+                                        parseInt(eventData.customerId),
+                                        eventData.entityId,
+                                    );
+                                }
                                 break;
                             case 'product_added_to_cart':
                                 await this.eventsService.handleCartEvent(

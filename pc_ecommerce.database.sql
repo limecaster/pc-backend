@@ -204,3 +204,17 @@ CREATE INDEX idx_user_behavior_event_type ON User_Behavior(event_type);
 CREATE INDEX idx_user_behavior_customer_id ON User_Behavior(customer_id);
 CREATE INDEX idx_user_behavior_entity_id ON User_Behavior(entity_id);
 CREATE INDEX idx_user_behavior_created_at ON User_Behavior(created_at);
+
+-- Viewed Products Table
+CREATE TABLE Viewed_Products (
+    id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES Customer(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES Product(id) ON DELETE CASCADE,
+    viewed_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(customer_id, product_id)
+);
+
+-- Add index for faster queries
+CREATE INDEX idx_viewed_products_customer_id ON Viewed_Products(customer_id);
+CREATE INDEX idx_viewed_products_product_id ON Viewed_Products(product_id);
+CREATE INDEX idx_viewed_products_viewed_at ON Viewed_Products(viewed_at);

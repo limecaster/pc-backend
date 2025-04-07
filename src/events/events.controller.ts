@@ -36,19 +36,9 @@ export class EventsController {
         @Req() req: Request,
     ) {
         try {
-            this.logger.log(
-                `Received event tracking request: ${createEventDto.eventType}`,
-            );
-
+                
             // Capture IP address
             createEventDto.ipAddress = req.ip;
-            
-            // Special handling for session events
-            if (createEventDto.eventType === 'session_start') {
-                this.logger.debug(
-                    `Session start event for sessionId: ${createEventDto.sessionId}, customerId: ${createEventDto.customerId || 'none'}`,
-                );
-            }
 
             // Send to Kafka
             await this.producerService.produce({
@@ -80,24 +70,8 @@ export class EventsController {
         @Req() req: Request,
     ) {
         try {
-            this.logger.log(
-                `Received product click tracking for product: ${productClickDto.productId}`,
-            );
-
             // Capture IP address
             productClickDto.ipAddress = req.ip;
-
-            // Log customerId for debugging
-            if (productClickDto.customerId) {
-                this.logger.debug(
-                    `Customer ID: ${productClickDto.customerId} (${typeof productClickDto.customerId})`,
-                );
-            }
-
-            // Log the entire payload for debugging
-            this.logger.debug(
-                `Product click payload: ${JSON.stringify(productClickDto)}`,
-            );
 
             // Send to Kafka
             await this.producerService.produce({

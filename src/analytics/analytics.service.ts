@@ -42,37 +42,6 @@ export class AnalyticsService {
         );
     }
 
-    async getUserCohortAnalysis(startDate: Date, endDate: Date) {
-        return this.userBehaviorAnalyticsService.getUserCohortAnalysis(
-            startDate,
-            endDate,
-        );
-    }
-
-    async getUserFunnelAnalysis(
-        startDate: Date,
-        endDate: Date,
-        funnelSteps: string[] = [
-            'product_viewed',
-            'product_added_to_cart',
-            'order_created',
-            'payment_completed',
-        ],
-    ) {
-        return this.userBehaviorAnalyticsService.getUserFunnelAnalysis(
-            startDate,
-            endDate,
-            funnelSteps,
-        );
-    }
-
-    async getDeviceAnalytics(startDate: Date, endDate: Date) {
-        return this.userBehaviorAnalyticsService.getDeviceAnalytics(
-            startDate,
-            endDate,
-        );
-    }
-
     async getUserEngagementMetrics(startDate: Date, endDate: Date) {
         return this.userBehaviorAnalyticsService.getUserEngagementMetrics(
             startDate,
@@ -133,6 +102,18 @@ export class AnalyticsService {
     // Inventory Analytics
     async getInventoryReport() {
         return this.inventoryAnalyticsService.getInventoryReport();
+    }
+
+    async getLowStockProducts(page = 1, limit = 10, search = '') {
+        return this.inventoryAnalyticsService.getLowStockProducts(page, limit, search);
+    }
+
+    async getOutOfStockProducts(page = 1, limit = 10, search = '') {
+        return this.inventoryAnalyticsService.getOutOfStockProducts(page, limit, search);
+    }
+
+    async getProductCategories() {
+        return this.inventoryAnalyticsService.getProductCategories();
     }
 
     // Order Analytics

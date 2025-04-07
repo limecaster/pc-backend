@@ -575,9 +575,58 @@ export class ProductSpecificationService {
             this.logger.error(
                 `Error fetching ${subcategory} values for ${category}: ${error.message}`,
             );
-            throw new Error(
-                `Failed to fetch ${subcategory} values for ${category}`,
+            // Return empty array instead of throwing error for unknown subcategories
+            return [];
+        } finally {
+            await session.close();
+        }
+    }
+
+    /**
+     * Get all specification keys available for a given product category
+     * For example, CPU might have keys like: manufacturer, socket, series, etc.
+     */
+    async getSubcategoryKeys(category: string): Promise<string[]> {
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+
+        try {
+            if (!category) {
+                return [];
+            }
+
+            // First try to match based on label (category)
+            const query = `
+                MATCH (p:${category})
+                WHERE p.price > 0 AND p.price IS NOT NULL
+                RETURN p
+                LIMIT 1
+            `;
+
+            const result = await session.run(query);
+            
+            if (result.records.length === 0) {
+                return [];
+            }
+
+            // Get the first node and extract its property keys as the spec fields
+            const nodeProps = result.records[0].get('p').properties;
+            
+            // Filter out common properties that aren't specifications
+            const commonProps = ['id', 'price', 'imageUrl', 'name', 'description', 
+                'category', 'stock', 'status', 'stockQuantity', 'additionalImages'];
+            
+            const specKeys = Object.keys(nodeProps)
+                .filter(key => !commonProps.includes(key))
+                .sort();
+                
+            return specKeys;
+        } catch (error) {
+            this.logger.error(
+                `Error getting subcategory keys for ${category}: ${error.message}`,
+                error.stack,
             );
+            return []; // Return empty array on error
         } finally {
             await session.close();
         }

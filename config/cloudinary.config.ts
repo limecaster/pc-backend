@@ -4,7 +4,6 @@ import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryResponse } from '../src/interfaces/cloudinary-response.interface';
 import { Readable } from 'stream';
 
-// Import the correct Multer type
 import * as multer from 'multer';
 
 @Injectable()
@@ -18,7 +17,7 @@ export class CloudinaryConfigService {
     }
 
     async uploadImage(
-        file: multer.Multer['File'], // Use correct type reference
+        file: multer.Multer['File'],
         folder: string = 'products',
     ): Promise<CloudinaryResponse> {
         return new Promise((resolve, reject) => {

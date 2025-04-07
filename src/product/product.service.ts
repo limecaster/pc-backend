@@ -32,7 +32,7 @@ export class ProductService {
         private readonly neo4jConfigService: Neo4jConfigService,
     ) {}
 
-    async findBySlug(slug: string): Promise<ProductDetailsDto> {
+    async findBySlug(slug: string, isAdmin: boolean = false): Promise<ProductDetailsDto> {
         try {
             // Check if id is a valid UUID
             if (!this.utilsService.isValidUUID(slug)) {
@@ -41,10 +41,17 @@ export class ProductService {
                 );
             }
 
-            // Use TypeORM to fetch product
-            const product = await this.productRepository.findOne({
-                where: { id: slug, status: 'active' },
-            });
+            let product;
+
+            if (isAdmin) {
+                product = await this.productRepository.findOne({
+                    where: { id: slug },
+                });
+            } else {
+                product = await this.productRepository.findOne({
+                    where: { id: slug, status: 'active' },
+                });
+            }
 
             if (!product) {
                 throw new NotFoundException(
@@ -94,10 +101,12 @@ export class ProductService {
                 reviews: reviews || [],
                 sku: product.id || '',
                 stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
+                stockQuantity: product.stockQuantity,
                 brand: specifications['manufacturer'] || '',
                 category: product.category || '',
                 color: product.color || undefined,
                 size: product.size || undefined,
+                status: product.status,
             };
 
             // Apply automatic discounts
@@ -288,6 +297,7 @@ export class ProductService {
                     stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
                     category: product.category || '',
                     stockQuantity: product.stockQuantity,
+                    status: product.status, 
                 };
             });
 
@@ -509,6 +519,10 @@ export class ProductService {
             category,
             subcategory,
         );
+    }
+
+    async getSubcategoryKeys(category: string): Promise<string[]> {
+        return this.productSpecService.getSubcategoryKeys(category);
     }
 
     async getLandingPageProducts(): Promise<ProductDetailsDto[]> {
@@ -1018,6 +1032,160 @@ export class ProductService {
             throw new InternalServerErrorException(
                 'Failed to retrieve product list',
             );
+        }
+    }
+
+    /**
+     * Create a new product and synchronize it with Neo4j
+     * Uses the same UUID for both databases
+     */
+    async createProduct(productData: any): Promise<any> {
+        try {
+            // 1. Prepare product data for PostgreSQL
+            const { 
+                name, 
+                price, 
+                stock_quantity, 
+                status, 
+                category, 
+                description, 
+                specifications, 
+                images,
+                thumbnail 
+            } = productData;
+
+            // 2. Create the product in PostgreSQL
+            const product = this.productRepository.create({
+                name,
+                price,
+                description,
+                stockQuantity: stock_quantity,
+                status,
+                category,
+                additional_images: Array.isArray(images) ? JSON.stringify(images) : '[]',
+                imageUrl: thumbnail || (Array.isArray(images) && images.length > 0 ? images[0] : null),
+            });
+
+            // 3. Save to PostgreSQL to generate UUID
+            const savedProduct = await this.productRepository.save(product);
+            const productId = savedProduct.id;
+
+            // 4. Create the same product in Neo4j with the same UUID
+            if (specifications && Object.keys(specifications).length > 0) {
+                await this.syncProductToNeo4j(productId, {
+                    ...specifications,
+                    id: productId,
+                    name,
+                    price,
+                    imageUrl: thumbnail || (Array.isArray(images) && images.length > 0 ? images[0] : null),
+                    category
+                });
+            }
+
+            return savedProduct;
+        } catch (error) {
+            this.logger.error(`Error creating product: ${error.message}`);
+            throw new Error(`Failed to create product: ${error.message}`);
+        }
+    }
+
+    /**
+     * Sync product data to Neo4j
+     */
+    private async syncProductToNeo4j(productId: string, data: any): Promise<void> {
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+
+        try {
+            // Prepare dynamic property creation
+            const propertyAssignments = Object.entries(data)
+                .filter(([key, value]) => value !== undefined && value !== null)
+                .map(([key, value]) => {
+                    // Handle different value types
+                    if (typeof value === 'number') {
+                        return `p.${key} = ${value}`;
+                    } else {
+                        return `p.${key} = "${String(value).replace(/"/g, '\\"')}"`;
+                    }
+                })
+                .join(', ');
+
+            // Create or update the node in Neo4j with the provided label (category)
+            const query = `
+                MERGE (p:${data.category} {id: $productId})
+                SET ${propertyAssignments}
+                RETURN p
+            `;
+
+            await session.run(query, { productId });
+        } catch (error) {
+            this.logger.error(`Error syncing product to Neo4j: ${error.message}`);
+            throw new Error(`Failed to sync product to Neo4j: ${error.message}`);
+        } finally {
+            await session.close();
+        }
+    }
+
+    /**
+     * Update an existing product and synchronize it with Neo4j
+     */
+    async updateProduct(id: string, productData: any): Promise<any> {
+        try {
+            // 1. Find the existing product
+            const existingProduct = await this.productRepository.findOne({ 
+                where: { id } 
+            });
+            
+            if (!existingProduct) {
+                throw new Error(`Product with ID ${id} not found`);
+            }
+
+            // 2. Extract data from request
+            const { 
+                name, 
+                price, 
+                stock_quantity, 
+                status, 
+                category, 
+                description, 
+                specifications, 
+                images,
+                thumbnail 
+            } = productData;
+
+            // 3. Update product in PostgreSQL
+            existingProduct.name = name || existingProduct.name;
+            existingProduct.price = price ?? existingProduct.price;
+            existingProduct.description = description ?? existingProduct.description;
+            existingProduct.stockQuantity = stock_quantity ?? existingProduct.stockQuantity;
+            existingProduct.status = status || existingProduct.status;
+            existingProduct.category = category || existingProduct.category;
+            
+            // Handle images
+            if (Array.isArray(images) && images.length > 0) {
+                existingProduct.additional_images = JSON.stringify(images);
+                existingProduct.imageUrl = thumbnail || images[0];
+            }
+
+            // 4. Save changes to PostgreSQL
+            const updatedProduct = await this.productRepository.save(existingProduct);
+
+            // 5. Update the same product in Neo4j with specifications
+            if (specifications && Object.keys(specifications).length > 0) {
+                await this.syncProductToNeo4j(id, {
+                    ...specifications,
+                    id,
+                    name: name || existingProduct.name,
+                    price: price ?? existingProduct.price,
+                    imageUrl: thumbnail || (Array.isArray(images) && images.length > 0 ? images[0] : existingProduct.imageUrl),
+                    category: category || existingProduct.category
+                });
+            }
+
+            return updatedProduct;
+        } catch (error) {
+            this.logger.error(`Error updating product: ${error.message}`);
+            throw new Error(`Failed to update product: ${error.message}`);
         }
     }
 

@@ -59,6 +59,25 @@ export class KafkaConsumer implements OnModuleInit {
                                     'payment_completed',
                                 );
                                 break;
+                            case 'session_start':
+                                await this.eventsService.handleSessionEvent(
+                                    eventData,
+                                    'session_start',
+                                );
+                                break;
+                            case 'session_end':
+                                await this.eventsService.handleSessionEvent(
+                                    eventData,
+                                    'session_end',
+                                );
+                                break;
+                            case 'user_authenticated':
+                            case 'user_logout':
+                                await this.eventsService.handleUserAuthEvent(
+                                    eventData,
+                                    eventData.eventType,
+                                );
+                                break;
                             // Add cases for other event types as needed
                             default:
                                 this.logger.warn(

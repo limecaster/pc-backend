@@ -19,7 +19,6 @@ export class EventsService {
     ) {}
 
     async createEvent(createEventDto: CreateEventDto): Promise<UserBehavior> {
-        this.logger.log(`Recording event: ${createEventDto.eventType}`);
 
         // Safely convert customerId to number if it's a numeric string
         let customerIdNum: number | null = null;
@@ -55,9 +54,7 @@ export class EventsService {
     async handleProductClick(
         productClickEvent: ProductClickEventDto,
     ): Promise<UserBehavior> {
-        this.logger.log(
-            `Product click event received for product: ${productClickEvent.productId}`,
-        );
+
 
         const eventData = {
             productName: productClickEvent.productName,
@@ -83,9 +80,6 @@ export class EventsService {
     }
 
     async handleProductView(eventData: any): Promise<UserBehavior> {
-        this.logger.log(
-            `Product view event received for product: ${eventData.entityId || eventData.eventData?.productId}`,
-        );
 
         // The product data is now inside eventData
         const productId = eventData.entityId || eventData.eventData?.productId;
@@ -114,9 +108,7 @@ export class EventsService {
         eventData: any,
         eventType: string,
     ): Promise<UserBehavior> {
-        this.logger.log(
-            `Cart event received: ${eventType} for product: ${eventData.entityId || eventData.eventData?.productId}`,
-        );
+
 
         const productId = eventData.entityId || eventData.eventData?.productId;
 
@@ -144,9 +136,6 @@ export class EventsService {
         eventData: any,
         eventType: string,
     ): Promise<UserBehavior> {
-        this.logger.log(
-            `Order event received: ${eventType} for order: ${eventData.entityId || eventData.eventData?.orderId}`,
-        );
 
         const orderId = eventData.entityId || eventData.eventData?.orderId;
 
@@ -362,5 +351,104 @@ export class EventsService {
             );
             throw error;
         }
+    }
+
+    /**
+     * Handle session events (start and end)
+     * @param eventData The session event data
+     * @param eventType The type of session event (session_start or session_end)
+     * @returns The created user behavior record
+     */
+    async handleSessionEvent(
+        eventData: any,
+        eventType: 'session_start' | 'session_end',
+    ): Promise<UserBehavior> {
+        this.logger.log(
+            `Session event received: ${eventType} for session: ${eventData.sessionId}`,
+        );
+
+        // Parse customerId to number if it's numeric
+        let customerIdNum: number | null = null;
+        if (eventData.customerId) {
+            try {
+                const parsed = parseInt(eventData.customerId, 10);
+                if (!isNaN(parsed)) {
+                    customerIdNum = parsed;
+                }
+            } catch (e) {
+                this.logger.warn(
+                    `Invalid customerId in session event: ${eventData.customerId}`,
+                );
+            }
+        }
+
+        const createEventDto: CreateEventDto = {
+            eventType,
+            customerId: eventData.customerId,
+            sessionId: eventData.sessionId,
+            entityId: eventData.sessionId, // For session events, entityId is the sessionId
+            entityType: 'session',
+            pageUrl: eventData.pageUrl,
+            referrerUrl: eventData.referrerUrl,
+            deviceInfo: eventData.deviceInfo,
+            ipAddress: eventData.ipAddress,
+            eventData: {
+                ...eventData.eventData,
+                // Add any additional session-specific data here
+                timestamp: eventData.eventData?.timestamp || new Date().toISOString(),
+            },
+        };
+
+        return this.createEvent(createEventDto);
+    }
+
+    /**
+     * Handle user authentication events (login and logout)
+     * @param eventData The authentication event data
+     * @param eventType The type of auth event (user_authenticated or user_logout)
+     * @returns The created user behavior record
+     */
+    async handleUserAuthEvent(
+        eventData: any,
+        eventType: 'user_authenticated' | 'user_logout',
+    ): Promise<UserBehavior> {
+        this.logger.log(
+            `Auth event received: ${eventType} for user: ${eventData.customerId || eventData.eventData?.userId}`,
+        );
+
+        // Parse customerId to number if it's numeric
+        let customerIdNum: number | null = null;
+        const userId = eventData.customerId || eventData.eventData?.userId;
+        
+        if (userId) {
+            try {
+                const parsed = parseInt(userId, 10);
+                if (!isNaN(parsed)) {
+                    customerIdNum = parsed;
+                }
+            } catch (e) {
+                this.logger.warn(
+                    `Invalid userId in auth event: ${userId}`,
+                );
+            }
+        }
+
+        const createEventDto: CreateEventDto = {
+            eventType,
+            customerId: userId,
+            sessionId: eventData.sessionId,
+            entityId: userId,
+            entityType: 'user',
+            pageUrl: eventData.pageUrl,
+            referrerUrl: eventData.referrerUrl,
+            deviceInfo: eventData.deviceInfo,
+            ipAddress: eventData.ipAddress,
+            eventData: {
+                ...eventData.eventData,
+                timestamp: eventData.eventData?.timestamp || new Date().toISOString(),
+            },
+        };
+
+        return this.createEvent(createEventDto);
     }
 }

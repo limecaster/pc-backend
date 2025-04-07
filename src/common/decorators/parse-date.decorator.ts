@@ -7,20 +7,20 @@ import {
 export const ParseDate = createParamDecorator(
     (data: unknown, ctx: ExecutionContext) => {
         const request = ctx.switchToHttp().getRequest();
-        const value = request.query[data as string];
+        const rawValue = request.query[data as string];
 
-        if (!value) return undefined;
+        if (!rawValue) return undefined;
 
         try {
+            const value = String(rawValue).trim();
             const date = new Date(value);
-
+            
             // Check if the date is valid
             if (isNaN(date.getTime())) {
                 throw new BadRequestException(
                     `Invalid date format for ${data}`,
                 );
             }
-
             return date;
         } catch (error) {
             throw new BadRequestException(`Invalid date format for ${data}`);

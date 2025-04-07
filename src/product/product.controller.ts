@@ -45,24 +45,6 @@ export class ProductController {
         private readonly hotSalesService: HotSalesService,
     ) {}
 
-    @Get('debug/simple-list')
-    async debugSimpleProductList(): Promise<{
-        status: string;
-        message: string;
-    }> {
-        try {
-            const products = await this.productService.getSimpleProductList();
-            return {
-                status: 'success',
-                message: `Controller working correctly. Found ${products.products.length} products.`,
-            };
-        } catch (error) {
-            return {
-                status: 'error',
-                message: `Controller working, but service error: ${error.message}`,
-            };
-        }
-    }
 
     @Get('admin/simple-list')
     async getSimpleProductList(
@@ -188,7 +170,7 @@ export class ProductController {
         @Param('id') id: string,
     ): Promise<ProductDetailsDto> {
         try {
-            return await this.productService.findBySlug(id);
+            return await this.productService.findBySlug(id, true);
         } catch (error) {
             if (error instanceof NotFoundException) {
                 throw error;
@@ -290,6 +272,20 @@ export class ProductController {
         } catch (error) {
             throw new InternalServerErrorException(
                 `Failed to retrieve ${subcategory} values for ${category}`,
+            );
+        }
+    }
+
+    @Get('subcategory-keys/:category')
+    async getSubcategoryKeys(
+        @Param('category') category: string,
+    ): Promise<{ keys: string[] }> {
+        try {
+            const keys = await this.productService.getSubcategoryKeys(category);
+            return { keys };
+        } catch (error) {
+            throw new InternalServerErrorException(
+                `Failed to retrieve specification keys for ${category}`,
             );
         }
     }
@@ -697,6 +693,52 @@ export class ProductController {
             }
             throw new BadRequestException(
                 `Failed to upload image: ${error.message}`,
+            );
+        }
+    }
+
+    @Post()
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    async createProduct(@Body() productData: any): Promise<any> {
+        try {
+            // Create the product in PostgreSQL first, which will generate a UUID
+            const createdProduct = await this.productService.createProduct(productData);
+            
+            // Return the created product with its ID
+            return {
+                success: true,
+                message: 'Product created successfully',
+                product: createdProduct
+            };
+        } catch (error) {
+            this.logger.error(`Failed to create product: ${error.message}`);
+            throw new InternalServerErrorException(
+                `Failed to create product: ${error.message}`
+            );
+        }
+    }
+
+    @Put(':id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    async updateProduct(
+        @Param('id') id: string,
+        @Body() productData: any
+    ): Promise<any> {
+        try {
+            // Update the product in PostgreSQL and Neo4j
+            const updatedProduct = await this.productService.updateProduct(id, productData);
+            
+            return {
+                success: true,
+                message: 'Product updated successfully',
+                product: updatedProduct
+            };
+        } catch (error) {
+            this.logger.error(`Failed to update product: ${error.message}`);
+            throw new InternalServerErrorException(
+                `Failed to update product: ${error.message}`
             );
         }
     }

@@ -6,7 +6,7 @@ import {
     Part,
     PartsData,
     PCConfiguration,
-} from 'dto/auto-build.dto';
+} from 'src/build/dto/auto-build.dto';
 import { SpacyService } from '../build/spacy.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
 import { UtilsService } from '../../service/utils.service';

@@ -42,6 +42,13 @@ export class EventsController {
 
             // Capture IP address
             createEventDto.ipAddress = req.ip;
+            
+            // Special handling for session events
+            if (createEventDto.eventType === 'session_start') {
+                this.logger.debug(
+                    `Session start event for sessionId: ${createEventDto.sessionId}, customerId: ${createEventDto.customerId || 'none'}`,
+                );
+            }
 
             // Send to Kafka
             await this.producerService.produce({
@@ -52,6 +59,8 @@ export class EventsController {
             return {
                 success: true,
                 message: 'Event tracking request received',
+                eventType: createEventDto.eventType,
+                sessionId: createEventDto.sessionId,
             };
         } catch (error) {
             this.logger.error(

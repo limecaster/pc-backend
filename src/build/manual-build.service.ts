@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Neo4jConfigService } from 'config/neo4j.config';
 import { UtilsService } from '../../service/utils.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
-import { PCConfiguration } from 'dto/auto-build.dto';
+import { PCConfiguration } from 'src/build/dto/auto-build.dto';
 
 @Injectable()
 export class ManualBuildService {

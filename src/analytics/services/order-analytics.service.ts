@@ -149,32 +149,85 @@ export class OrderAnalyticsService {
 
     async getAbandonedCarts(startDate: Date, endDate: Date) {
         try {
-            // For this we would need to track cart events vs. checkout events
-            // This is a simplified implementation with partially mocked data
-
-            // Get cart addition events
+            // Query active carts and completed orders within the date range
+            // First, get cart-related events
             const cartEvents = await this.userBehaviorRepository.find({
                 where: {
-                    eventType: 'product_added_to_cart',
+                    eventType: In(['product_added_to_cart', 'order_created']),
                     createdAt: Between(startDate, endDate),
+                },
+                order: {
+                    sessionId: 'ASC',
+                    createdAt: 'ASC',
                 },
             });
 
-            // Get order creation events
-            const orderEvents = await this.userBehaviorRepository.find({
+            // Query actual orders from the order table
+            const completedOrders = await this.orderRepository.find({
                 where: {
-                    eventType: 'order_created',
-                    createdAt: Between(startDate, endDate),
+                    orderDate: Between(startDate, endDate),
+                    status: In(['delivered', 'payment_success', 'processing', 'completed']),
                 },
             });
 
-            // Group by day
+            // Create a set of customer IDs who completed orders
+            const customersWithOrders = new Set(
+                completedOrders.map((order) => order.customer?.id).filter(Boolean)
+            );
+
+            // Create a map to track sessions with cart activity
+            const sessionCartActivity = new Map<
+                string,
+                { 
+                    date: Date; 
+                    hasCart: boolean; 
+                    convertedToOrder: boolean;
+                    customerId?: number;
+                }
+            >();
+
+            // Process cart events to identify sessions with cart activity
+            cartEvents.forEach((event) => {
+                if (!event.sessionId) return;
+                
+                const eventDate = new Date(event.createdAt);
+                
+                if (!sessionCartActivity.has(event.sessionId)) {
+                    sessionCartActivity.set(event.sessionId, {
+                        date: eventDate,
+                        hasCart: event.eventType === 'product_added_to_cart',
+                        convertedToOrder: event.eventType === 'order_created',
+                        customerId: event.customerId,
+                    });
+                } else {
+                    const session = sessionCartActivity.get(event.sessionId);
+                    
+                    // Update session data
+                    if (event.eventType === 'product_added_to_cart') {
+                        session.hasCart = true;
+                    }
+                    
+                    if (event.eventType === 'order_created') {
+                        session.convertedToOrder = true;
+                    }
+                    
+                    // Always track customer ID if available
+                    if (event.customerId && !session.customerId) {
+                        session.customerId = event.customerId;
+                    }
+                    
+                    sessionCartActivity.set(event.sessionId, session);
+                }
+            });
+
+            // Group cart activity by day
             const dayMap = new Map();
             const days = Math.ceil(
                 (endDate.getTime() - startDate.getTime()) /
                     (1000 * 60 * 60 * 24),
             );
 
+            // Initialize day map with zeros
             for (let i = 0; i < days; i++) {
                 const date = new Date(startDate);
                 date.setDate(date.getDate() + i);
@@ -190,69 +243,56 @@ export class OrderAnalyticsService {
                 });
             }
 
-            // Process cart events - this is a simplification
-            // In reality, we'd need to track unique cart sessions
-            const uniqueCartSessions = new Set();
-            cartEvents.forEach((event) => {
-                const dateStr = new Date(event.createdAt).toLocaleDateString(
+            // Process each session to count total carts and abandoned carts
+            sessionCartActivity.forEach((session) => {
+                if (!session.hasCart) return; // Skip sessions without cart activity
+                
+                const dateStr = session.date.toLocaleDateString(
                     'vi-VN',
                     { day: '2-digit', month: '2-digit' },
                 );
+                
                 if (!dayMap.has(dateStr)) return;
-
-                const key = `${event.sessionId}-${dateStr}`;
-                if (!uniqueCartSessions.has(key)) {
-                    uniqueCartSessions.add(key);
-                    dayMap.get(dateStr).totalCarts++;
+                
+                const dayData = dayMap.get(dateStr);
+                
+                // Count this as a cart
+                dayData.totalCarts++;
+                
+                // Count as abandoned if:
+                // 1. No order_created event AND
+                // 2. Either no customer ID or customer has no orders
+                if (
+                    !session.convertedToOrder && 
+                    (!session.customerId || !customersWithOrders.has(session.customerId))
+                ) {
+                    dayData.abandonedCarts++;
                 }
             });
 
-            // Process order events
-            const uniqueOrderSessions = new Set();
-            orderEvents.forEach((event) => {
-                const dateStr = new Date(event.createdAt).toLocaleDateString(
-                    'vi-VN',
-                    { day: '2-digit', month: '2-digit' },
-                );
-                if (!dayMap.has(dateStr)) return;
-
-                const key = `${event.sessionId}-${dateStr}`;
-                if (!uniqueOrderSessions.has(key)) {
-                    uniqueOrderSessions.add(key);
-                }
-            });
-
-            // Calculate abandoned carts
-            dayMap.forEach((value, key) => {
-                // Estimate abandoned carts - in a real implementation, we'd match cart sessions to orders
-                const successfulCheckouts = Array.from(
-                    uniqueOrderSessions,
-                ).filter((session: string) => session.endsWith(key)).length;
-
-                value.abandonedCarts = Math.max(
-                    0,
-                    value.totalCarts - successfulCheckouts,
-                );
-
-                // If we have too few carts, use realistic numbers for demo
-                if (value.totalCarts < 5) {
-                    value.totalCarts = Math.floor(Math.random() * 30) + 20;
-                    value.abandonedCarts = Math.floor(
-                        value.totalCarts * (Math.random() * 0.1 + 0.6),
+            // Calculate abandoned cart rate for each day
+            dayMap.forEach((value) => {
+                // Calculate rate only if there are carts
+                if (value.totalCarts > 0) {
+                    value.rate = Number(
+                        ((value.abandonedCarts / value.totalCarts) * 100).toFixed(1)
                     );
+                } else {
+                    value.rate = 0;
                 }
-
-                value.rate = value.totalCarts
-                    ? Number(
-                          (
-                              (value.abandonedCarts / value.totalCarts) *
-                              100
-                          ).toFixed(1),
-                      )
-                    : 0;
             });
 
-            return Array.from(dayMap.values());
+            // Convert to array for response
+            const timeSeriesData = Array.from(dayMap.values());
+
+            // Calculate overall statistics
+            const totalCarts = timeSeriesData.reduce((sum, day) => sum + day.totalCarts, 0);
+            const totalAbandoned = timeSeriesData.reduce((sum, day) => sum + day.abandonedCarts, 0);
+            const overallRate = totalCarts > 0 
+                ? Number(((totalAbandoned / totalCarts) * 100).toFixed(1)) 
+                : 0;
+
+            return timeSeriesData;
         } catch (error) {
             this.logger.error(
                 `Error getting abandoned carts data: ${error.message}`,

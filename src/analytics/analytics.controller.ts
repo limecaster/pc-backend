@@ -82,46 +82,6 @@ export class AnalyticsController {
         return this.analyticsService.getUserBehaviorReport(startDate, endDate);
     }
 
-    @Get('user-cohort')
-    async getUserCohortAnalysis(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
-    ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-        return this.analyticsService.getUserCohortAnalysis(startDate, endDate);
-    }
-
-    @Get('user-funnel')
-    async getUserFunnelAnalysis(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
-        @Query('steps') steps?: string,
-    ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-
-        const funnelSteps = steps ? steps.split(',') : undefined;
-        return this.analyticsService.getUserFunnelAnalysis(
-            startDate,
-            endDate,
-            funnelSteps,
-        );
-    }
-
-    @Get('devices')
-    async getDeviceAnalytics(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
-    ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-        return this.analyticsService.getDeviceAnalytics(startDate, endDate);
-    }
-
     @Get('user-engagement')
     async getUserEngagementMetrics(
         @ParseDate('startDate') startDate: Date,
@@ -158,30 +118,40 @@ export class AnalyticsController {
         return this.analyticsService.getConversionRates(startDate, endDate);
     }
 
-    // Inventory Analytics
     @Get('inventory')
     async getInventoryReport() {
         return this.analyticsService.getInventoryReport();
     }
 
-    // Add an alias endpoint to match frontend expectation
     @Get('inventory-report')
     async getInventoryReportAlias() {
         return this.analyticsService.getInventoryReport();
     }
 
-    // Order Analytics
-    @Get('refunds')
-    async getRefundReport(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
+    @Get('inventory/low-stock')
+    async getLowStockProducts(
+        @Query('page') page = 1,
+        @Query('limit') limit = 10,
+        @Query('search') search = '',
     ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-        return this.analyticsService.getRefundReport(startDate, endDate);
+        return this.analyticsService.getLowStockProducts(+page, +limit, search);
     }
 
+    @Get('inventory/out-of-stock')
+    async getOutOfStockProducts(
+        @Query('page') page = 1,
+        @Query('limit') limit = 10,
+        @Query('search') search = '',
+    ) {
+        return this.analyticsService.getOutOfStockProducts(+page, +limit, search);
+    }
+
+    @Get('inventory/categories')
+    async getProductCategories() {
+        return this.analyticsService.getProductCategories();
+    }
+
+    // Order Analytics
     @Get('abandoned-carts')
     async getAbandonedCarts(
         @ParseDate('startDate') startDate: Date,

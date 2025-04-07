@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Neo4jConfigService } from 'config/neo4j.config';
-import { PCConfiguration } from 'dto/auto-build.dto';
+import { PCConfiguration } from 'src/build/dto/auto-build.dto';
 
 /**
  * Service to check compatibility of PC parts using Neo4j database and dynamic checks.

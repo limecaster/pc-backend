@@ -21,7 +21,7 @@ export class UserBehavior {
     })
     eventId: string;
 
-    @Column({ nullable: true })
+    @Column({ nullable: true, name: 'customer_id' })
     @Index()
     customerId: number;
 
@@ -29,7 +29,7 @@ export class UserBehavior {
     @JoinColumn({ name: 'customer_id' })
     customer: Customer;
 
-    @Column({ nullable: true })
+    @Column({ nullable: true, name: 'session_id' })
     sessionId: string;
 
     @Column({ name: 'event_type' })

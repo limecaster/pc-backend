@@ -47,6 +47,7 @@ export class AccountService {
             phone: customer.phoneNumber || '',
             birthday: formattedBirthday,
             gender: customer.gender || 'male',
+            googleId: customer.googleId || null,
         };
     }
 

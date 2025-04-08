@@ -5,6 +5,7 @@ import {
     Logger,
     UnauthorizedException,
     InternalServerErrorException,
+    BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -332,22 +333,48 @@ export class CustomerService {
         currentPassword: string,
         newPassword: string,
     ): Promise<void> {
-        const customer = await this.findById(id);
-        if (!customer) {
-            throw new NotFoundException('User not found');
-        }
+        try {
+            this.logger.log(`Attempting to update password for user ${id}`);
+            
+            const customer = await this.findById(id);
+            if (!customer) {
+                this.logger.warn(`User not found: ${id}`);
+                throw new NotFoundException('User not found');
+            }
 
-        const isPasswordValid = await bcrypt.compare(
-            currentPassword,
-            customer.password,
-        );
-        if (!isPasswordValid) {
-            throw new ConflictException('Current password is incorrect');
-        }
+            if (!customer.password) {
+                this.logger.warn(`No password hash found for user ${id}`);
+                throw new UnauthorizedException('Password not set for this account');
+            }
 
-        customer.password = await bcrypt.hash(newPassword, 10);
-        customer.updatedAt = new Date();
-        await this.customerRepository.save(customer);
+            if (!currentPassword) {
+                this.logger.warn(`Current password not provided for user ${id}`);
+                throw new BadRequestException('Current password is required');
+            }
+
+            const isPasswordValid = await bcrypt.compare(
+                currentPassword,
+                customer.password,
+            );
+            if (!isPasswordValid) {
+                this.logger.warn(`Invalid current password for user ${id}`);
+                throw new UnauthorizedException('Current password is incorrect');
+            }
+
+            if (!newPassword) {
+                this.logger.warn(`New password not provided for user ${id}`);
+                throw new BadRequestException('New password is required');
+            }
+
+            customer.password = await bcrypt.hash(newPassword, 10);
+            customer.updatedAt = new Date();
+            await this.customerRepository.save(customer);
+            
+            this.logger.log(`Password updated successfully for user ${id}`);
+        } catch (error) {
+            this.logger.error(`Error updating password for user ${id}: ${error.message}`);
+            throw error;
+        }
     }
 
     private generateOTPCode(): string {

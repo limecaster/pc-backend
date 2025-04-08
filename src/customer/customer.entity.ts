@@ -29,7 +29,7 @@ export class Customer {
     @Column({ unique: true })
     username: string;
 
-    @Column()
+    @Column({ nullable: true })
     @Exclude()
     password: string;
 
@@ -72,13 +72,11 @@ export class Customer {
     @UpdateDateColumn({ name: 'updated_at' })
     updatedAt: Date;
 
-    // Added fields for authentication purposes
     @Column({ nullable: true })
     @Exclude()
     verificationToken: string;
 
     @Column({ nullable: true })
-    @Exclude()
     passwordResetToken: string;
 
     @Column({ nullable: true })
@@ -96,5 +94,9 @@ export class Customer {
     // Property for wishlist items
     @Column({ type: 'jsonb', nullable: true })
     wishlist: any[];
+
+    @Column({ nullable: true })
+    googleId: string;
+
     role: import('../auth/enums/role.enum').Role;
 }

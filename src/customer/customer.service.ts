@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { Customer } from './customer.entity';
+import { Role } from '../auth/enums/role.enum';
 
 @Injectable()
 export class CustomerService {
@@ -20,38 +21,34 @@ export class CustomerService {
         private customerRepository: Repository<Customer>,
     ) {}
 
-    async findByEmail(email: string): Promise<Customer | undefined> {
+    async findByEmail(email: string): Promise<Customer> {
         try {
-            // First try with exact match
             let customer = await this.customerRepository.findOne({
-                where: { email },
+                where: { email: email, status: 'active' },
             });
 
-            // If not found, try case-insensitive lookup
             if (!customer) {
-                // Using query builder for case-insensitive search
                 customer = await this.customerRepository
                     .createQueryBuilder('customer')
                     .where('LOWER(customer.email) = LOWER(:email)', { email })
                     .getOne();
             }
-
-            // Last resort: Direct SQL query to see what's happening
             if (!customer) {
                 const rawResults = await this.customerRepository.query(
                     `SELECT id, email, username FROM "Customer" WHERE email = $1 OR LOWER(email) = LOWER($1)`,
                     [email],
                 );
 
-                // If we found results in raw SQL but not through TypeORM, there's a mapping issue
                 if (rawResults && rawResults.length > 0) {
-                    // Try to load the full entity based on the ID we found
                     customer = await this.customerRepository.findOne({
                         where: { id: rawResults[0].id },
                     });
                 }
             }
 
+            if (!customer) {
+                throw new NotFoundException('User not found');
+            }
             return customer;
         } catch (error) {
             this.logger.error(
@@ -63,12 +60,10 @@ export class CustomerService {
 
     async findByUsername(username: string): Promise<Customer | undefined> {
         try {
-            // Try exact match first
             let customer = await this.customerRepository.findOne({
-                where: { username },
+                where: { username: username, status: 'active' },
             });
 
-            // Try case-insensitive lookup
             if (!customer) {
                 customer = await this.customerRepository
                     .createQueryBuilder('customer')
@@ -78,7 +73,6 @@ export class CustomerService {
                     .getOne();
             }
 
-            // Raw SQL fallback
             if (!customer) {
                 const rawResults = await this.customerRepository.query(
                     `SELECT id, email, username FROM "Customer" WHERE username = $1 OR LOWER(username) = LOWER($1)`,
@@ -123,70 +117,64 @@ export class CustomerService {
         }
     }
 
-    async create(userData: {
+    async create(data: {
         email: string;
-        password: string;
+        password?: string;
         username?: string;
         firstname?: string;
         lastname?: string;
+        googleId?: string;
+        avatar?: string;
+        isEmailVerified?: boolean;
+        status?: string;
     }): Promise<Customer> {
-        // Check for existing email
-        const existingEmail = await this.findByEmail(userData.email);
+        const existingEmail = await this.findByEmail(data.email);
 
-        // If the email exists but is not verified, we allow re-registration
         if (existingEmail) {
             if (existingEmail.isEmailVerified) {
                 throw new ConflictException('Email đã được sử dụng');
             } else {
-                // Generate a new OTP for the existing unverified user
                 const otpCode = this.generateOTPCode();
                 existingEmail.verificationToken = otpCode;
 
-                // Update password if provided in the new registration
-                if (userData.password) {
-                    existingEmail.password = await bcrypt.hash(
-                        userData.password,
-                        10,
-                    );
+                if (data.password) {
+                    existingEmail.password = await bcrypt.hash(data.password, 10);
                 }
-
-                // Update other fields if provided
-                if (userData.username)
-                    existingEmail.username = userData.username;
-                if (userData.firstname)
-                    existingEmail.firstname = userData.firstname;
-                if (userData.lastname)
-                    existingEmail.lastname = userData.lastname;
+                if (data.username) existingEmail.username = data.username;
+                if (data.firstname) existingEmail.firstname = data.firstname;
+                if (data.lastname) existingEmail.lastname = data.lastname;
+                if (data.googleId) existingEmail.googleId = data.googleId;
+                if (data.avatar) existingEmail.avatar = data.avatar;
+                if (data.isEmailVerified !== undefined)
+                    existingEmail.isEmailVerified = data.isEmailVerified;
+                if (data.status) existingEmail.status = data.status;
 
                 existingEmail.updatedAt = new Date();
                 await this.customerRepository.save(existingEmail);
-
                 return existingEmail;
             }
         }
 
-        // Handle username check and creation as before
-        if (userData.username) {
-            const existingUsername = await this.findByUsername(
-                userData.username,
-            );
+        if (data.username) {
+            const existingUsername = await this.findByUsername(data.username);
             if (existingUsername) {
                 throw new ConflictException('Username đã được sử dụng');
             }
         } else {
-            // Use email as username if not provided
-            userData.username = userData.email;
+            data.username = data.email;
         }
 
-        const hashedPassword = await bcrypt.hash(userData.password, 10);
-        const otpCode = this.generateOTPCode(); // Generate OTP instead of verification token
+        const hashedPassword = data.password
+            ? await bcrypt.hash(data.password, 10)
+            : null;
+        const otpCode = this.generateOTPCode();
 
         const newCustomer = this.customerRepository.create({
-            ...userData,
+            ...data,
             password: hashedPassword,
             verificationToken: otpCode,
-            isEmailVerified: false,
-            status: 'pending_verification',
+            isEmailVerified: data.isEmailVerified ?? false,
+            status: data.status ?? 'pending_verification',
             createdAt: new Date(),
             updatedAt: new Date(),
         });
@@ -217,7 +205,6 @@ export class CustomerService {
             throw new NotFoundException('User not found');
         }
 
-        // Only allow resend if not yet verified
         if (customer.isEmailVerified) {
             throw new ConflictException('Email already verified');
         }
@@ -225,7 +212,6 @@ export class CustomerService {
         const otpCode = this.generateOTPCode();
         customer.verificationToken = otpCode;
         await this.customerRepository.save(customer);
-
         return otpCode;
     }
 
@@ -239,20 +225,29 @@ export class CustomerService {
             this.logger.error(
                 `Failed to update login timestamp for user ${id}: ${error.message}`,
             );
-            // Don't throw here, just log the error
+            throw new InternalServerErrorException(
+                'Failed to update login timestamp',
+            );
         }
     }
 
     async createPasswordResetToken(email: string): Promise<string> {
         const customer = await this.findByEmail(email);
+        
         if (!customer) {
             throw new NotFoundException('User not found');
         }
 
-        const otpCode = this.generateOTPCode(); // Use OTP instead of token
+        if (customer.passwordResetToken && customer.passwordResetExpires && customer.passwordResetExpires > new Date()) {
+            return customer.passwordResetToken;
+        }
+
+        const otpCode = this.generateOTPCode();
+
         customer.passwordResetToken = otpCode;
-        customer.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        customer.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000);
         customer.updatedAt = new Date();
+        
         await this.customerRepository.save(customer);
 
         return otpCode;
@@ -260,15 +255,19 @@ export class CustomerService {
 
     async verifyResetOTP(email: string, otpCode: string): Promise<boolean> {
         const customer = await this.findByEmail(email);
-        if (!customer || !customer.passwordResetToken) {
-            throw new NotFoundException('Invalid reset request');
+        
+        if (!customer) {
+            throw new NotFoundException('User not found');
+        }
+
+        if (!customer.passwordResetToken) {
+            throw new NotFoundException('Invalid reset request - no reset token');
         }
 
         if (customer.passwordResetExpires < new Date()) {
             throw new NotFoundException('OTP expired');
         }
-
-        // Direct OTP comparison instead of bcrypt
+        
         if (customer.passwordResetToken !== otpCode) {
             throw new NotFoundException('Invalid OTP code');
         }
@@ -281,22 +280,41 @@ export class CustomerService {
         otpCode: string,
         newPassword: string,
     ): Promise<void> {
-        // Verify OTP first
-        await this.verifyResetOTP(email, otpCode);
-
         const customer = await this.findByEmail(email);
-        customer.password = await bcrypt.hash(newPassword, 10);
-        customer.passwordResetToken = null;
-        customer.passwordResetExpires = null;
-        customer.updatedAt = new Date();
-        await this.customerRepository.save(customer);
+        
+        if (!customer) {
+            throw new NotFoundException('User not found');
+        }
+
+        if (!customer.passwordResetToken) {
+            throw new NotFoundException('Invalid reset request - no reset token');
+        }
+
+        if (customer.passwordResetExpires < new Date()) {
+            throw new NotFoundException('OTP expired');
+        }
+
+        if (customer.passwordResetToken !== otpCode) {
+            throw new NotFoundException('Invalid OTP code');
+        }
+
+        const updatedCustomer = await this.customerRepository.save({
+            ...customer,
+            password: await bcrypt.hash(newPassword, 10),
+            passwordResetToken: null,
+            passwordResetExpires: null,
+            updatedAt: new Date()
+        });
+        
+        if (!updatedCustomer) {
+            throw new Error("Failed to update password");
+        }
     }
 
     async updateProfile(
         id: number,
         profileData: Partial<Customer>,
     ): Promise<Customer> {
-        // Prevent updates to sensitive fields
         const safeData = { ...profileData };
         delete safeData.password;
         delete safeData.verificationToken;
@@ -305,7 +323,6 @@ export class CustomerService {
         delete safeData.status;
 
         safeData.updatedAt = new Date();
-
         await this.customerRepository.update(id, safeData);
         return this.findById(id);
     }
@@ -333,25 +350,14 @@ export class CustomerService {
         await this.customerRepository.save(customer);
     }
 
-    private generateVerificationToken(): string {
-        return (
-            Math.random().toString(36).substring(2, 15) +
-            Math.random().toString(36).substring(2, 15)
-        );
-    }
-
-    // Helper method to generate a 6-digit OTP code
     private generateOTPCode(): string {
         return Math.floor(100000 + Math.random() * 900000).toString();
     }
 
-    // Add a method to verify if a user is valid for authentication
     async isValidForAuth(id: number): Promise<boolean> {
         try {
             const customer = await this.findOne(id);
             if (!customer) return false;
-
-            // Check if user is active and email verified
             return (
                 customer.status === 'active' &&
                 customer.isEmailVerified === true
@@ -362,7 +368,6 @@ export class CustomerService {
         }
     }
 
-    // For debugging purposes - list all users
     async getAllCustomers(): Promise<
         { id: number; email: string; username: string }[]
     > {
@@ -379,23 +384,27 @@ export class CustomerService {
         }
     }
 
-    // Add a flexible lookup method that tries both email and username
     async findByLoginId(loginId: string): Promise<Customer | undefined> {
-        // Try email first
-        let customer = await this.findByEmail(loginId);
-        // If not found by email, try username
+        let customer: Customer | undefined;
+        
+        try {
+            customer = await this.findByEmail(loginId);
+        } catch (error) {
+            if (!(error instanceof NotFoundException)) {
+                this.logger.error(`Error finding by email: ${error.message}`);
+            }
+        }
+
         if (!customer) {
             customer = await this.findByUsername(loginId);
         }
-        // If still not found, try direct query
+
         if (!customer) {
             try {
-                // Query that checks both email and username fields
                 const result = await this.customerRepository.query(
                     `SELECT * FROM "Customer" WHERE email = $1 OR username = $1 LIMIT 1`,
                     [loginId],
                 );
-
                 if (result && result.length > 0) {
                     customer = await this.customerRepository.findOne({
                         where: { id: result[0].id },
@@ -405,20 +414,15 @@ export class CustomerService {
                 this.logger.error(`Error in direct query: ${error.message}`);
             }
         }
-
         return customer;
     }
 
     async validateCustomer(username: string, password: string): Promise<any> {
-        // Try to find by username or email
         const customer = await this.findByLoginId(username);
-
         if (!customer) {
             this.logger.warn(`Customer not found: ${username}`);
             throw new UnauthorizedException('Invalid credentials');
         }
-
-        // Verify password
         const isPasswordValid = await bcrypt.compare(
             password,
             customer.password,
@@ -427,29 +431,19 @@ export class CustomerService {
             this.logger.warn(`Invalid password for customer: ${username}`);
             throw new UnauthorizedException('Invalid credentials');
         }
-
-        // Verify email is confirmed
         if (!customer.isEmailVerified) {
             this.logger.warn(`Unverified email for customer: ${username}`);
             throw new UnauthorizedException(
                 'Please verify your email before logging in',
             );
         }
-
-        // Check if customer is active
         if (customer.status !== 'active') {
             this.logger.warn(
                 `Inactive customer: ${username}, status: ${customer.status}`,
             );
-            throw new UnauthorizedException(
-                'Your account has been deactivated',
-            );
+            throw new UnauthorizedException('Your account has been deactivated');
         }
-
-        // Update last login timestamp
         await this.updateLoginTimestamp(customer.id);
-
-        // Return customer without sensitive information
         const { password: _, ...result } = customer;
         return result;
     }
@@ -474,7 +468,6 @@ export class CustomerService {
                 ])
                 .where('customer.status = :status', { status: 'active' });
 
-            // Add search condition if search term is provided
             if (search && search.trim() !== '') {
                 queryBuilder.andWhere(
                     '(LOWER(customer.firstname) LIKE LOWER(:search) OR ' +
@@ -484,10 +477,8 @@ export class CustomerService {
                 );
             }
 
-            // Get total count for pagination
             const total = await queryBuilder.getCount();
 
-            // Add pagination
             const customers = await queryBuilder
                 .orderBy('customer.lastname', 'ASC')
                 .addOrderBy('customer.firstname', 'ASC')
@@ -495,10 +486,7 @@ export class CustomerService {
                 .take(limit)
                 .getMany();
 
-            // Calculate total pages
             const pages = Math.ceil(total / limit);
-
-            // Map to the required format with full names
             return {
                 customers: customers.map((customer) => ({
                     id: customer.id.toString(),
@@ -522,7 +510,6 @@ export class CustomerService {
         if (!customer) {
             throw new NotFoundException(`Customer with ID ${id} not found`);
         }
-
         customer.status = status;
         return this.customerRepository.save(customer);
     }
@@ -543,18 +530,14 @@ export class CustomerService {
         sortOrder?: 'ASC' | 'DESC';
     }) {
         try {
-            // Create query builder
-            let queryBuilder =
-                this.customerRepository.createQueryBuilder('customer');
+            let queryBuilder = this.customerRepository.createQueryBuilder('customer');
 
-            // Apply filters
             if (status) {
                 queryBuilder = queryBuilder.andWhere(
                     'customer.status = :status',
                     { status },
                 );
             }
-
             if (search) {
                 queryBuilder = queryBuilder.andWhere(
                     '(customer.email LIKE :search OR ' +
@@ -566,27 +549,18 @@ export class CustomerService {
                 );
             }
 
-            // Get total count for pagination
             const total = await queryBuilder.getCount();
 
-            // Add sorting
             if (sortBy && sortOrder) {
                 queryBuilder = queryBuilder.orderBy(
                     `customer.${sortBy}`,
                     sortOrder,
                 );
             }
-
-            // Add pagination
             const skip = (page - 1) * limit;
             queryBuilder = queryBuilder.skip(skip).take(limit);
-
-            // Execute query
             const customers = await queryBuilder.getMany();
-
-            // Calculate total pages
             const pages = Math.ceil(total / limit);
-
             return {
                 customers,
                 total,
@@ -595,5 +569,30 @@ export class CustomerService {
         } catch (error) {
             throw new Error(`Failed to fetch customers: ${error.message}`);
         }
+    }
+
+    async findByGoogleId(googleId: string): Promise<Customer> {
+        return this.customerRepository.findOne({ where: { googleId } });
+    }
+
+    async update(id: number, data: Partial<Customer>): Promise<Customer> {
+        await this.customerRepository.update(id, data);
+        return this.customerRepository.findOne({ where: { id } });
+    }
+
+    async createGoogleUser(data: {
+        email: string;
+        firstname: string;
+        lastname: string;
+        googleId: string;
+        avatar?: string;
+        isEmailVerified?: boolean;
+        status?: string;
+    }): Promise<Customer> {
+        const customer = this.customerRepository.create({
+            ...data,
+            role: Role.CUSTOMER,
+        });
+        return this.customerRepository.save(customer);
     }
 }

@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
 import { CustomerModule } from '../customer/customer.module';
 import { EmailModule } from '../email/email.module';
 import { AdminModule } from '../admin/admin.module';
@@ -29,7 +30,7 @@ import { StaffModule } from '../staff/staff.module';
         ConfigModule,
     ],
     controllers: [AuthController],
-    providers: [AuthService, LocalStrategy, JwtStrategy],
+    providers: [AuthService, LocalStrategy, JwtStrategy, GoogleStrategy],
     exports: [AuthService],
 })
 export class AuthModule {}

@@ -13,6 +13,8 @@ import {
     UnauthorizedException,
     BadRequestException,
     NotFoundException,
+    Query,
+    Res,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CustomerService } from '../customer/customer.service';
@@ -21,6 +23,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { StaffService } from '../staff/staff.service';
 import { AdminService } from '../admin/admin.service';
 import { Role } from './enums/role.enum';
+import { AuthGuard } from '@nestjs/passport';
+import { EmailService } from '../email/email.service';
 
 @Controller('auth')
 export class AuthController {
@@ -31,6 +35,7 @@ export class AuthController {
         private customerService: CustomerService,
         private staffService: StaffService,
         private adminService: AdminService,
+        private emailService: EmailService,
     ) {}
 
     @UseGuards(LocalAuthGuard)
@@ -242,14 +247,15 @@ export class AuthController {
     @Post('forgot-password')
     async forgotPassword(@Body() body: { email: string }) {
         try {
-            await this.customerService.createPasswordResetToken(body.email);
+            const otpCode = await this.customerService.createPasswordResetToken(body.email);
+            await this.emailService.sendPasswordResetEmail(body.email, otpCode);
             return {
                 message:
                     'If your email exists in our system, you will receive a password reset code',
             };
-        } catch {
+        } catch (error) {
             this.logger.error(
-                `Error sending password reset code to ${body.email}`,
+                `Error sending password reset code to ${body.email}: ${error.message}`,
             );
             return {
                 message:
@@ -270,7 +276,10 @@ export class AuthController {
             this.logger.error(
                 `Error verifying reset OTP for ${body.email}: ${error.message}`,
             );
-            return { valid: false };
+            if (error instanceof NotFoundException) {
+                return { valid: false, error: 'Invalid OTP code or expired' };
+            }
+            return { valid: false, error: error.message };
         }
     }
 
@@ -417,6 +426,40 @@ export class AuthController {
                 `Error checking verification status: ${error.message}`,
             );
             return { error: 'Failed to check verification status' };
+        }
+    }
+
+    @Get('google')
+    @UseGuards(AuthGuard('google'))
+    async googleAuth(@Query('redirect') redirect: string) {
+        // This endpoint initiates the Google OAuth flow
+        // The redirect parameter will be passed back in the state
+    }
+
+    @Get('google/callback')
+    @UseGuards(AuthGuard('google'))
+    async googleAuthCallback(@Request() req, @Res() res) {
+        try {
+            const result = await this.authService.login(req.user);
+            
+            // Get redirect URL from state parameter
+            const redirectUrl = req.query.state ? decodeURIComponent(req.query.state as string) : 
+                (process.env.FRONTEND_URL || 'http://localhost:3000');
+            
+            // Create URL object with the redirect URL
+            const frontendUrl = new URL(redirectUrl);
+            frontendUrl.searchParams.set('token', result.access_token);
+            frontendUrl.searchParams.set('user', JSON.stringify(result.user));
+            
+            res.redirect(frontendUrl.toString());
+        } catch (error) {
+            this.logger.error(`Google callback error: ${error.message}`);
+            // Redirect to frontend with error
+            const redirectUrl = req.query.state ? decodeURIComponent(req.query.state as string) : 
+                (process.env.FRONTEND_URL || 'http://localhost:3000');
+            const frontendUrl = new URL(redirectUrl);
+            frontendUrl.searchParams.set('error', 'Google authentication failed');
+            res.redirect(frontendUrl.toString());
         }
     }
 }

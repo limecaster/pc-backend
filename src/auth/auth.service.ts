@@ -261,4 +261,46 @@ export class AuthService {
             throw new UnauthorizedException('Invalid or expired refresh token');
         }
     }
+
+    async findOrCreateGoogleUser(data: {
+        googleId: string;
+        email: string;
+        firstname: string;
+        lastname: string;
+        avatar?: string;
+    }) {
+        try {
+            // Check if user exists with this Google ID
+            let user = await this.customerService.findByGoogleId(data.googleId);
+
+            if (!user) {
+                // Check if user exists with this email
+                user = await this.customerService.findByEmail(data.email);
+
+                if (user) {
+                    // Update existing user with Google ID
+                    user.googleId = data.googleId;
+                    if (data.avatar) user.avatar = data.avatar;
+                    await this.customerService.update(user.id, user);
+                } else {
+                    // Create new user without password
+                    user = await this.customerService.create({
+                        email: data.email,
+                        firstname: data.firstname,
+                        lastname: data.lastname,
+                        googleId: data.googleId,
+                        avatar: data.avatar,
+                        isEmailVerified: true, // Google email is already verified
+                        status: 'active',
+                        // No password needed for Google-authenticated users
+                    });
+                }
+            }
+
+            return user;
+        } catch (error) {
+            this.logger.error(`Error in findOrCreateGoogleUser: ${error.message}`);
+            throw error;
+        }
+    }
 }

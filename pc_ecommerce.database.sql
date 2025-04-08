@@ -199,11 +199,7 @@ CREATE TABLE User_Behavior (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Add index for faster queries
-CREATE INDEX idx_user_behavior_event_type ON User_Behavior(event_type);
-CREATE INDEX idx_user_behavior_customer_id ON User_Behavior(customer_id);
-CREATE INDEX idx_user_behavior_entity_id ON User_Behavior(entity_id);
-CREATE INDEX idx_user_behavior_created_at ON User_Behavior(created_at);
+
 
 -- Viewed Products Table
 CREATE TABLE Viewed_Products (
@@ -214,7 +210,19 @@ CREATE TABLE Viewed_Products (
     UNIQUE(customer_id, product_id)
 );
 
--- Add index for faster queries
-CREATE INDEX idx_viewed_products_customer_id ON Viewed_Products(customer_id);
-CREATE INDEX idx_viewed_products_product_id ON Viewed_Products(product_id);
-CREATE INDEX idx_viewed_products_viewed_at ON Viewed_Products(viewed_at);
+-- FAQ Table
+CREATE TABLE FAQ (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    subject VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending, answered
+    answer TEXT,
+    answered_by INT REFERENCES Staff(id) ON DELETE SET NULL,
+    answered_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+

@@ -60,3 +60,19 @@ CREATE INDEX idx_customer_latest_login ON "Customer"(latest_login);
 CREATE INDEX idx_product_created_at ON "Product"(created_at);
 CREATE INDEX idx_order_created_at ON "Orders"(created_at);
 CREATE INDEX idx_pc_config_created_at ON "PC_Configuration"(created_at);
+
+-- Add index for faster queries
+CREATE INDEX idx_faq_status ON FAQ(status);
+CREATE INDEX idx_faq_created_at ON FAQ(created_at);
+
+
+-- Add index for faster queries
+CREATE INDEX idx_viewed_products_customer_id ON Viewed_Products(customer_id);
+CREATE INDEX idx_viewed_products_product_id ON Viewed_Products(product_id);
+CREATE INDEX idx_viewed_products_viewed_at ON Viewed_Products(viewed_at);
+
+-- Add index for faster queries
+CREATE INDEX idx_user_behavior_event_type ON User_Behavior(event_type);
+CREATE INDEX idx_user_behavior_customer_id ON User_Behavior(customer_id);
+CREATE INDEX idx_user_behavior_entity_id ON User_Behavior(entity_id);
+CREATE INDEX idx_user_behavior_created_at ON User_Behavior(created_at);

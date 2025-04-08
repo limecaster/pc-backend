@@ -31,8 +31,8 @@ import { AccountModule } from './dashboard/account/account.module';
 import { DiscountModule } from './discount/discount.module';
 import { EventsModule } from './events/events.module';
 import { CmsModule } from './cms/cms.module';
-// Add the import for AnalyticsModule
 import { AnalyticsModule } from './analytics/analytics.module';
+import { FAQModule } from './faq/faq.module';
 
 @Module({
     imports: [
@@ -73,6 +73,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
         EventsModule,
         CmsModule,
         AnalyticsModule,
+        FAQModule,
     ],
     controllers: [AppController, BuildController, ChatbotController],
     providers: [

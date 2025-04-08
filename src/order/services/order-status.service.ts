@@ -153,6 +153,24 @@ export class OrderStatusService {
         return await this.orderRepository.find({
             where: { status: OrderStatus.PENDING_APPROVAL },
             relations: ['customer'],
+            select: {
+                id: true,
+                orderNumber: true,
+                status: true,
+                total: true,
+                orderDate: true,
+                customer: {
+                    id: true,
+                    firstname: true,
+                    lastname: true,
+                    email: true,
+                    phoneNumber: true,
+                    street: true,
+                    ward: true,
+                    district: true,
+                    city: true
+                }
+            },
             order: { orderDate: 'DESC' },
         });
     }

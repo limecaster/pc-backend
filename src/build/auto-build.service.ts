@@ -836,24 +836,24 @@ export class AutoBuildService {
     }
 
     public async getAllPCConfigurations(userInput: string): Promise<{
-        saving: PCConfiguration[];
+
         performance: PCConfiguration[];
         popular: PCConfiguration[];
     }> {
         const startTime = Date.now();
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
-        const options = ['saving', 'performance', 'popular'] as const;
+        const options = ['performance', 'popular'] as const;
         const results: {
-            saving: PCConfiguration[];
+            
             performance: PCConfiguration[];
             popular: PCConfiguration[];
-        } = { saving: [], performance: [], popular: [] };
+        } = {  performance: [], popular: [] };
         const maxAttempts = 20;
 
         // Reset removal record for each run
         this.removedCandidates = {
-            saving: {},
+       
             performance: {},
             popular: {},
         };
@@ -915,13 +915,13 @@ export class AutoBuildService {
 
         return results;
     }
-    // In your class constructor or as a property initializer
+
     private removedCandidates: {
-        saving: { [partLabel: string]: string[] };
+
         performance: { [partLabel: string]: string[] };
         popular: { [partLabel: string]: string[] };
     } = {
-        saving: {},
+ 
         performance: {},
         popular: {},
     };

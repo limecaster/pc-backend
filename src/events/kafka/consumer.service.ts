@@ -21,12 +21,26 @@ export class ConsumerService implements OnApplicationShutdown {
         this.kafka = new Kafka({
             clientId,
             brokers,
+            retry: {
+                initialRetryTime: 300,
+                retries: 10,
+                maxRetryTime: 30000,
+                factor: 0.2,
+            },
         });
     }
 
     async consume(topics: ConsumerSubscribeTopics, config: ConsumerRunConfig) {
         const groupId = this.configService.get<string>('KAFKA_GROUP_ID');
-        const consumer = this.kafka.consumer({ groupId });
+        const consumer = this.kafka.consumer({ 
+            groupId,
+            retry: {
+                initialRetryTime: 300,
+                retries: 10,
+                maxRetryTime: 30000,
+                factor: 0.2,
+            },
+        });
 
         await consumer.connect();
         await consumer.subscribe(topics);

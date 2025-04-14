@@ -22,8 +22,22 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
         this.kafka = new Kafka({
             clientId,
             brokers,
+            retry: {
+                initialRetryTime: 300,
+                retries: 10,
+                maxRetryTime: 30000,
+                factor: 0.2,
+            },
         });
-        this.producer = this.kafka.producer();
+        this.producer = this.kafka.producer({
+            retry: {
+                initialRetryTime: 300,
+                retries: 10,
+                maxRetryTime: 30000,
+                factor: 0.2,
+            },
+            allowAutoTopicCreation: true,
+        });
     }
 
     async onModuleInit() {

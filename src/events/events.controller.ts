@@ -116,6 +116,38 @@ export class EventsController {
         }
     }
 
+    @Post('auth-event')
+    async trackAuthEvent(
+        @Body() authEventDto: any,
+        @Req() req: Request,
+    ) {
+        try {
+            // Capture IP address
+            authEventDto.ipAddress = req.ip;
+
+            // Send to Kafka
+            await this.producerService.produce({
+                topic: 'auth-events',
+                messages: [{ value: JSON.stringify(authEventDto) }],
+            });
+
+            return {
+                success: true,
+                message: 'Authentication event tracking request received',
+                eventType: authEventDto.eventType,
+            };
+        } catch (error) {
+            this.logger.error(
+                `Error tracking authentication event: ${error.message}`,
+                error.stack,
+            );
+            throw new HttpException(
+                'Failed to track authentication event',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
     @UseGuards(JwtAuthGuard)
     @Get('customer/:id')
     async getCustomerEvents(@Param('id') id: string) {

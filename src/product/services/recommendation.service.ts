@@ -24,7 +24,7 @@ export class RecommendationService {
     ) {
         this.mlApiUrl =
             this.configService.get<string>('ML_API_URL') ||
-            'http://localhost:5000';
+            'http://127.0.0.1:3003';
     }
 
     /**
@@ -58,13 +58,13 @@ export class RecommendationService {
                         category,
                         limit,
                     );
-
+                    
                     if (mlRecommendations.length > 0) {
                         this.logger.log(
                             `Received ${mlRecommendations.length} ML recommendations for product ${productId}`,
                         );
                         recommendedProductIds = mlRecommendations;
-
+                        
                         // If we have enough ML recommendations, return them directly
                         if (recommendedProductIds.length >= limit) {
                             return await this.fetchProductDetails(
@@ -116,11 +116,11 @@ export class RecommendationService {
             if (customerId && recommendedProductIds.length < limit) {
                 const personalizedRecommendations =
                     await this.getPersonalizedRecommendationsByCustomerId(
-                        customerId,
-                        productId,
-                        limit - recommendedProductIds.length,
-                    );
-
+                    customerId,
+                    productId,
+                    limit - recommendedProductIds.length,
+                );
+                
                 // Add non-duplicate recommendations
                 personalizedRecommendations.forEach((id) => {
                     if (!recommendedProductIds.includes(id)) {
@@ -131,11 +131,11 @@ export class RecommendationService {
                 // Get recommendations based on session behavior
                 const sessionRecommendations =
                     await this.getPersonalizedRecommendationsBySessionId(
-                        sessionId,
-                        productId,
-                        limit - recommendedProductIds.length,
-                    );
-
+                    sessionId,
+                    productId,
+                    limit - recommendedProductIds.length,
+                );
+                
                 // Add non-duplicate recommendations
                 sessionRecommendations.forEach((id) => {
                     if (!recommendedProductIds.includes(id)) {
@@ -148,11 +148,11 @@ export class RecommendationService {
             if (recommendedProductIds.length < limit && category && productId) {
                 const similarProductIds =
                     await this.getSimilarProductsByCategory(
-                        category,
-                        productId,
-                        limit - recommendedProductIds.length,
-                    );
-
+                    category,
+                    productId,
+                    limit - recommendedProductIds.length,
+                );
+                
                 // Add non-duplicate similar products
                 similarProductIds.forEach((id) => {
                     if (!recommendedProductIds.includes(id)) {
@@ -167,7 +167,7 @@ export class RecommendationService {
                     limit - recommendedProductIds.length,
                     [productId, ...recommendedProductIds].filter(Boolean),
                 );
-
+                
                 // Add non-duplicate popular products
                 popularProductIds.forEach((id) => {
                     if (!recommendedProductIds.includes(id)) {
@@ -200,32 +200,32 @@ export class RecommendationService {
         try {
             // Construct the API URL with query parameters
             let url = `${this.mlApiUrl}/api/recommendations?productId=${productId}`;
-
+            
             if (category) {
                 url += `&category=${encodeURIComponent(category)}`;
             }
-
+            
             if (limit) {
                 url += `&limit=${limit}`;
             }
-
+            
             this.logger.log(`Calling ML API: ${url}`);
-
+            
             // Make the request to the ML API
             const response = await fetch(url);
-
+            
             if (!response.ok) {
                 throw new Error(`ML API returned status ${response.status}`);
             }
-
+            
             const data = await response.json();
-
+            
             if (!data.success) {
                 throw new Error(
                     data.message || 'ML API returned unsuccessful response',
                 );
             }
-
+            
             return data.recommendations || [];
         } catch (error) {
             this.logger.error(
@@ -263,14 +263,14 @@ export class RecommendationService {
 
             // Collect unique product IDs the customer has interacted with
             const interactedProductIds = new Set<string>();
-
+            
             // Track viewed products by category to find similar products
             const categoryInterests = new Map<string, number>();
 
             customerEvents.forEach((event) => {
                 if (event.entityId && event.entityId !== currentProductId) {
                     interactedProductIds.add(event.entityId);
-
+                    
                     // Track category interests for this user
                     const category = event.eventData?.category;
                     if (category) {
@@ -300,13 +300,13 @@ export class RecommendationService {
                     .andWhere('product.status = :status', { status: 'active' })
                     .orderBy('RANDOM()')
                     .take(limit);
-
+                
                 if (currentProductId) {
                     query.andWhere('product.id != :productId', {
                         productId: currentProductId,
                     });
                 }
-
+                
                 const products = await query.getMany();
                 recommendedProductIds = products.map((p) => p.id);
             }
@@ -362,14 +362,14 @@ export class RecommendationService {
 
             // Collect unique product IDs from the session
             const interactedProductIds = new Set<string>();
-
+            
             // Track viewed products by category to find similar products
             const categoryInterests = new Map<string, number>();
 
             sessionEvents.forEach((event) => {
                 if (event.entityId && event.entityId !== currentProductId) {
                     interactedProductIds.add(event.entityId);
-
+                    
                     // Track category interests for this session
                     const category = event.eventData?.category;
                     if (category) {
@@ -399,13 +399,13 @@ export class RecommendationService {
                     .andWhere('product.status = :status', { status: 'active' })
                     .orderBy('RANDOM()')
                     .take(limit);
-
+                
                 if (currentProductId) {
                     query.andWhere('product.id != :productId', {
                         productId: currentProductId,
                     });
                 }
-
+                
                 const products = await query.getMany();
                 recommendedProductIds = products.map((p) => p.id);
             }
@@ -498,7 +498,7 @@ export class RecommendationService {
             const productViewCounts = await this.userBehaviorRepository
                 .createQueryBuilder('behavior')
                 .select('behavior.entityId', 'productId')
-                .addSelect('COUNT(*)', 'viewCount')
+                .addSelect('COUNT(*)', 'view_count')
                 .where('behavior.eventType = :eventType', {
                     eventType: 'product_viewed',
                 })
@@ -507,7 +507,7 @@ export class RecommendationService {
                 })
                 .andWhere('behavior.entityId IS NOT NULL')
                 .groupBy('behavior.entityId')
-                .orderBy('viewCount', 'DESC')
+                .orderBy('view_count', 'DESC')
                 .take(limit + excludeIds.length) // Get more than needed to account for excluded IDs
                 .getRawMany();
 
@@ -691,7 +691,7 @@ export class RecommendationService {
                     'behavior.entity_id::uuid = product.id',
                 )
                 .select('behavior.entity_id', 'productId')
-                .addSelect('COUNT(*)', 'viewcount')
+                .addSelect('COUNT(*)', 'view_count')
                 .where('behavior.eventType IN (:...eventTypes)', {
                     eventTypes: [
                         'product_viewed',
@@ -706,7 +706,7 @@ export class RecommendationService {
                 .andWhere('product.category = :category', { category })
                 .andWhere('product.status = :status', { status: 'active' })
                 .groupBy('behavior.entity_id')
-                .orderBy('viewcount', 'DESC')
+                .orderBy('view_count', 'DESC')
                 .take(limit);
 
             const productViewCounts = await productViewCountsQuery.getRawMany();
@@ -859,10 +859,12 @@ export class RecommendationService {
                             WHEN ub.event_type = 'product_added_to_cart' THEN 3
                             WHEN ub.event_type = 'product_viewed' THEN 1
                             WHEN ub.event_type = 'product_click' THEN 2
+                            WHEN ub.event_type = 'order_created' THEN 4
+                            WHEN ub.event_type = 'payment_completed' THEN 5
                             ELSE 1
                         END) as weighted_count
                     FROM "User_Behavior" ub
-                    JOIN "Products" p ON ub.entity_id = p.id
+                    JOIN "Products" p ON ub.entity_id::uuid = p.id
                     WHERE ub.customer_id = $1
                       AND ub.entity_type = 'product'
                     GROUP BY p.category
@@ -882,6 +884,59 @@ export class RecommendationService {
                             parseInt(row.weighted_count),
                     );
                 });
+
+                // Get the customer's order history (purchased products)
+                const orderProductsQuery = `
+                    SELECT p.category, COUNT(*) as count
+                    FROM "Orders" o
+                    JOIN "Order_Detail" od ON o.id = od.order_id
+                    JOIN "Products" p ON od.product_id = p.id
+                    WHERE o.customer_id = $1
+                      AND o.status IN ('completed', 'delivered', 'processing')
+                    GROUP BY p.category
+                    ORDER BY count DESC
+                `;
+
+                const orderResult = await this.productRepository.query(
+                    orderProductsQuery,
+                    [customerId],
+                );
+
+                // Add purchased product categories with higher weight (6)
+                orderResult.forEach((row) => {
+                    categoryScores.set(
+                        row.category,
+                        (categoryScores.get(row.category) || 0) + row.count * 6, // Higher weight for actual purchases
+                    );
+                });
+
+                // Also check for order and payment events in User_Behavior
+                const orderEventsQuery = `
+                    SELECT p.category, ub.event_type, COUNT(*) as count
+                    FROM "User_Behavior" ub
+                    JOIN "Orders" o ON ub.entity_id = o.id::text
+                    JOIN "Order_Detail" od ON o.id = od.order_id
+                    JOIN "Products" p ON od.product_id = p.id
+                    WHERE ub.customer_id = $1
+                      AND ub.entity_type IN ('order', 'payment')
+                      AND ub.event_type IN ('order_created', 'payment_completed')
+                    GROUP BY p.category, ub.event_type
+                    ORDER BY count DESC
+                `;
+
+                const orderEventsResult = await this.productRepository.query(
+                    orderEventsQuery,
+                    [customerId],
+                );
+
+                // Add order events with high weights
+                orderEventsResult.forEach((row) => {
+                    const weight = row.event_type === 'order_created' ? 4 : 5; // 4 for order_created, 5 for payment_completed
+                    categoryScores.set(
+                        row.category,
+                        (categoryScores.get(row.category) || 0) + row.count * weight,
+                    );
+                });
             }
 
             // Case 2: If sessionId is provided, check session behavior
@@ -892,10 +947,12 @@ export class RecommendationService {
                             WHEN ub.event_type = 'product_added_to_cart' THEN 3
                             WHEN ub.event_type = 'product_viewed' THEN 1
                             WHEN ub.event_type = 'product_click' THEN 2
+                            WHEN ub.event_type = 'order_created' THEN 4
+                            WHEN ub.event_type = 'payment_completed' THEN 5
                             ELSE 1
                         END) as weighted_count
                     FROM "User_Behavior" ub
-                    JOIN "Products" p ON ub.entity_id = p.id
+                    JOIN "Products" p ON ub.entity_id::uuid = p.id
                     WHERE ub.session_id::text = $1
                       AND ub.entity_type = 'product'
                     GROUP BY p.category
@@ -915,6 +972,34 @@ export class RecommendationService {
                             parseInt(row.weighted_count),
                     );
                 });
+
+                // Also check for order events in the session
+                const sessionOrderEventsQuery = `
+                    SELECT p.category, ub.event_type, COUNT(*) as count
+                    FROM "User_Behavior" ub
+                    JOIN "Orders" o ON ub.entity_id = o.id::text
+                    JOIN "Order_Detail" od ON o.id = od.order_id
+                    JOIN "Products" p ON od.product_id = p.id
+                    WHERE ub.session_id::text = $1
+                      AND ub.entity_type IN ('order', 'payment')
+                      AND ub.event_type IN ('order_created', 'payment_completed')
+                    GROUP BY p.category, ub.event_type
+                    ORDER BY count DESC
+                `;
+
+                const sessionOrderEventsResult = await this.productRepository.query(
+                    sessionOrderEventsQuery,
+                    [sessionId],
+                );
+
+                // Add order events with high weights
+                sessionOrderEventsResult.forEach((row) => {
+                    const weight = row.event_type === 'order_created' ? 4 : 5; // 4 for order_created, 5 for payment_completed
+                    categoryScores.set(
+                        row.category,
+                        (categoryScores.get(row.category) || 0) + row.count * weight,
+                    );
+                });
             }
 
             // Case 3: If we still don't have enough categories, get the most popular ones
@@ -922,7 +1007,7 @@ export class RecommendationService {
                 const popularCategoriesQuery = `
                     SELECT p.category, COUNT(*) as count
                     FROM "Products" p
-                    JOIN "User_Behavior" ub ON p.id = ub.entity_id
+                    JOIN "User_Behavior" ub ON p.id = ub.entity_id::uuid
                     WHERE ub.entity_type = 'product'
                       AND ub.created_at > NOW() - INTERVAL '30 days'
                     GROUP BY p.category

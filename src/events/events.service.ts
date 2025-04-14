@@ -429,4 +429,27 @@ export class EventsService {
 
         return this.createEvent(createEventDto);
     }
+
+    /**
+     * Handle PC build events (auto and manual build)
+     */
+    async handlePCBuildEvent(eventData: any, eventType: string): Promise<void> {
+        try {
+            // Save event in the database
+            await this.userBehaviorRepository.save({
+                eventType,
+                customerId: eventData.customerId ? parseInt(eventData.customerId) : null,
+                sessionId: eventData.sessionId,
+                entityId: eventData.entityId,
+                entityType: eventData.entityType,
+                pageUrl: eventData.pageUrl,
+                referrerUrl: eventData.referrerUrl,
+                deviceInfo: eventData.deviceInfo,
+                ipAddress: eventData.ipAddress,
+                eventData: eventData.eventData,
+            });
+        } catch (error) {
+            this.logger.error(`Error handling PC build event ${eventType}: ${error.message}`);
+        }
+    }
 }

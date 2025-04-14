@@ -27,6 +27,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { HotSalesService } from './services/hot-sales.service';
+import { RecommendationService } from './services/recommendation.service';
+import { ConfigService } from '@nestjs/config';
 
 interface PaginatedProductsResponse {
     products: ProductDetailsDto[];
@@ -43,8 +45,74 @@ export class ProductController {
         private readonly productService: ProductService,
         private readonly cloudinaryService: CloudinaryConfigService,
         private readonly hotSalesService: HotSalesService,
+        private readonly recommendationService: RecommendationService,
+        private readonly configService: ConfigService,
     ) {}
 
+    @Post('admin/train-recommendation-model')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    async trainRecommendationModel(): Promise<{
+        success: boolean;
+        message: string;
+    }> {
+        try {
+            const mlApiUrl =
+                this.configService.get<string>('ML_API_URL') ||
+                'http://127.0.0.1:3003';
+
+            // Call the ML API to train both standard and advanced models
+            const response = await fetch(
+                `${mlApiUrl}/api/recommendations/train`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(
+                    `Failed to train recommendation models: ${response.status} ${errorText}`,
+                );
+            }
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(
+                    result.message || 'ML API returned unsuccessful response',
+                );
+            }
+
+            // Get the health status of the models
+            const healthResponse = await fetch(
+                `${mlApiUrl}/api/recommendations/health`,
+            );
+            let healthInfo = '';
+
+            if (healthResponse.ok) {
+                const healthData = await healthResponse.json();
+                healthInfo = ` Standard model: ${healthData.standard_model_status}. Advanced model: ${healthData.advanced_model_status}. Product count: ${healthData.product_count}.`;
+            }
+
+            return {
+                success: true,
+                message:
+                    'Recommendation models training started successfully.' +
+                    healthInfo,
+            };
+        } catch (error) {
+            this.logger.error(
+                `Error training recommendation models: ${error.message}`,
+            );
+            throw new InternalServerErrorException(
+                'Failed to train recommendation models',
+            );
+        }
+    }
 
     @Get('admin/simple-list')
     async getSimpleProductList(
@@ -396,11 +464,6 @@ export class ProductController {
         }
     }
 
-    @Get('admin/debug')
-    async adminDebug(): Promise<{ status: string }> {
-        return { status: 'Product controller admin routes are working' };
-    }
-
     @Post('batch-with-discounts')
     async getProductsWithDiscounts(
         @Body() data: { productIds: string[] },
@@ -645,6 +708,97 @@ export class ProductController {
         }
     }
 
+    @Get('preferred-categories')
+    async getPreferredCategories(
+        @Query('customerId') customerId?: number,
+        @Query('sessionId') sessionId?: string,
+        @Query('limit') limit: number = 5,
+    ): Promise<{ categories: string[] }> {
+        try {
+            const categories =
+                await this.recommendationService.getPreferredCategories(
+                    customerId,
+                    sessionId,
+                    limit,
+                );
+
+            return { categories };
+        } catch (error) {
+            this.logger.error(
+                `Error getting preferred categories: ${error.message}`,
+            );
+            throw new InternalServerErrorException(
+                'Failed to get preferred categories',
+            );
+        }
+    }
+
+    @Get('recommendations')
+    async getRecommendedProducts(
+        @Query('customerId') customerId?: number,
+        @Query('sessionId') sessionId?: string,
+        @Query('productId') productId?: string,
+        @Query('category') category?: string,
+        @Query('limit') limit: number = 4,
+    ): Promise<{ products: ProductDetailsDto[] }> {
+        try {
+            const products =
+                await this.recommendationService.getRecommendedProducts(
+                    customerId,
+                    sessionId,
+                    productId,
+                    category,
+                    limit,
+                );
+
+            // Process products to ensure all expected fields
+            const processedProducts = products.map((product) =>
+                this.ensureProductInfo(product),
+            );
+
+            return { products: processedProducts };
+        } catch (error) {
+            this.logger.error(
+                `Error getting recommendations: ${error.message}`,
+            );
+            throw new InternalServerErrorException(
+                'Failed to get product recommendations',
+            );
+        }
+    }
+
+    @Get('category-recommendations/:category')
+    async getCategoryRecommendations(
+        @Param('category') category: string,
+        @Query('limit') limit: number = 10,
+    ): Promise<{ products: ProductDetailsDto[] }> {
+        try {
+            if (!category) {
+                throw new BadRequestException('Category is required');
+            }
+
+            const products =
+                await this.recommendationService.getCategoryRecommendations(
+                    category,
+                    limit,
+                );
+
+            // Process products to ensure all expected fields
+            const processedProducts = products.map((product) =>
+                this.ensureProductInfo(product),
+            );
+
+            return { products: processedProducts };
+        } catch (error) {
+            this.logger.error(
+                `Error getting category recommendations: ${error.message}`,
+            );
+            throw new InternalServerErrorException(
+                'Failed to get category recommendations',
+            );
+        }
+    }
+
     @Get(':slug')
     async findBySlug(@Param('slug') slug: string): Promise<ProductDetailsDto> {
         try {
@@ -703,18 +857,19 @@ export class ProductController {
     async createProduct(@Body() productData: any): Promise<any> {
         try {
             // Create the product in PostgreSQL first, which will generate a UUID
-            const createdProduct = await this.productService.createProduct(productData);
-            
+            const createdProduct =
+                await this.productService.createProduct(productData);
+
             // Return the created product with its ID
             return {
                 success: true,
                 message: 'Product created successfully',
-                product: createdProduct
+                product: createdProduct,
             };
         } catch (error) {
             this.logger.error(`Failed to create product: ${error.message}`);
             throw new InternalServerErrorException(
-                `Failed to create product: ${error.message}`
+                `Failed to create product: ${error.message}`,
             );
         }
     }
@@ -724,21 +879,24 @@ export class ProductController {
     @Roles(Role.ADMIN)
     async updateProduct(
         @Param('id') id: string,
-        @Body() productData: any
+        @Body() productData: any,
     ): Promise<any> {
         try {
             // Update the product in PostgreSQL and Neo4j
-            const updatedProduct = await this.productService.updateProduct(id, productData);
-            
+            const updatedProduct = await this.productService.updateProduct(
+                id,
+                productData,
+            );
+
             return {
                 success: true,
                 message: 'Product updated successfully',
-                product: updatedProduct
+                product: updatedProduct,
             };
         } catch (error) {
             this.logger.error(`Failed to update product: ${error.message}`);
             throw new InternalServerErrorException(
-                `Failed to update product: ${error.message}`
+                `Failed to update product: ${error.message}`,
             );
         }
     }
@@ -761,6 +919,8 @@ export class ProductController {
     //         );
     //     }
     // }
+
+    
 
     private ensureProductDiscountInfo(product: any): any {
         const MIN_DISCOUNT_PERCENT = 1.0;

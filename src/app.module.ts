@@ -33,11 +33,18 @@ import { EventsModule } from './events/events.module';
 import { CmsModule } from './cms/cms.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { FAQModule } from './faq/faq.module';
+import * as Joi from 'joi';
 
 @Module({
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
+            envFilePath: '.env',
+            validationSchema: Joi.object({
+                // ... existing validation ...
+                // Add ML API URL for recommendation service
+                ML_API_URL: Joi.string().default('http://localhost:5000'),
+            }),
         }),
         TypeOrmModule.forRootAsync({
             inject: [ConfigService],

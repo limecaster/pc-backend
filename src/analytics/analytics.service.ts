@@ -105,11 +105,19 @@ export class AnalyticsService {
     }
 
     async getLowStockProducts(page = 1, limit = 10, search = '') {
-        return this.inventoryAnalyticsService.getLowStockProducts(page, limit, search);
+        return this.inventoryAnalyticsService.getLowStockProducts(
+            page,
+            limit,
+            search,
+        );
     }
 
     async getOutOfStockProducts(page = 1, limit = 10, search = '') {
-        return this.inventoryAnalyticsService.getOutOfStockProducts(page, limit, search);
+        return this.inventoryAnalyticsService.getOutOfStockProducts(
+            page,
+            limit,
+            search,
+        );
     }
 
     async getProductCategories() {

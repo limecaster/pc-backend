@@ -604,22 +604,32 @@ export class ProductSpecificationService {
             `;
 
             const result = await session.run(query);
-            
+
             if (result.records.length === 0) {
                 return [];
             }
 
             // Get the first node and extract its property keys as the spec fields
             const nodeProps = result.records[0].get('p').properties;
-            
+
             // Filter out common properties that aren't specifications
-            const commonProps = ['id', 'price', 'imageUrl', 'name', 'description', 
-                'category', 'stock', 'status', 'stockQuantity', 'additionalImages'];
-            
+            const commonProps = [
+                'id',
+                'price',
+                'imageUrl',
+                'name',
+                'description',
+                'category',
+                'stock',
+                'status',
+                'stockQuantity',
+                'additionalImages',
+            ];
+
             const specKeys = Object.keys(nodeProps)
-                .filter(key => !commonProps.includes(key))
+                .filter((key) => !commonProps.includes(key))
                 .sort();
-                
+
             return specKeys;
         } catch (error) {
             this.logger.error(

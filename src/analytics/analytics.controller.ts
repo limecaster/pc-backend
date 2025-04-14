@@ -143,7 +143,11 @@ export class AnalyticsController {
         @Query('limit') limit = 10,
         @Query('search') search = '',
     ) {
-        return this.analyticsService.getOutOfStockProducts(+page, +limit, search);
+        return this.analyticsService.getOutOfStockProducts(
+            +page,
+            +limit,
+            search,
+        );
     }
 
     @Get('inventory/categories')

@@ -32,7 +32,10 @@ export class ProductService {
         private readonly neo4jConfigService: Neo4jConfigService,
     ) {}
 
-    async findBySlug(slug: string, isAdmin: boolean = false): Promise<ProductDetailsDto> {
+    async findBySlug(
+        slug: string,
+        isAdmin: boolean = false,
+    ): Promise<ProductDetailsDto> {
         try {
             // Check if id is a valid UUID
             if (!this.utilsService.isValidUUID(slug)) {
@@ -297,7 +300,7 @@ export class ProductService {
                     stock: product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
                     category: product.category || '',
                     stockQuantity: product.stockQuantity,
-                    status: product.status, 
+                    status: product.status,
                 };
             });
 
@@ -1042,16 +1045,16 @@ export class ProductService {
     async createProduct(productData: any): Promise<any> {
         try {
             // 1. Prepare product data for PostgreSQL
-            const { 
-                name, 
-                price, 
-                stock_quantity, 
-                status, 
-                category, 
-                description, 
-                specifications, 
+            const {
+                name,
+                price,
+                stock_quantity,
+                status,
+                category,
+                description,
+                specifications,
                 images,
-                thumbnail 
+                thumbnail,
             } = productData;
 
             // 2. Create the product in PostgreSQL
@@ -1062,8 +1065,14 @@ export class ProductService {
                 stockQuantity: stock_quantity,
                 status,
                 category,
-                additional_images: Array.isArray(images) ? JSON.stringify(images) : '[]',
-                imageUrl: thumbnail || (Array.isArray(images) && images.length > 0 ? images[0] : null),
+                additional_images: Array.isArray(images)
+                    ? JSON.stringify(images)
+                    : '[]',
+                imageUrl:
+                    thumbnail ||
+                    (Array.isArray(images) && images.length > 0
+                        ? images[0]
+                        : null),
             });
 
             // 3. Save to PostgreSQL to generate UUID
@@ -1077,8 +1086,12 @@ export class ProductService {
                     id: productId,
                     name,
                     price,
-                    imageUrl: thumbnail || (Array.isArray(images) && images.length > 0 ? images[0] : null),
-                    category
+                    imageUrl:
+                        thumbnail ||
+                        (Array.isArray(images) && images.length > 0
+                            ? images[0]
+                            : null),
+                    category,
                 });
             }
 
@@ -1092,7 +1105,10 @@ export class ProductService {
     /**
      * Sync product data to Neo4j
      */
-    private async syncProductToNeo4j(productId: string, data: any): Promise<void> {
+    private async syncProductToNeo4j(
+        productId: string,
+        data: any,
+    ): Promise<void> {
         const driver = this.neo4jConfigService.getDriver();
         const session = driver.session();
 
@@ -1119,8 +1135,12 @@ export class ProductService {
 
             await session.run(query, { productId });
         } catch (error) {
-            this.logger.error(`Error syncing product to Neo4j: ${error.message}`);
-            throw new Error(`Failed to sync product to Neo4j: ${error.message}`);
+            this.logger.error(
+                `Error syncing product to Neo4j: ${error.message}`,
+            );
+            throw new Error(
+                `Failed to sync product to Neo4j: ${error.message}`,
+            );
         } finally {
             await session.close();
         }
@@ -1132,35 +1152,37 @@ export class ProductService {
     async updateProduct(id: string, productData: any): Promise<any> {
         try {
             // 1. Find the existing product
-            const existingProduct = await this.productRepository.findOne({ 
-                where: { id } 
+            const existingProduct = await this.productRepository.findOne({
+                where: { id },
             });
-            
+
             if (!existingProduct) {
                 throw new Error(`Product with ID ${id} not found`);
             }
 
             // 2. Extract data from request
-            const { 
-                name, 
-                price, 
-                stock_quantity, 
-                status, 
-                category, 
-                description, 
-                specifications, 
+            const {
+                name,
+                price,
+                stock_quantity,
+                status,
+                category,
+                description,
+                specifications,
                 images,
-                thumbnail 
+                thumbnail,
             } = productData;
 
             // 3. Update product in PostgreSQL
             existingProduct.name = name || existingProduct.name;
             existingProduct.price = price ?? existingProduct.price;
-            existingProduct.description = description ?? existingProduct.description;
-            existingProduct.stockQuantity = stock_quantity ?? existingProduct.stockQuantity;
+            existingProduct.description =
+                description ?? existingProduct.description;
+            existingProduct.stockQuantity =
+                stock_quantity ?? existingProduct.stockQuantity;
             existingProduct.status = status || existingProduct.status;
             existingProduct.category = category || existingProduct.category;
-            
+
             // Handle images
             if (Array.isArray(images) && images.length > 0) {
                 existingProduct.additional_images = JSON.stringify(images);
@@ -1168,7 +1190,8 @@ export class ProductService {
             }
 
             // 4. Save changes to PostgreSQL
-            const updatedProduct = await this.productRepository.save(existingProduct);
+            const updatedProduct =
+                await this.productRepository.save(existingProduct);
 
             // 5. Update the same product in Neo4j with specifications
             if (specifications && Object.keys(specifications).length > 0) {
@@ -1177,8 +1200,12 @@ export class ProductService {
                     id,
                     name: name || existingProduct.name,
                     price: price ?? existingProduct.price,
-                    imageUrl: thumbnail || (Array.isArray(images) && images.length > 0 ? images[0] : existingProduct.imageUrl),
-                    category: category || existingProduct.category
+                    imageUrl:
+                        thumbnail ||
+                        (Array.isArray(images) && images.length > 0
+                            ? images[0]
+                            : existingProduct.imageUrl),
+                    category: category || existingProduct.category,
                 });
             }
 

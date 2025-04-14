@@ -19,7 +19,6 @@ export class EventsService {
     ) {}
 
     async createEvent(createEventDto: CreateEventDto): Promise<UserBehavior> {
-
         // Safely convert customerId to number if it's a numeric string
         let customerIdNum: number | null = null;
         if (createEventDto.customerId) {
@@ -54,8 +53,6 @@ export class EventsService {
     async handleProductClick(
         productClickEvent: ProductClickEventDto,
     ): Promise<UserBehavior> {
-
-
         const eventData = {
             productName: productClickEvent.productName,
             category: productClickEvent.category,
@@ -80,7 +77,6 @@ export class EventsService {
     }
 
     async handleProductView(eventData: any): Promise<UserBehavior> {
-
         const productId = eventData.entityId || eventData.eventData?.productId;
 
         if (!productId) {
@@ -107,8 +103,6 @@ export class EventsService {
         eventData: any,
         eventType: string,
     ): Promise<UserBehavior> {
-
-
         const productId = eventData.entityId || eventData.eventData?.productId;
 
         if (!productId) {
@@ -135,7 +129,6 @@ export class EventsService {
         eventData: any,
         eventType: string,
     ): Promise<UserBehavior> {
-
         const orderId = eventData.entityId || eventData.eventData?.orderId;
 
         if (!orderId) {
@@ -334,8 +327,6 @@ export class EventsService {
         discountId?: string;
     }) {
         try {
-
-
             return {
                 message:
                     'Feature to be implemented based on OrderItem discount tracking',
@@ -358,7 +349,6 @@ export class EventsService {
         eventData: any,
         eventType: 'session_start' | 'session_end',
     ): Promise<UserBehavior> {
-
         // Parse customerId to number if it's numeric
         let customerIdNum: number | null = null;
         if (eventData.customerId) {
@@ -378,7 +368,7 @@ export class EventsService {
             eventType,
             customerId: eventData.customerId,
             sessionId: eventData.sessionId,
-            entityId: eventData.sessionId, 
+            entityId: eventData.sessionId,
             entityType: 'session',
             pageUrl: eventData.pageUrl,
             referrerUrl: eventData.referrerUrl,
@@ -386,8 +376,9 @@ export class EventsService {
             ipAddress: eventData.ipAddress,
             eventData: {
                 ...eventData.eventData,
-                
-                timestamp: eventData.eventData?.timestamp || new Date().toISOString(),
+
+                timestamp:
+                    eventData.eventData?.timestamp || new Date().toISOString(),
             },
         };
 
@@ -404,12 +395,10 @@ export class EventsService {
         eventData: any,
         eventType: 'user_authenticated' | 'user_logout',
     ): Promise<UserBehavior> {
-
-
         // Parse customerId to number if it's numeric
         let customerIdNum: number | null = null;
         const userId = eventData.customerId || eventData.eventData?.userId;
-        
+
         if (userId) {
             try {
                 const parsed = parseInt(userId, 10);
@@ -417,9 +406,7 @@ export class EventsService {
                     customerIdNum = parsed;
                 }
             } catch (e) {
-                this.logger.warn(
-                    `Invalid userId in auth event: ${userId}`,
-                );
+                this.logger.warn(`Invalid userId in auth event: ${userId}`);
             }
         }
 
@@ -435,7 +422,8 @@ export class EventsService {
             ipAddress: eventData.ipAddress,
             eventData: {
                 ...eventData.eventData,
-                timestamp: eventData.eventData?.timestamp || new Date().toISOString(),
+                timestamp:
+                    eventData.eventData?.timestamp || new Date().toISOString(),
             },
         };
 

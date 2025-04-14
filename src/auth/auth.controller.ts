@@ -247,7 +247,9 @@ export class AuthController {
     @Post('forgot-password')
     async forgotPassword(@Body() body: { email: string }) {
         try {
-            const otpCode = await this.customerService.createPasswordResetToken(body.email);
+            const otpCode = await this.customerService.createPasswordResetToken(
+                body.email,
+            );
             await this.emailService.sendPasswordResetEmail(body.email, otpCode);
             return {
                 message:
@@ -441,24 +443,29 @@ export class AuthController {
     async googleAuthCallback(@Request() req, @Res() res) {
         try {
             const result = await this.authService.login(req.user);
-            
+
             // Get redirect URL from state parameter
-            const redirectUrl = req.query.state ? decodeURIComponent(req.query.state as string) : 
-                (process.env.FRONTEND_URL || 'http://localhost:3000');
-            
+            const redirectUrl = req.query.state
+                ? decodeURIComponent(req.query.state as string)
+                : process.env.FRONTEND_URL || 'http://localhost:3000';
+
             // Create URL object with the redirect URL
             const frontendUrl = new URL(redirectUrl);
             frontendUrl.searchParams.set('token', result.access_token);
             frontendUrl.searchParams.set('user', JSON.stringify(result.user));
-            
+
             res.redirect(frontendUrl.toString());
         } catch (error) {
             this.logger.error(`Google callback error: ${error.message}`);
             // Redirect to frontend with error
-            const redirectUrl = req.query.state ? decodeURIComponent(req.query.state as string) : 
-                (process.env.FRONTEND_URL || 'http://localhost:3000');
+            const redirectUrl = req.query.state
+                ? decodeURIComponent(req.query.state as string)
+                : process.env.FRONTEND_URL || 'http://localhost:3000';
             const frontendUrl = new URL(redirectUrl);
-            frontendUrl.searchParams.set('error', 'Google authentication failed');
+            frontendUrl.searchParams.set(
+                'error',
+                'Google authentication failed',
+            );
             res.redirect(frontendUrl.toString());
         }
     }

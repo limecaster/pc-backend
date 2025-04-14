@@ -139,7 +139,10 @@ export class CustomerService {
                 existingEmail.verificationToken = otpCode;
 
                 if (data.password) {
-                    existingEmail.password = await bcrypt.hash(data.password, 10);
+                    existingEmail.password = await bcrypt.hash(
+                        data.password,
+                        10,
+                    );
                 }
                 if (data.username) existingEmail.username = data.username;
                 if (data.firstname) existingEmail.firstname = data.firstname;
@@ -234,12 +237,16 @@ export class CustomerService {
 
     async createPasswordResetToken(email: string): Promise<string> {
         const customer = await this.findByEmail(email);
-        
+
         if (!customer) {
             throw new NotFoundException('User not found');
         }
 
-        if (customer.passwordResetToken && customer.passwordResetExpires && customer.passwordResetExpires > new Date()) {
+        if (
+            customer.passwordResetToken &&
+            customer.passwordResetExpires &&
+            customer.passwordResetExpires > new Date()
+        ) {
             return customer.passwordResetToken;
         }
 
@@ -248,7 +255,7 @@ export class CustomerService {
         customer.passwordResetToken = otpCode;
         customer.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000);
         customer.updatedAt = new Date();
-        
+
         await this.customerRepository.save(customer);
 
         return otpCode;
@@ -256,19 +263,21 @@ export class CustomerService {
 
     async verifyResetOTP(email: string, otpCode: string): Promise<boolean> {
         const customer = await this.findByEmail(email);
-        
+
         if (!customer) {
             throw new NotFoundException('User not found');
         }
 
         if (!customer.passwordResetToken) {
-            throw new NotFoundException('Invalid reset request - no reset token');
+            throw new NotFoundException(
+                'Invalid reset request - no reset token',
+            );
         }
 
         if (customer.passwordResetExpires < new Date()) {
             throw new NotFoundException('OTP expired');
         }
-        
+
         if (customer.passwordResetToken !== otpCode) {
             throw new NotFoundException('Invalid OTP code');
         }
@@ -282,13 +291,15 @@ export class CustomerService {
         newPassword: string,
     ): Promise<void> {
         const customer = await this.findByEmail(email);
-        
+
         if (!customer) {
             throw new NotFoundException('User not found');
         }
 
         if (!customer.passwordResetToken) {
-            throw new NotFoundException('Invalid reset request - no reset token');
+            throw new NotFoundException(
+                'Invalid reset request - no reset token',
+            );
         }
 
         if (customer.passwordResetExpires < new Date()) {
@@ -304,11 +315,11 @@ export class CustomerService {
             password: await bcrypt.hash(newPassword, 10),
             passwordResetToken: null,
             passwordResetExpires: null,
-            updatedAt: new Date()
+            updatedAt: new Date(),
         });
-        
+
         if (!updatedCustomer) {
-            throw new Error("Failed to update password");
+            throw new Error('Failed to update password');
         }
     }
 
@@ -335,7 +346,7 @@ export class CustomerService {
     ): Promise<void> {
         try {
             this.logger.log(`Attempting to update password for user ${id}`);
-            
+
             const customer = await this.findById(id);
             if (!customer) {
                 this.logger.warn(`User not found: ${id}`);
@@ -344,11 +355,15 @@ export class CustomerService {
 
             if (!customer.password) {
                 this.logger.warn(`No password hash found for user ${id}`);
-                throw new UnauthorizedException('Password not set for this account');
+                throw new UnauthorizedException(
+                    'Password not set for this account',
+                );
             }
 
             if (!currentPassword) {
-                this.logger.warn(`Current password not provided for user ${id}`);
+                this.logger.warn(
+                    `Current password not provided for user ${id}`,
+                );
                 throw new BadRequestException('Current password is required');
             }
 
@@ -358,7 +373,9 @@ export class CustomerService {
             );
             if (!isPasswordValid) {
                 this.logger.warn(`Invalid current password for user ${id}`);
-                throw new UnauthorizedException('Current password is incorrect');
+                throw new UnauthorizedException(
+                    'Current password is incorrect',
+                );
             }
 
             if (!newPassword) {
@@ -369,10 +386,12 @@ export class CustomerService {
             customer.password = await bcrypt.hash(newPassword, 10);
             customer.updatedAt = new Date();
             await this.customerRepository.save(customer);
-            
+
             this.logger.log(`Password updated successfully for user ${id}`);
         } catch (error) {
-            this.logger.error(`Error updating password for user ${id}: ${error.message}`);
+            this.logger.error(
+                `Error updating password for user ${id}: ${error.message}`,
+            );
             throw error;
         }
     }
@@ -413,7 +432,7 @@ export class CustomerService {
 
     async findByLoginId(loginId: string): Promise<Customer | undefined> {
         let customer: Customer | undefined;
-        
+
         try {
             customer = await this.findByEmail(loginId);
         } catch (error) {
@@ -468,7 +487,9 @@ export class CustomerService {
             this.logger.warn(
                 `Inactive customer: ${username}, status: ${customer.status}`,
             );
-            throw new UnauthorizedException('Your account has been deactivated');
+            throw new UnauthorizedException(
+                'Your account has been deactivated',
+            );
         }
         await this.updateLoginTimestamp(customer.id);
         const { password: _, ...result } = customer;
@@ -557,7 +578,8 @@ export class CustomerService {
         sortOrder?: 'ASC' | 'DESC';
     }) {
         try {
-            let queryBuilder = this.customerRepository.createQueryBuilder('customer');
+            let queryBuilder =
+                this.customerRepository.createQueryBuilder('customer');
 
             if (status) {
                 queryBuilder = queryBuilder.andWhere(

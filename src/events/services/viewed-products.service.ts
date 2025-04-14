@@ -15,10 +15,15 @@ export class ViewedProductsService {
         private readonly productRepository: Repository<Product>,
     ) {}
 
-    async trackProductView(customerId: number, productId: string): Promise<void> {
+    async trackProductView(
+        customerId: number,
+        productId: string,
+    ): Promise<void> {
         try {
             // Check if the product exists
-            const product = await this.productRepository.findOne({ where: { id: productId } });
+            const product = await this.productRepository.findOne({
+                where: { id: productId },
+            });
             if (!product) {
                 this.logger.warn(`Product ${productId} not found`);
                 return;
@@ -42,33 +47,44 @@ export class ViewedProductsService {
                 await this.viewedProductsRepository.save(viewedProduct);
             }
         } catch (error) {
-            this.logger.error(`Error tracking product view: ${error.message}`, error.stack);
+            this.logger.error(
+                `Error tracking product view: ${error.message}`,
+                error.stack,
+            );
             throw error;
         }
     }
 
-    async getViewedProducts(customerId: number, page: number = 1, limit: number = 10): Promise<{ products: any[]; total: number; pages: number }> {
+    async getViewedProducts(
+        customerId: number,
+        page: number = 1,
+        limit: number = 10,
+    ): Promise<{ products: any[]; total: number; pages: number }> {
         try {
-            const [viewedProducts, total] = await this.viewedProductsRepository.findAndCount({
-                where: { customerId },
-                order: { viewedAt: 'DESC' },
-                skip: (page - 1) * limit,
-                take: limit,
-                relations: ['product'],
-            });
+            const [viewedProducts, total] =
+                await this.viewedProductsRepository.findAndCount({
+                    where: { customerId },
+                    order: { viewedAt: 'DESC' },
+                    skip: (page - 1) * limit,
+                    take: limit,
+                    relations: ['product'],
+                });
 
-            const products = viewedProducts.map(vp => ({
+            const products = viewedProducts.map((vp) => ({
                 ...vp.product,
-                viewedAt: vp.viewedAt
+                viewedAt: vp.viewedAt,
             }));
 
             return {
                 products,
                 total,
-                pages: Math.ceil(total / limit)
+                pages: Math.ceil(total / limit),
             };
         } catch (error) {
-            this.logger.error(`Error getting viewed products: ${error.message}`, error.stack);
+            this.logger.error(
+                `Error getting viewed products: ${error.message}`,
+                error.stack,
+            );
             throw error;
         }
     }
@@ -77,8 +93,11 @@ export class ViewedProductsService {
         try {
             await this.viewedProductsRepository.delete({ customerId });
         } catch (error) {
-            this.logger.error(`Error clearing viewed products: ${error.message}`, error.stack);
+            this.logger.error(
+                `Error clearing viewed products: ${error.message}`,
+                error.stack,
+            );
             throw error;
         }
     }
-} 
+}

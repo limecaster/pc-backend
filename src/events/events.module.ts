@@ -21,10 +21,7 @@ import { UserBehavior } from './entities/user-behavior.entity';
             UserBehavior,
         ]),
     ],
-    controllers: [
-        EventsController,
-        ViewedProductsController,
-    ],
+    controllers: [EventsController, ViewedProductsController],
     providers: [
         EventsService,
         ProducerService,

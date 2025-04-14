@@ -168,8 +168,8 @@ export class OrderStatusService {
                     street: true,
                     ward: true,
                     district: true,
-                    city: true
-                }
+                    city: true,
+                },
             },
             order: { orderDate: 'DESC' },
         });

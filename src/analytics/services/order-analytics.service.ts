@@ -166,21 +166,28 @@ export class OrderAnalyticsService {
             const completedOrders = await this.orderRepository.find({
                 where: {
                     orderDate: Between(startDate, endDate),
-                    status: In(['delivered', 'payment_success', 'processing', 'completed']),
+                    status: In([
+                        'delivered',
+                        'payment_success',
+                        'processing',
+                        'completed',
+                    ]),
                 },
             });
 
             // Create a set of customer IDs who completed orders
             const customersWithOrders = new Set(
-                completedOrders.map((order) => order.customer?.id).filter(Boolean)
+                completedOrders
+                    .map((order) => order.customer?.id)
+                    .filter(Boolean),
             );
 
             // Create a map to track sessions with cart activity
             const sessionCartActivity = new Map<
                 string,
-                { 
-                    date: Date; 
-                    hasCart: boolean; 
+                {
+                    date: Date;
+                    hasCart: boolean;
                     convertedToOrder: boolean;
                     customerId?: number;
                 }
@@ -189,9 +196,9 @@ export class OrderAnalyticsService {
             // Process cart events to identify sessions with cart activity
             cartEvents.forEach((event) => {
                 if (!event.sessionId) return;
-                
+
                 const eventDate = new Date(event.createdAt);
-                
+
                 if (!sessionCartActivity.has(event.sessionId)) {
                     sessionCartActivity.set(event.sessionId, {
                         date: eventDate,
@@ -201,21 +208,21 @@ export class OrderAnalyticsService {
                     });
                 } else {
                     const session = sessionCartActivity.get(event.sessionId);
-                    
+
                     // Update session data
                     if (event.eventType === 'product_added_to_cart') {
                         session.hasCart = true;
                     }
-                    
+
                     if (event.eventType === 'order_created') {
                         session.convertedToOrder = true;
                     }
-                    
+
                     // Always track customer ID if available
                     if (event.customerId && !session.customerId) {
                         session.customerId = event.customerId;
                     }
-                    
+
                     sessionCartActivity.set(event.sessionId, session);
                 }
             });
@@ -246,25 +253,26 @@ export class OrderAnalyticsService {
             // Process each session to count total carts and abandoned carts
             sessionCartActivity.forEach((session) => {
                 if (!session.hasCart) return; // Skip sessions without cart activity
-                
-                const dateStr = session.date.toLocaleDateString(
-                    'vi-VN',
-                    { day: '2-digit', month: '2-digit' },
-                );
-                
+
+                const dateStr = session.date.toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                });
+
                 if (!dayMap.has(dateStr)) return;
-                
+
                 const dayData = dayMap.get(dateStr);
-                
+
                 // Count this as a cart
                 dayData.totalCarts++;
-                
+
                 // Count as abandoned if:
                 // 1. No order_created event AND
                 // 2. Either no customer ID or customer has no orders
                 if (
-                    !session.convertedToOrder && 
-                    (!session.customerId || !customersWithOrders.has(session.customerId))
+                    !session.convertedToOrder &&
+                    (!session.customerId ||
+                        !customersWithOrders.has(session.customerId))
                 ) {
                     dayData.abandonedCarts++;
                 }
@@ -275,7 +283,10 @@ export class OrderAnalyticsService {
                 // Calculate rate only if there are carts
                 if (value.totalCarts > 0) {
                     value.rate = Number(
-                        ((value.abandonedCarts / value.totalCarts) * 100).toFixed(1)
+                        (
+                            (value.abandonedCarts / value.totalCarts) *
+                            100
+                        ).toFixed(1),
                     );
                 } else {
                     value.rate = 0;
@@ -286,11 +297,18 @@ export class OrderAnalyticsService {
             const timeSeriesData = Array.from(dayMap.values());
 
             // Calculate overall statistics
-            const totalCarts = timeSeriesData.reduce((sum, day) => sum + day.totalCarts, 0);
-            const totalAbandoned = timeSeriesData.reduce((sum, day) => sum + day.abandonedCarts, 0);
-            const overallRate = totalCarts > 0 
-                ? Number(((totalAbandoned / totalCarts) * 100).toFixed(1)) 
-                : 0;
+            const totalCarts = timeSeriesData.reduce(
+                (sum, day) => sum + day.totalCarts,
+                0,
+            );
+            const totalAbandoned = timeSeriesData.reduce(
+                (sum, day) => sum + day.abandonedCarts,
+                0,
+            );
+            const overallRate =
+                totalCarts > 0
+                    ? Number(((totalAbandoned / totalCarts) * 100).toFixed(1))
+                    : 0;
 
             return timeSeriesData;
         } catch (error) {

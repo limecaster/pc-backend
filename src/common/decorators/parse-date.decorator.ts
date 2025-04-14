@@ -14,7 +14,7 @@ export const ParseDate = createParamDecorator(
         try {
             const value = String(rawValue).trim();
             const date = new Date(value);
-            
+
             // Check if the date is valid
             if (isNaN(date.getTime())) {
                 throw new BadRequestException(

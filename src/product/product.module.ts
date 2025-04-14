@@ -17,11 +17,13 @@ import { ProductElasticsearchService } from './services/product-elasticsearch.se
 import { DiscountModule } from '../discount/discount.module';
 import { HotSales } from './entities/hot-sales.entity';
 import { HotSalesService } from './services/hot-sales.service';
+import { RecommendationService } from './services/recommendation.service';
+import { UserBehavior } from '../events/entities/user-behavior.entity';
 
 @Module({
     imports: [
         ConfigModule,
-        TypeOrmModule.forFeature([Product, HotSales]),
+        TypeOrmModule.forFeature([Product, HotSales, UserBehavior]),
         CloudinaryModule,
         DiscountModule,
     ],
@@ -38,6 +40,7 @@ import { HotSalesService } from './services/hot-sales.service';
         ProductRatingService,
         ProductElasticsearchService,
         HotSalesService,
+        RecommendationService,
     ],
     exports: [ProductService, ProductSpecificationService],
 })

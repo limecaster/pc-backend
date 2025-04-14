@@ -299,7 +299,9 @@ export class AuthService {
 
             return user;
         } catch (error) {
-            this.logger.error(`Error in findOrCreateGoogleUser: ${error.message}`);
+            this.logger.error(
+                `Error in findOrCreateGoogleUser: ${error.message}`,
+            );
             throw error;
         }
     }

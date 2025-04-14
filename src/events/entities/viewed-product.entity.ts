@@ -1,4 +1,11 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+    Entity,
+    Column,
+    PrimaryGeneratedColumn,
+    CreateDateColumn,
+    ManyToOne,
+    JoinColumn,
+} from 'typeorm';
 import { Customer } from '../../customer/customer.entity';
 import { Product } from '../../product/product.entity';
 
@@ -23,4 +30,4 @@ export class ViewedProduct {
 
     @CreateDateColumn({ name: 'viewed_at' })
     viewedAt: Date;
-} 
+}

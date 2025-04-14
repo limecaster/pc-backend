@@ -19,7 +19,6 @@ async function bootstrap() {
         logger: ['error', 'warn', 'log', 'debug'], // Enable all log levels in development
     });
 
-    // Define allowed origins
     const allowedOrigins = ['*', 'http://192.168.1.28:3000'];
     if (process.env.FRONTEND_URL) {
         allowedOrigins.push(process.env.FRONTEND_URL);
@@ -27,7 +26,6 @@ async function bootstrap() {
 
     logger.log(`Configuring CORS for origins: ${allowedOrigins.join(', ')}`);
 
-    // Fix CORS configuration
     app.enableCors({
         origin: allowedOrigins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -54,16 +52,9 @@ async function bootstrap() {
     app.useWebSocketAdapter(new WsAdapter(app));
     app.useWebSocketAdapter(new IoAdapter(app));
 
-    // Additional logging info
-    logger.debug(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    logger.debug(
-        `Database: ${process.env.POSTGRES_NAME} @ ${process.env.POSTGRES_HOST}`,
-    );
-
-    // Get ConfigService from app
     const configService = app.get(ConfigService);
 
-    // Connect Kafka microservice with proper config
+    // Connect Kafka microservice
     const kafkaConfig = getKafkaConfig(configService);
     app.connectMicroservice<MicroserviceOptions>(kafkaConfig);
     await app.startAllMicroservices();

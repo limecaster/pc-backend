@@ -5,7 +5,9 @@ import { Request } from 'express';
 
 @Controller('viewed-products')
 export class ViewedProductsController {
-    constructor(private readonly viewedProductsService: ViewedProductsService) {}
+    constructor(
+        private readonly viewedProductsService: ViewedProductsService,
+    ) {}
 
     @Get()
     @UseGuards(JwtAuthGuard)
@@ -24,4 +26,4 @@ export class ViewedProductsController {
         await this.viewedProductsService.clearViewedProducts(customerId);
         return { message: 'Viewed products cleared successfully' };
     }
-} 
+}

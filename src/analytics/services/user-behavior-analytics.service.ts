@@ -24,15 +24,15 @@ export class UserBehaviorAnalyticsService {
                 },
                 order: {
                     sessionId: 'ASC',
-                    createdAt: 'ASC'
-                }
+                    createdAt: 'ASC',
+                },
             });
 
             // Count unique visitors (by sessionId)
             const uniqueSessionIds = new Set(
-                events.map((event) => event.sessionId).filter(Boolean)
+                events.map((event) => event.sessionId).filter(Boolean),
             );
-            
+
             // Calculate conversion rate (orders created / product views)
             const productViews = events.filter(
                 (event) => event.eventType === 'product_viewed',
@@ -45,44 +45,51 @@ export class UserBehaviorAnalyticsService {
                 : 0;
 
             // Calculate average time on site (session duration)
-            const sessionDurations = new Map<string, { start: Date; end: Date }>();
-            
+            const sessionDurations = new Map<
+                string,
+                { start: Date; end: Date }
+            >();
+
             // Track user engagement by session for bounce rate calculation
             const sessionInteractions = new Map<string, Set<string>>();
-            
+
             // Define meaningful interaction types for bounce rate calculation
             const engagementEventTypes = [
-                'product_viewed', 
-                'product_click', 
+                'product_viewed',
+                'product_click',
                 'product_added_to_cart',
                 'order_created',
-                'payment_completed'
+                'payment_completed',
             ];
-            
+
             // Track each session's first and last event timestamps and interactions
-            events.forEach(event => {
+            events.forEach((event) => {
                 if (!event.sessionId) return;
-                
+
                 // Track interactions for bounce rate
                 if (!sessionInteractions.has(event.sessionId)) {
                     sessionInteractions.set(event.sessionId, new Set());
                 }
-                
+
                 // Add this event type to the session's interaction list
                 if (engagementEventTypes.includes(event.eventType)) {
-                    sessionInteractions.get(event.sessionId).add(event.eventType);
+                    sessionInteractions
+                        .get(event.sessionId)
+                        .add(event.eventType);
                 }
-                
+
                 // Track session start and end times
                 if (!sessionDurations.has(event.sessionId)) {
                     sessionDurations.set(event.sessionId, {
                         start: new Date(event.createdAt),
-                        end: new Date(event.createdAt)
+                        end: new Date(event.createdAt),
                     });
                 } else {
-                    const currentSession = sessionDurations.get(event.sessionId);
+                    const currentSession = sessionDurations.get(
+                        event.sessionId,
+                    );
                     const eventTime = new Date(event.createdAt);
-                    
+
                     // Update end time if this event is more recent
                     if (eventTime > currentSession.end) {
                         currentSession.end = eventTime;
@@ -90,51 +97,60 @@ export class UserBehaviorAnalyticsService {
                     }
                 }
             });
-            
+
             // Calculate average session duration
             let totalDurationSeconds = 0;
             let sessionCount = 0;
-            
+
             sessionDurations.forEach((session) => {
-                const durationMs = session.end.getTime() - session.start.getTime();
+                const durationMs =
+                    session.end.getTime() - session.start.getTime();
                 // Only count sessions that lasted more than 1 second
                 if (durationMs > 1000) {
                     totalDurationSeconds += durationMs / 1000;
                     sessionCount++;
                 }
             });
-            
-            const averageTimeOnSite = sessionCount > 0 
-                ? Math.round(totalDurationSeconds / sessionCount)
-                : 245; // Fallback if no valid sessions
-                
+
+            const averageTimeOnSite =
+                sessionCount > 0
+                    ? Math.round(totalDurationSeconds / sessionCount)
+                    : 245; // Fallback if no valid sessions
+
             // Calculate bounce rate (sessions with minimal interaction)
             let bounceSessions = 0;
             let totalValidSessions = 0;
-            
+
             sessionInteractions.forEach((interactions, sessionId) => {
                 // Skip sessions without a valid duration
                 if (!sessionDurations.has(sessionId)) return;
-                
+
                 const sessionDuration = sessionDurations.get(sessionId);
-                const durationSeconds = (sessionDuration.end.getTime() - sessionDuration.start.getTime()) / 1000;
-                
+                const durationSeconds =
+                    (sessionDuration.end.getTime() -
+                        sessionDuration.start.getTime()) /
+                    1000;
+
                 totalValidSessions++;
-                
+
                 // Count as bounce if:
                 // 1. Has only viewed a product without further interaction OR
                 // 2. Has very short duration (< 10 seconds) with minimal interaction
                 if (
-                    (interactions.size === 1 && interactions.has('product_viewed')) ||
+                    (interactions.size === 1 &&
+                        interactions.has('product_viewed')) ||
                     (durationSeconds < 10 && interactions.size <= 1)
                 ) {
                     bounceSessions++;
                 }
             });
-            
-            const bounceRate = totalValidSessions > 0
-                ? Math.round((bounceSessions / totalValidSessions) * 100 * 10) / 10
-                : 42.5; // Fallback if no valid sessions
+
+            const bounceRate =
+                totalValidSessions > 0
+                    ? Math.round(
+                          (bounceSessions / totalValidSessions) * 100 * 10,
+                      ) / 10
+                    : 42.5; // Fallback if no valid sessions
 
             // Generate visitor data time series
             const dayMap = new Map();
@@ -142,7 +158,7 @@ export class UserBehaviorAnalyticsService {
                 (endDate.getTime() - startDate.getTime()) /
                     (1000 * 60 * 60 * 24),
             );
-            
+
             // Create a Map for tracking processed sessions to avoid duplicates
             const processedSessions = new Map();
             // Track customer sessions for new vs returning calculation
@@ -166,28 +182,31 @@ export class UserBehaviorAnalyticsService {
             // Process events by day
             events.forEach((event) => {
                 if (!event.sessionId) return; // Skip events without sessionId
-                
+
                 // Track if this session belongs to a registered customer (for new vs returning stats)
-                if (event.customerId && !customerSessionMap.has(event.sessionId)) {
+                if (
+                    event.customerId &&
+                    !customerSessionMap.has(event.sessionId)
+                ) {
                     customerSessionMap.set(event.sessionId, true);
                 }
-                
+
                 const eventDate = new Date(event.createdAt);
-                const dateStr = eventDate.toLocaleDateString(
-                    'vi-VN',
-                    { day: '2-digit', month: '2-digit' },
-                );
-                
+                const dateStr = eventDate.toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                });
+
                 if (!dayMap.has(dateStr)) return;
 
                 const dayData = dayMap.get(dateStr);
                 const sessionKey = `${dateStr}-${event.sessionId}`;
-                
+
                 // Check if this session was already counted for this day
                 if (!processedSessions.has(sessionKey)) {
                     processedSessions.set(sessionKey, true);
                     dayData.visitors++;
-                    
+
                     if (event.customerId) {
                         dayData.returningVisitors++;
                     } else {
@@ -198,28 +217,44 @@ export class UserBehaviorAnalyticsService {
 
             // If we don't have enough data, generate some realistic fallback data
             if (uniqueSessionIds.size === 0) {
-                this.logger.warn('No visitor data found, generating fallback data');
+                this.logger.warn(
+                    'No visitor data found, generating fallback data',
+                );
                 return this.generateFallbackVisitorData(startDate, endDate);
             }
 
             // Recalculate summary values based on the visitor chart data to ensure consistency
             const visitorData = Array.from(dayMap.values());
-            
+
             // Total visitors from chart data
-            const totalVisitorsFromChart = visitorData.reduce((total, day) => total + day.visitors, 0);
-            const totalNewVisitorsFromChart = visitorData.reduce((total, day) => total + day.newVisitors, 0);
-            const totalReturningVisitorsFromChart = visitorData.reduce((total, day) => total + day.returningVisitors, 0);
-            
+            const totalVisitorsFromChart = visitorData.reduce(
+                (total, day) => total + day.visitors,
+                0,
+            );
+            const totalNewVisitorsFromChart = visitorData.reduce(
+                (total, day) => total + day.newVisitors,
+                0,
+            );
+            const totalReturningVisitorsFromChart = visitorData.reduce(
+                (total, day) => total + day.returningVisitors,
+                0,
+            );
+
             // Check if we have meaningful chart data
             const hasValidChartData = totalVisitorsFromChart > 0;
-            
+
             // Calculate final visitor counts
             // If chart data is valid, use that; otherwise use the uniqueSessionIds count
-            const totalVisitors = hasValidChartData ? totalVisitorsFromChart : uniqueSessionIds.size;
-            const returningVisitors = hasValidChartData ? totalReturningVisitorsFromChart : 
-                                     customerSessionMap.size || Math.floor(totalVisitors * 0.35);
-            const newVisitors = hasValidChartData ? totalNewVisitorsFromChart : 
-                               (totalVisitors - returningVisitors) || Math.floor(totalVisitors * 0.65);
+            const totalVisitors = hasValidChartData
+                ? totalVisitorsFromChart
+                : uniqueSessionIds.size;
+            const returningVisitors = hasValidChartData
+                ? totalReturningVisitorsFromChart
+                : customerSessionMap.size || Math.floor(totalVisitors * 0.35);
+            const newVisitors = hasValidChartData
+                ? totalNewVisitorsFromChart
+                : totalVisitors - returningVisitors ||
+                  Math.floor(totalVisitors * 0.65);
 
             return {
                 summary: {
@@ -243,11 +278,13 @@ export class UserBehaviorAnalyticsService {
     // Helper method to generate fallback visitor data when real data is not available
     private generateFallbackVisitorData(startDate: Date, endDate: Date) {
         const dayMap = new Map();
-        const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-        
+        const days = Math.ceil(
+            (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
         // Generate realistic visitor counts
         const baseVisitors = 200 + Math.floor(Math.random() * 100); // Base visitor count between 200-300
-        
+
         for (let i = 0; i < days; i++) {
             const date = new Date(startDate);
             date.setDate(date.getDate() + i);
@@ -255,40 +292,46 @@ export class UserBehaviorAnalyticsService {
                 day: '2-digit',
                 month: '2-digit',
             });
-            
+
             // Make weekends have slightly higher traffic
             const dayOfWeek = date.getDay();
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const multiplier = isWeekend ? 1.3 : 1.0;
-            
+
             // Generate a slightly variable visitor count per day
-            const dailyVisitorCount = Math.floor(baseVisitors * multiplier * (0.8 + Math.random() * 0.4));
+            const dailyVisitorCount = Math.floor(
+                baseVisitors * multiplier * (0.8 + Math.random() * 0.4),
+            );
             const returningRate = 0.35 + Math.random() * 0.1; // Between 35-45% returning visitors
-            
+
             dayMap.set(dateStr, {
                 date: dateStr,
                 visitors: dailyVisitorCount,
-                newVisitors: Math.floor(dailyVisitorCount * (1 - returningRate)),
-                returningVisitors: Math.floor(dailyVisitorCount * returningRate),
+                newVisitors: Math.floor(
+                    dailyVisitorCount * (1 - returningRate),
+                ),
+                returningVisitors: Math.floor(
+                    dailyVisitorCount * returningRate,
+                ),
             });
         }
-        
+
         // Calculate totals
         let totalVisitors = 0;
         let totalNewVisitors = 0;
         let totalReturningVisitors = 0;
-        
-        dayMap.forEach(day => {
+
+        dayMap.forEach((day) => {
             totalVisitors += day.visitors;
             totalNewVisitors += day.newVisitors;
             totalReturningVisitors += day.returningVisitors;
         });
-        
+
         // Generate realistic session metrics for fallback data
         const avgSessionDuration = 180 + Math.floor(Math.random() * 120); // 3-5 minutes
         const bounceRate = 35 + Math.floor(Math.random() * 15); // 35-50%
-        const conversionRate = 2 + (Math.random() * 3); // 2-5%
-        
+        const conversionRate = 2 + Math.random() * 3; // 2-5%
+
         return {
             summary: {
                 totalVisitors: totalVisitors,
@@ -301,7 +344,6 @@ export class UserBehaviorAnalyticsService {
             visitorData: Array.from(dayMap.values()),
         };
     }
-
 
     async getUserEngagementMetrics(startDate: Date, endDate: Date) {
         try {
@@ -352,61 +394,76 @@ export class UserBehaviorAnalyticsService {
 
             const sessionMetrics = await this.userBehaviorRepository.query(
                 sessionMetricsQuery,
-                [startDate, endDate]
+                [startDate, endDate],
             );
 
             // Calculate metrics from the results or use defaults for empty results
             const metrics = sessionMetrics[0] || {};
             const totalSessions = parseInt(metrics.total_sessions) || 0;
             const bounceSessions = parseInt(metrics.bounce_sessions) || 0;
-            
+
             // Calculate session duration distribution
-            const sessionsUnder1Min = parseInt(metrics.sessions_under_1min) || 0;
+            const sessionsUnder1Min =
+                parseInt(metrics.sessions_under_1min) || 0;
             const sessions1To3Min = parseInt(metrics.sessions_1_to_3min) || 0;
             const sessions3To5Min = parseInt(metrics.sessions_3_to_5min) || 0;
             const sessionsOver5Min = parseInt(metrics.sessions_over_5min) || 0;
-            
+
             // Calculate percentages for session duration distribution
-            const durationDistribution = totalSessions > 0 ? [
-                {
-                    range: "< 1 phút",
-                    percentage: Math.round((sessionsUnder1Min / totalSessions) * 100)
-                },
-                {
-                    range: "1-3 phút",
-                    percentage: Math.round((sessions1To3Min / totalSessions) * 100)
-                },
-                {
-                    range: "3-5 phút",
-                    percentage: Math.round((sessions3To5Min / totalSessions) * 100)
-                },
-                {
-                    range: "> 5 phút",
-                    percentage: Math.round((sessionsOver5Min / totalSessions) * 100)
-                }
-            ] : [
-                { range: "< 1 phút", percentage: 25 },
-                { range: "1-3 phút", percentage: 35 },
-                { range: "3-5 phút", percentage: 20 },
-                { range: "> 5 phút", percentage: 20 }
-            ];
+            const durationDistribution =
+                totalSessions > 0
+                    ? [
+                          {
+                              range: '< 1 phút',
+                              percentage: Math.round(
+                                  (sessionsUnder1Min / totalSessions) * 100,
+                              ),
+                          },
+                          {
+                              range: '1-3 phút',
+                              percentage: Math.round(
+                                  (sessions1To3Min / totalSessions) * 100,
+                              ),
+                          },
+                          {
+                              range: '3-5 phút',
+                              percentage: Math.round(
+                                  (sessions3To5Min / totalSessions) * 100,
+                              ),
+                          },
+                          {
+                              range: '> 5 phút',
+                              percentage: Math.round(
+                                  (sessionsOver5Min / totalSessions) * 100,
+                              ),
+                          },
+                      ]
+                    : [
+                          { range: '< 1 phút', percentage: 25 },
+                          { range: '1-3 phút', percentage: 35 },
+                          { range: '3-5 phút', percentage: 20 },
+                          { range: '> 5 phút', percentage: 20 },
+                      ];
 
             // Handle case where there's not enough data
-            const avgSessionDuration = metrics.avg_session_duration 
-                ? Math.round(parseFloat(metrics.avg_session_duration)) 
+            const avgSessionDuration = metrics.avg_session_duration
+                ? Math.round(parseFloat(metrics.avg_session_duration))
                 : 245; // Default fallback
-                
-            const avgPageViews = metrics.avg_page_views 
-                ? parseFloat(parseFloat(metrics.avg_page_views).toFixed(1)) 
+
+            const avgPageViews = metrics.avg_page_views
+                ? parseFloat(parseFloat(metrics.avg_page_views).toFixed(1))
                 : 3.2;
-                
-            const avgInteractions = metrics.avg_interactions 
-                ? parseFloat(parseFloat(metrics.avg_interactions).toFixed(1)) 
+
+            const avgInteractions = metrics.avg_interactions
+                ? parseFloat(parseFloat(metrics.avg_interactions).toFixed(1))
                 : 5.5;
-                
-            const bounceRate = totalSessions > 0 
-                ? parseFloat(((bounceSessions / totalSessions) * 100).toFixed(1)) 
-                : 42.5;
+
+            const bounceRate =
+                totalSessions > 0
+                    ? parseFloat(
+                          ((bounceSessions / totalSessions) * 100).toFixed(1),
+                      )
+                    : 42.5;
 
             // Get return rate based on returning visitor pattern
             const returningVisitorsQuery = `
@@ -416,18 +473,23 @@ export class UserBehaviorAnalyticsService {
                 FROM "User_Behavior"
                 WHERE created_at BETWEEN $1 AND $2;
             `;
-            
+
             const returningData = await this.userBehaviorRepository.query(
                 returningVisitorsQuery,
-                [startDate, endDate]
+                [startDate, endDate],
             );
-            
-            const returnRate = returningData[0] && parseInt(returningData[0].total_sessions) > 0
-                ? parseFloat(
-                    ((parseInt(returningData[0].returning_sessions) / 
-                      parseInt(returningData[0].total_sessions)) * 100).toFixed(1)
-                  )
-                : 28.7;
+
+            const returnRate =
+                returningData[0] &&
+                parseInt(returningData[0].total_sessions) > 0
+                    ? parseFloat(
+                          (
+                              (parseInt(returningData[0].returning_sessions) /
+                                  parseInt(returningData[0].total_sessions)) *
+                              100
+                          ).toFixed(1),
+                      )
+                    : 28.7;
 
             return {
                 metrics: {
@@ -436,9 +498,9 @@ export class UserBehaviorAnalyticsService {
                     avgInteractions,
                     bounceRate,
                     returnRate,
-                    totalSessions
+                    totalSessions,
                 },
-                sessionDistribution: durationDistribution
+                sessionDistribution: durationDistribution,
             };
         } catch (error) {
             this.logger.error(
@@ -452,14 +514,14 @@ export class UserBehaviorAnalyticsService {
                     avgInteractions: 5.2,
                     bounceRate: 42.5,
                     returnRate: 28.7,
-                    totalSessions: 2450
+                    totalSessions: 2450,
                 },
                 sessionDistribution: [
-                    { range: "< 1 phút", percentage: 25 },
-                    { range: "1-3 phút", percentage: 35 },
-                    { range: "3-5 phút", percentage: 20 },
-                    { range: "> 5 phút", percentage: 20 }
-                ]
+                    { range: '< 1 phút', percentage: 25 },
+                    { range: '1-3 phút', percentage: 35 },
+                    { range: '3-5 phút', percentage: 20 },
+                    { range: '> 5 phút', percentage: 20 },
+                ],
             };
         }
     }
@@ -573,7 +635,7 @@ export class UserBehaviorAnalyticsService {
                     }
                 }
             }
-            
+
             // Convert to array, sort by views, and return top 5
             return Array.from(productViewMap.values())
                 .sort((a, b) => b.views - a.views)
@@ -637,8 +699,7 @@ export class UserBehaviorAnalyticsService {
                     pageType = 'Shopping Cart';
                 } else if (pagePath.includes('/wishlist')) {
                     pageType = 'Wishlist';
-                }
-                else if (pagePath.includes('checkout/success')) {
+                } else if (pagePath.includes('checkout/success')) {
                     pageType = 'Checkout Success';
                 }
 
@@ -1628,11 +1689,13 @@ export class UserBehaviorAnalyticsService {
                 GROUP BY p.name
                 ORDER BY view_count DESC;
                 `,
-                [startDate, endDate]
+                [startDate, endDate],
             );
             return { insights };
         } catch (error) {
-            this.logger.error(`Error getting user behavior insights: ${error.message}`);
+            this.logger.error(
+                `Error getting user behavior insights: ${error.message}`,
+            );
             throw error;
         }
     }

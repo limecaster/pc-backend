@@ -20,8 +20,6 @@ export class KafkaConsumer implements OnModuleInit {
             { topics: ['user-behavior'] },
             {
                 eachMessage: async ({ topic, partition, message }) => {
-
-
                     const messageValue = message.value.toString();
                     try {
                         const eventData = JSON.parse(messageValue);
@@ -36,7 +34,6 @@ export class KafkaConsumer implements OnModuleInit {
                                 await this.eventsService.handleProductView(
                                     eventData,
                                 );
-                                // Track the product view in the viewed products table
                                 if (eventData.customerId) {
                                     await this.viewedProductsService.trackProductView(
                                         parseInt(eventData.customerId),
@@ -87,7 +84,6 @@ export class KafkaConsumer implements OnModuleInit {
                                     eventData.eventType,
                                 );
                                 break;
-                            // Add cases for other event types as needed
                             default:
                                 this.logger.warn(
                                     `Unknown event type: ${eventData.eventType}`,

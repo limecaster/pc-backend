@@ -48,7 +48,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
             });
 
             if (!user) {
-                throw new UnauthorizedException('Failed to authenticate with Google');
+                throw new UnauthorizedException(
+                    'Failed to authenticate with Google',
+                );
             }
 
             return user;
@@ -57,4 +59,4 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
             throw error;
         }
     }
-} 
+}

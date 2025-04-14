@@ -1,8 +1,8 @@
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { FAQ } from "./entities/faq.entity";
-import { EmailService } from "../email/email.service";
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { FAQ } from './entities/faq.entity';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class FAQService {
@@ -25,7 +25,7 @@ export class FAQService {
     async findAll(): Promise<FAQ[]> {
         return await this.faqRepository.find({
             order: {
-                created_at: "DESC",
+                created_at: 'DESC',
             },
         });
     }
@@ -33,11 +33,11 @@ export class FAQService {
     async answer(id: number, answer: string, staffId: number): Promise<FAQ> {
         const faq = await this.faqRepository.findOne({ where: { id } });
         if (!faq) {
-            throw new Error("FAQ not found");
+            throw new Error('FAQ not found');
         }
 
         faq.answer = answer;
-        faq.status = "answered";
+        faq.status = 'answered';
         faq.answered_by = { id: staffId } as any;
         faq.answered_at = new Date();
 
@@ -54,4 +54,4 @@ export class FAQService {
 
         return updatedFAQ;
     }
-} 
+}

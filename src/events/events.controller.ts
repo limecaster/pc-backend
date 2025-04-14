@@ -36,7 +36,6 @@ export class EventsController {
         @Req() req: Request,
     ) {
         try {
-                
             // Capture IP address
             createEventDto.ipAddress = req.ip;
 

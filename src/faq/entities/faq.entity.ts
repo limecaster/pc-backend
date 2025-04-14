@@ -1,5 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn, UpdateDateColumn } from "typeorm";
-import { Staff } from "../../staff/staff.entity";
+import {
+    Entity,
+    Column,
+    PrimaryGeneratedColumn,
+    ManyToOne,
+    CreateDateColumn,
+    UpdateDateColumn,
+} from 'typeorm';
+import { Staff } from '../../staff/staff.entity';
 
 @Entity()
 export class FAQ {
@@ -15,13 +22,13 @@ export class FAQ {
     @Column()
     subject: string;
 
-    @Column("text")
+    @Column('text')
     message: string;
 
-    @Column({ default: "pending" })
-    status: "pending" | "answered";
+    @Column({ default: 'pending' })
+    status: 'pending' | 'answered';
 
-    @Column("text", { nullable: true })
+    @Column('text', { nullable: true })
     answer: string;
 
     @ManyToOne(() => Staff, { nullable: true })
@@ -35,4 +42,4 @@ export class FAQ {
 
     @UpdateDateColumn()
     updated_at: Date;
-} 
+}

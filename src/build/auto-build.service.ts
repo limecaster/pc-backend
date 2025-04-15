@@ -16,24 +16,24 @@ import { BuildGateway } from '../../gateway/build.gateway';
 export class AutoBuildService {
     private budgetAllocations = {
         gaming: {
-            CPU: 0.19,
-            Motherboard: 0.1,
-            RAM: 0.04,
-            InternalHardDrive: 0.04,
-            GraphicsCard: 0.4,
-            PowerSupply: 0.15,
-            Case: 0.04,
-            CPUCooler: 0.04,
+            CPU: 0.26,
+            Motherboard: 0.17,
+            RAM: 0.11,
+            InternalHardDrive: 0.11,
+            GraphicsCard: 0.47,
+            PowerSupply: 0.22,
+            Case: 0.11,
+            CPUCooler: 0.11,
         },
         workstation: {
-            CPU: 0.25,
-            Motherboard: 0.15,
-            RAM: 0.15,
-            InternalHardDrive: 0.15,
-            GraphicsCard: 0.05,
-            PowerSupply: 0.1,
-            Case: 0.1,
-            CPUCooler: 0.05,
+            CPU: 0.32,
+            Motherboard: 0.22,
+            RAM: 0.22,
+            InternalHardDrive: 0.22,
+            GraphicsCard: 0.12,
+            PowerSupply: 0.17,
+            Case: 0.17,
+            CPUCooler: 0.12,
         },
     };
 
@@ -713,7 +713,7 @@ export class AutoBuildService {
     }
 
     /**
-     * Backtracking function: If a complete configuration isn’t found with deep search,
+     * Backtracking function: If a complete configuration isn't found with deep search,
      * adjust the budget and retry.
      */
     private async backtrackAndRebuild(
@@ -835,25 +835,21 @@ export class AutoBuildService {
         }
     }
 
-    public async getAllPCConfigurations(userInput: string): Promise<{
-
+    public async getAllPCConfigurations(userInput: string, userId?: string): Promise<{
         performance: PCConfiguration[];
         popular: PCConfiguration[];
     }> {
-        const startTime = Date.now();
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
         const options = ['performance', 'popular'] as const;
         const results: {
-            
             performance: PCConfiguration[];
             popular: PCConfiguration[];
-        } = {  performance: [], popular: [] };
-        const maxAttempts = 20;
+        } = { performance: [], popular: [] };
+        const maxAttempts = 30;
 
         // Reset removal record for each run
         this.removedCandidates = {
-       
             performance: {},
             popular: {},
         };
@@ -904,24 +900,22 @@ export class AutoBuildService {
                         }
                     }
                     if (this.isCompleteConfiguration(config)) {
-                        this.buildGateway.sendConfigUpdate(config);
+                        // Pass userId to ensure config is sent only to the requesting user
+                        this.buildGateway.sendConfigUpdate(config, userId);
                     }
                 }
                 attempts++;
             }
             results[option] = builds;
         }
-        const endTime = Date.now();
 
         return results;
     }
 
     private removedCandidates: {
-
         performance: { [partLabel: string]: string[] };
         popular: { [partLabel: string]: string[] };
     } = {
- 
         performance: {},
         popular: {},
     };

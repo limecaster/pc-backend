@@ -920,8 +920,6 @@ export class ProductController {
     //     }
     // }
 
-    
-
     private ensureProductDiscountInfo(product: any): any {
         const MIN_DISCOUNT_PERCENT = 1.0;
         const MIN_DISCOUNT_AMOUNT = 50000;

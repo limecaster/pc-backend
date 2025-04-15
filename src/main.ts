@@ -35,7 +35,7 @@ async function bootstrap() {
         exposedHeaders: 'Authorization',
     });
 
-    // Add global validation pipe with transform enabled
+
     app.useGlobalPipes(
         new ValidationPipe({
             transform: true, // Enable automatic type transformation

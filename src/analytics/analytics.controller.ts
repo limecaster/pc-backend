@@ -21,7 +21,6 @@ export class AnalyticsController {
 
     constructor(private readonly analyticsService: AnalyticsService) {}
 
-    // Sales Analytics
     @Get('sales')
     async getSalesReport(
         @ParseDate('startDate') startDate: Date,
@@ -33,7 +32,6 @@ export class AnalyticsController {
         return this.analyticsService.getSalesReport(startDate, endDate);
     }
 
-    // Add an alias endpoint to match frontend expectation
     @Get('sales-report')
     async getSalesReportAlias(
         @ParseDate('startDate') startDate: Date,
@@ -70,16 +68,16 @@ export class AnalyticsController {
         );
     }
 
-    // Basic User Behavior Analytics
     @Get('user-behavior')
-    async getUserBehaviorReport(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
+    async getUserBehavior(
+        @Query('startDate') startDateStr: string,
+        @Query('endDate') endDateStr: string,
     ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-        return this.analyticsService.getUserBehaviorReport(startDate, endDate);
+        const { startDate, endDate } = this.validateDates(
+            startDateStr,
+            endDateStr,
+        );
+        return this.analyticsService.getUserBehaviorMetrics(startDate, endDate);
     }
 
     @Get('user-engagement')
@@ -155,7 +153,6 @@ export class AnalyticsController {
         return this.analyticsService.getProductCategories();
     }
 
-    // Order Analytics
     @Get('abandoned-carts')
     async getAbandonedCarts(
         @ParseDate('startDate') startDate: Date,
@@ -167,68 +164,27 @@ export class AnalyticsController {
         return this.analyticsService.getAbandonedCarts(startDate, endDate);
     }
 
-    // New Advanced User Behavior Analytics Endpoints
-    @Get('user-journey')
-    async getUserJourneyAnalysis(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
+    @Get('pc-build-analytics')
+    async getPCBuildAnalytics(
+        @Query('startDate') startDateStr: string,
+        @Query('endDate') endDateStr: string,
     ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-        return this.analyticsService.getUserJourneyAnalysis(startDate, endDate);
-    }
-
-    @Get('search-analytics')
-    async getSearchAnalytics(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
-    ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-        return this.analyticsService.getSearchAnalytics(startDate, endDate);
-    }
-
-    @Get('user-interests')
-    async getUserInterestSegmentation(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
-    ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-        return this.analyticsService.getUserInterestSegmentation(
-            startDate,
-            endDate,
+        const { startDate, endDate } = this.validateDates(
+            startDateStr,
+            endDateStr,
         );
+        return this.analyticsService.getPCBuildAnalytics(startDate, endDate);
     }
 
-    @Get('shopping-behavior')
-    async getShoppingBehaviorPatterns(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
-    ) {
+    private validateDates(
+        startDateStr: string,
+        endDateStr: string,
+    ): { startDate: Date; endDate: Date } {
+        const startDate = new Date(startDateStr);
+        const endDate = new Date(endDateStr);
         if (startDate > endDate) {
             throw new BadRequestException('Start date must be before end date');
         }
-        return this.analyticsService.getShoppingBehaviorPatterns(
-            startDate,
-            endDate,
-        );
-    }
-
-    @Get('discount-impact')
-    async getDiscountImpactAnalysis(
-        @ParseDate('startDate') startDate: Date,
-        @ParseDate('endDate') endDate: Date,
-    ) {
-        if (startDate > endDate) {
-            throw new BadRequestException('Start date must be before end date');
-        }
-        return this.analyticsService.getDiscountImpactAnalysis(
-            startDate,
-            endDate,
-        );
+        return { startDate, endDate };
     }
 }

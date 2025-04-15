@@ -438,7 +438,9 @@ export class EventsService {
             // Save event in the database
             await this.userBehaviorRepository.save({
                 eventType,
-                customerId: eventData.customerId ? parseInt(eventData.customerId) : null,
+                customerId: eventData.customerId
+                    ? parseInt(eventData.customerId)
+                    : null,
                 sessionId: eventData.sessionId,
                 entityId: eventData.entityId,
                 entityType: eventData.entityType,
@@ -449,7 +451,9 @@ export class EventsService {
                 eventData: eventData.eventData,
             });
         } catch (error) {
-            this.logger.error(`Error handling PC build event ${eventType}: ${error.message}`);
+            this.logger.error(
+                `Error handling PC build event ${eventType}: ${error.message}`,
+            );
         }
     }
 }

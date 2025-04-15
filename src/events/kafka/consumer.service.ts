@@ -32,7 +32,7 @@ export class ConsumerService implements OnApplicationShutdown {
 
     async consume(topics: ConsumerSubscribeTopics, config: ConsumerRunConfig) {
         const groupId = this.configService.get<string>('KAFKA_GROUP_ID');
-        const consumer = this.kafka.consumer({ 
+        const consumer = this.kafka.consumer({
             groupId,
             retry: {
                 initialRetryTime: 300,

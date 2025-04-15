@@ -1781,4 +1781,309 @@ export class UserBehaviorAnalyticsService {
             }))
             .sort((a, b) => b.userCount - a.userCount);
     }
+
+    async getPCBuildAnalytics(startDate: Date, endDate: Date) {
+        try {
+            // Get PC Build related events
+            const pcBuildEvents = await this.userBehaviorRepository.find({
+                where: {
+                    eventType: In([
+                        'auto_build_pc_request',
+                        'auto_build_pc_add_to_cart',
+                        'auto_build_pc_customize',
+                        'manual_build_pc_add_to_cart',
+                        'manual_build_pc_component_select',
+                        'manual_build_pc_save_config',
+                        'pc_build_view',
+                    ]),
+                    createdAt: Between(startDate, endDate),
+                },
+                order: {
+                    createdAt: 'ASC',
+                },
+            });
+            
+            // Initialize analytics data structure
+            const autoBuildRequests = pcBuildEvents.filter(
+                (e) => e.eventType === 'auto_build_pc_request',
+            ).length;
+            const autoBuildAddToCart = pcBuildEvents.filter(
+                (e) => e.eventType === 'auto_build_pc_add_to_cart',
+            ).length;
+            const autoBuildCustomize = pcBuildEvents.filter(
+                (e) => e.eventType === 'auto_build_pc_customize',
+            ).length;
+            const manualBuildAddToCart = pcBuildEvents.filter(
+                (e) => e.eventType === 'manual_build_pc_add_to_cart',
+            ).length;
+            const manualBuildComponentSelect = pcBuildEvents.filter(
+                (e) => e.eventType === 'manual_build_pc_component_select',
+            ).length;
+            const manualBuildSaveConfig = pcBuildEvents.filter(
+                (e) => e.eventType === 'manual_build_pc_save_config',
+            ).length;
+            const pcBuildViews = pcBuildEvents.filter(
+                (e) => e.eventType === 'pc_build_view' && e.entityId === 'manual_build_pc',
+            ).length;
+
+            // Calculate conversion rates
+            const autoBuildConversionRate =
+                autoBuildRequests > 0
+                    ? (autoBuildAddToCart / autoBuildRequests) * 100
+                    : 0;
+
+            const customizationRate =
+                autoBuildRequests > 0
+                    ? (autoBuildCustomize / autoBuildRequests) * 100
+                    : 0;
+                    
+            // Calculate manual build conversion rate based on component selections
+            // A successful conversion is when a user adds to cart or saves a configuration
+            const manualBuildConversions = manualBuildAddToCart + manualBuildSaveConfig;
+            const manualBuildInteractions = manualBuildComponentSelect > 0 ? manualBuildComponentSelect : pcBuildViews;
+            const manualBuildConversionRate = 
+                manualBuildInteractions > 0
+                    ? (manualBuildConversions / manualBuildInteractions) * 100
+                    : 0;
+
+            // Group by date for time series
+            const dateMap = new Map();
+            const days = Math.ceil(
+                (endDate.getTime() - startDate.getTime()) /
+                    (1000 * 60 * 60 * 24),
+            );
+
+            for (let i = 0; i < days; i++) {
+                const date = new Date(startDate);
+                date.setDate(date.getDate() + i);
+                const dateStr = date.toISOString().split('T')[0];
+
+                dateMap.set(dateStr, {
+                    date: dateStr,
+                    autoBuildRequests: 0,
+                    autoBuildAddToCart: 0,
+                    autoBuildCustomize: 0,
+                    manualBuildAddToCart: 0,
+                    manualBuildComponentSelect: 0,
+                    manualBuildSaveConfig: 0,
+                    pcBuildViews: 0,
+                });
+            }
+
+            // Process events by day
+            pcBuildEvents.forEach((event) => {
+                const dateStr = new Date(event.createdAt)
+                    .toISOString()
+                    .split('T')[0];
+
+                if (!dateMap.has(dateStr)) return;
+
+                const dayData = dateMap.get(dateStr);
+
+                switch (event.eventType) {
+                    case 'auto_build_pc_request':
+                        dayData.autoBuildRequests++;
+                        break;
+                    case 'auto_build_pc_add_to_cart':
+                        dayData.autoBuildAddToCart++;
+                        break;
+                    case 'auto_build_pc_customize':
+                        dayData.autoBuildCustomize++;
+                        break;
+                    case 'manual_build_pc_add_to_cart':
+                        dayData.manualBuildAddToCart++;
+                        break;
+                    case 'manual_build_pc_component_select':
+                        dayData.manualBuildComponentSelect++;
+                        break;
+                    case 'manual_build_pc_save_config':
+                        dayData.manualBuildSaveConfig++;
+                        break;
+                    case 'pc_build_view':
+                        dayData.pcBuildViews++;
+                        break;
+                }
+            });
+
+            // Extract popular components from events
+            const popularComponents = new Map();
+
+            pcBuildEvents.forEach((event) => {
+                if (!event.eventData || !event.eventData.components) return;
+
+                const components = event.eventData.components;
+
+                if (Array.isArray(components)) {
+                    components.forEach((component) => {
+                        if (!component.type || !component.name) return;
+
+                        const key = `${component.type}:${component.name}`;
+                        popularComponents.set(key, {
+                            type: component.type,
+                            name: component.name,
+                            count: (popularComponents.get(key)?.count || 0) + 1,
+                        });
+                    });
+                }
+            });
+
+            // Process build configurations
+            const buildConfigurations = new Map();
+
+            pcBuildEvents.forEach((event) => {
+                if (
+                    event.eventType !== 'auto_build_pc_request' ||
+                    !event.eventData
+                )
+                    return;
+                
+                const userInput = event.eventData.userInput || 'Unknown';
+
+                const key = `${userInput}`;
+
+                if (!buildConfigurations.has(key)) {
+                    buildConfigurations.set(key, {
+                        userInput,
+                        count: 0,
+                    });
+                }
+
+                buildConfigurations.get(key).count++;
+            });
+
+            // Process user input text for word cloud
+            const userInputWordCounts = new Map();
+            const vietnameseStopwords = [
+                'của', 'và', 'một', 'trong', 'cho', 'với', 'các', 'là', 'để', 'có',
+                'không', 'được', 'tại', 'những', 'này', 'khoảng', 'từ', 'đến',
+                'như', 'trên', 'dưới', 'đã', 'sẽ', 'cần', 'phải', 'về', 'bởi',
+                'vì', 'nhưng', 'vẫn', 'rằng', 'thì', 'làm', 'cùng', 'nên',
+                'theo', 'đây', 'đó', 'nếu', 'nào', 'sao', 'mà', 'thế',
+                'ai', 'sau', 'ở', 'cả', 'đều', 'lên', 'xuống', 'đi', 'lại'
+            ];
+
+            const autoBuildRequestEvents = pcBuildEvents.filter(
+                (e) => e.eventType === 'auto_build_pc_request' && e.eventData && e.eventData.userInput
+            );
+            
+            autoBuildRequestEvents.forEach(event => {
+                if (!event.eventData.userInput) return;
+                
+                // Convert to lowercase and split by spaces or punctuation
+                const userInput = event.eventData.userInput.toLowerCase();
+                const words = userInput.split(/[\s,.!?;:()[\]{}'"\/\\-]+/).filter(word => 
+                    // Filter out empty strings, numbers, and stopwords
+                    word && 
+                    word.length > 1 && 
+                    !vietnameseStopwords.includes(word) &&
+                    !/^\d+$/.test(word)
+                );
+                
+                // Count occurrences of each word
+                words.forEach(word => {
+                    userInputWordCounts.set(
+                        word, 
+                        (userInputWordCounts.get(word) || 0) + 1
+                    );
+                });
+            });
+
+            // Extract key terms related to PC purposes and budgets
+            const purposeTerms = ['gaming', 'game', 'chơi', 'văn phòng', 'làm việc', 'đồ họa', 'thiết kế', 'stream', 'học tập'];
+            const purposeWordCounts = new Map();
+            
+            autoBuildRequestEvents.forEach(event => {
+                if (!event.eventData.userInput) return;
+                
+                const userInput = event.eventData.userInput.toLowerCase();
+                
+                // Check for purpose-related terms
+                purposeTerms.forEach(term => {
+                    if (userInput.includes(term)) {
+                        purposeWordCounts.set(
+                            term, 
+                            (purposeWordCounts.get(term) || 0) + 1
+                        );
+                    }
+                });
+                
+                // Extract budget information using regex
+                const budgetRegex = /(\d+)\s*(triệu|tr|m|million)/i;
+                const budgetMatch = userInput.match(budgetRegex);
+                
+                if (budgetMatch) {
+                    const budget = `${budgetMatch[1]} triệu`;
+                    purposeWordCounts.set(
+                        budget, 
+                        (purposeWordCounts.get(budget) || 0) + 1
+                    );
+                }
+            });
+
+            return {
+                summary: {
+                    totalPCBuildEvents: pcBuildEvents.length,
+                    autoBuildRequests,
+                    autoBuildAddToCart,
+                    autoBuildCustomize,
+                    manualBuildAddToCart,
+                    manualBuildComponentSelect,
+                    manualBuildSaveConfig,
+                    pcBuildViews,
+                    autoBuildConversionRate: parseFloat(
+                        autoBuildConversionRate.toFixed(1),
+                    ),
+                    customizationRate: parseFloat(customizationRate.toFixed(1)),
+                    manualBuildConversionRate: parseFloat(
+                        manualBuildConversionRate.toFixed(1),
+                    ),
+                },
+                timeSeriesData: Array.from(dateMap.values()),
+                popularComponents: Array.from(popularComponents.values())
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 10),
+                buildConfigurations: Array.from(
+                    buildConfigurations.values(),
+                ).sort((a, b) => b.count - a.count),
+                
+                wordCloud: {
+                    // Convert word counts to array format for visualization
+                    words: Array.from(userInputWordCounts.entries())
+                        .map(([text, value]) => ({ text, value }))
+                        .sort((a, b) => b.value - a.value)
+                        .slice(0, 50), // Limit to top 50 words
+                    purposeAnalysis: Array.from(purposeWordCounts.entries())
+                        .map(([text, value]) => ({ text, value }))
+                        .sort((a, b) => b.value - a.value)
+                }
+            };
+        } catch (error) {
+            this.logger.error(
+                `Error getting PC build analytics: ${error.message}`,
+            );
+
+            return {
+                summary: {
+                    totalPCBuildEvents: 0,
+                    autoBuildRequests: 0,
+                    autoBuildAddToCart: 0,
+                    autoBuildCustomize: 0,
+                    manualBuildAddToCart: 0,
+                    manualBuildComponentSelect: 0,
+                    manualBuildSaveConfig: 0,
+                    pcBuildViews: 0,
+                    autoBuildConversionRate: 0,
+                    customizationRate: 0,
+                    manualBuildConversionRate: 0,
+                },
+                timeSeriesData: [],
+                popularComponents: [],
+                buildConfigurations: [],
+                wordCloud: {
+                    words: [],
+                    purposeAnalysis: []
+                }
+            };
+        }
+    }
 }

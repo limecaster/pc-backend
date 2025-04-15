@@ -4,6 +4,7 @@ import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CustomerService } from '../../customer/customer.service';
 import { Role } from '../enums/role.enum';
+import { getJwtConstants } from '../constants';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -13,10 +14,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         private configService: ConfigService,
         private customerService: CustomerService,
     ) {
+        const jwtConstants = getJwtConstants(configService);
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: configService.get<string>('JWT_SECRET'),
+            secretOrKey: jwtConstants.secret,
         });
     }
 
@@ -29,8 +31,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
         // For staff and admin roles, we could validate against their respective services
         if (payload.role === Role.STAFF || payload.role === Role.ADMIN) {
-            // Here you would check against your staff/admin services
-            // For now, we'll just pass through the role information
             return {
                 id: payload.sub,
                 username: payload.username,

@@ -41,8 +41,7 @@ import * as Joi from 'joi';
             isGlobal: true,
             envFilePath: '.env',
             validationSchema: Joi.object({
-                // ... existing validation ...
-                // Add ML API URL for recommendation service
+
                 ML_API_URL: Joi.string().default('http://localhost:5000'),
             }),
         }),

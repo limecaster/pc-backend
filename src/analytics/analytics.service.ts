@@ -42,6 +42,13 @@ export class AnalyticsService {
         );
     }
 
+    async getUserBehaviorMetrics(startDate: Date, endDate: Date) {
+        return this.userBehaviorAnalyticsService.getUserBehaviorReport(
+            startDate,
+            endDate,
+        );
+    }
+
     async getUserEngagementMetrics(startDate: Date, endDate: Date) {
         return this.userBehaviorAnalyticsService.getUserEngagementMetrics(
             startDate,
@@ -63,43 +70,6 @@ export class AnalyticsService {
         );
     }
 
-    // New Advanced User Behavior Analytics Methods
-    async getUserJourneyAnalysis(startDate: Date, endDate: Date) {
-        return this.userBehaviorAnalyticsService.getUserJourneyAnalysis(
-            startDate,
-            endDate,
-        );
-    }
-
-    async getSearchAnalytics(startDate: Date, endDate: Date) {
-        return this.userBehaviorAnalyticsService.getSearchAnalytics(
-            startDate,
-            endDate,
-        );
-    }
-
-    async getUserInterestSegmentation(startDate: Date, endDate: Date) {
-        return this.userBehaviorAnalyticsService.getUserInterestSegmentation(
-            startDate,
-            endDate,
-        );
-    }
-
-    async getShoppingBehaviorPatterns(startDate: Date, endDate: Date) {
-        return this.userBehaviorAnalyticsService.getShoppingBehaviorPatterns(
-            startDate,
-            endDate,
-        );
-    }
-
-    async getDiscountImpactAnalysis(startDate: Date, endDate: Date) {
-        return this.userBehaviorAnalyticsService.getDiscountImpactAnalysis(
-            startDate,
-            endDate,
-        );
-    }
-
-    // Inventory Analytics
     async getInventoryReport() {
         return this.inventoryAnalyticsService.getInventoryReport();
     }
@@ -131,5 +101,12 @@ export class AnalyticsService {
 
     async getAbandonedCarts(startDate: Date, endDate: Date) {
         return this.orderAnalyticsService.getAbandonedCarts(startDate, endDate);
+    }
+
+    async getPCBuildAnalytics(startDate: Date, endDate: Date) {
+        return this.userBehaviorAnalyticsService.getPCBuildAnalytics(
+            startDate,
+            endDate,
+        );
     }
 }

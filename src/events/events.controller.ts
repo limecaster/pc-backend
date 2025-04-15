@@ -117,10 +117,7 @@ export class EventsController {
     }
 
     @Post('auth-event')
-    async trackAuthEvent(
-        @Body() authEventDto: any,
-        @Req() req: Request,
-    ) {
+    async trackAuthEvent(@Body() authEventDto: any, @Req() req: Request) {
         try {
             // Capture IP address
             authEventDto.ipAddress = req.ip;

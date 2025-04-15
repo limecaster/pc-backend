@@ -11,6 +11,7 @@ import { CustomerModule } from '../customer/customer.module';
 import { EmailModule } from '../email/email.module';
 import { AdminModule } from '../admin/admin.module';
 import { StaffModule } from '../staff/staff.module';
+import { getJwtConstants } from './constants';
 
 @Module({
     imports: [
@@ -21,10 +22,13 @@ import { StaffModule } from '../staff/staff.module';
         StaffModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
-            useFactory: async (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET'),
-                signOptions: { expiresIn: '1h' },
-            }),
+            useFactory: async (configService: ConfigService) => {
+                const jwtConstants = getJwtConstants(configService);
+                return {
+                    secret: jwtConstants.secret,
+                    signOptions: { expiresIn: jwtConstants.accessTokenExpiry },
+                };
+            },
             inject: [ConfigService],
         }),
         ConfigModule,

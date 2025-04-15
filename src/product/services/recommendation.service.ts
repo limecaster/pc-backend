@@ -58,13 +58,10 @@ export class RecommendationService {
                         category,
                         limit,
                     );
-                    
+
                     if (mlRecommendations.length > 0) {
-                        this.logger.log(
-                            `Received ${mlRecommendations.length} ML recommendations for product ${productId}`,
-                        );
                         recommendedProductIds = mlRecommendations;
-                        
+
                         // If we have enough ML recommendations, return them directly
                         if (recommendedProductIds.length >= limit) {
                             return await this.fetchProductDetails(
@@ -91,9 +88,6 @@ export class RecommendationService {
                         );
 
                     if (advancedRecommendations.length > 0) {
-                        this.logger.log(
-                            `Received ${advancedRecommendations.length} advanced ML recommendations`,
-                        );
                         recommendedProductIds = advancedRecommendations;
 
                         // If we have enough ML recommendations, return them directly
@@ -116,11 +110,11 @@ export class RecommendationService {
             if (customerId && recommendedProductIds.length < limit) {
                 const personalizedRecommendations =
                     await this.getPersonalizedRecommendationsByCustomerId(
-                    customerId,
-                    productId,
-                    limit - recommendedProductIds.length,
-                );
-                
+                        customerId,
+                        productId,
+                        limit - recommendedProductIds.length,
+                    );
+
                 // Add non-duplicate recommendations
                 personalizedRecommendations.forEach((id) => {
                     if (!recommendedProductIds.includes(id)) {
@@ -131,11 +125,11 @@ export class RecommendationService {
                 // Get recommendations based on session behavior
                 const sessionRecommendations =
                     await this.getPersonalizedRecommendationsBySessionId(
-                    sessionId,
-                    productId,
-                    limit - recommendedProductIds.length,
-                );
-                
+                        sessionId,
+                        productId,
+                        limit - recommendedProductIds.length,
+                    );
+
                 // Add non-duplicate recommendations
                 sessionRecommendations.forEach((id) => {
                     if (!recommendedProductIds.includes(id)) {
@@ -148,11 +142,11 @@ export class RecommendationService {
             if (recommendedProductIds.length < limit && category && productId) {
                 const similarProductIds =
                     await this.getSimilarProductsByCategory(
-                    category,
-                    productId,
-                    limit - recommendedProductIds.length,
-                );
-                
+                        category,
+                        productId,
+                        limit - recommendedProductIds.length,
+                    );
+
                 // Add non-duplicate similar products
                 similarProductIds.forEach((id) => {
                     if (!recommendedProductIds.includes(id)) {
@@ -167,7 +161,7 @@ export class RecommendationService {
                     limit - recommendedProductIds.length,
                     [productId, ...recommendedProductIds].filter(Boolean),
                 );
-                
+
                 // Add non-duplicate popular products
                 popularProductIds.forEach((id) => {
                     if (!recommendedProductIds.includes(id)) {
@@ -200,32 +194,30 @@ export class RecommendationService {
         try {
             // Construct the API URL with query parameters
             let url = `${this.mlApiUrl}/api/recommendations?productId=${productId}`;
-            
+
             if (category) {
                 url += `&category=${encodeURIComponent(category)}`;
             }
-            
+
             if (limit) {
                 url += `&limit=${limit}`;
             }
-            
-            this.logger.log(`Calling ML API: ${url}`);
-            
+
             // Make the request to the ML API
             const response = await fetch(url);
-            
+
             if (!response.ok) {
                 throw new Error(`ML API returned status ${response.status}`);
             }
-            
+
             const data = await response.json();
-            
+
             if (!data.success) {
                 throw new Error(
                     data.message || 'ML API returned unsuccessful response',
                 );
             }
-            
+
             return data.recommendations || [];
         } catch (error) {
             this.logger.error(
@@ -263,14 +255,14 @@ export class RecommendationService {
 
             // Collect unique product IDs the customer has interacted with
             const interactedProductIds = new Set<string>();
-            
+
             // Track viewed products by category to find similar products
             const categoryInterests = new Map<string, number>();
 
             customerEvents.forEach((event) => {
                 if (event.entityId && event.entityId !== currentProductId) {
                     interactedProductIds.add(event.entityId);
-                    
+
                     // Track category interests for this user
                     const category = event.eventData?.category;
                     if (category) {
@@ -300,13 +292,13 @@ export class RecommendationService {
                     .andWhere('product.status = :status', { status: 'active' })
                     .orderBy('RANDOM()')
                     .take(limit);
-                
+
                 if (currentProductId) {
                     query.andWhere('product.id != :productId', {
                         productId: currentProductId,
                     });
                 }
-                
+
                 const products = await query.getMany();
                 recommendedProductIds = products.map((p) => p.id);
             }
@@ -362,14 +354,14 @@ export class RecommendationService {
 
             // Collect unique product IDs from the session
             const interactedProductIds = new Set<string>();
-            
+
             // Track viewed products by category to find similar products
             const categoryInterests = new Map<string, number>();
 
             sessionEvents.forEach((event) => {
                 if (event.entityId && event.entityId !== currentProductId) {
                     interactedProductIds.add(event.entityId);
-                    
+
                     // Track category interests for this session
                     const category = event.eventData?.category;
                     if (category) {
@@ -399,13 +391,13 @@ export class RecommendationService {
                     .andWhere('product.status = :status', { status: 'active' })
                     .orderBy('RANDOM()')
                     .take(limit);
-                
+
                 if (currentProductId) {
                     query.andWhere('product.id != :productId', {
                         productId: currentProductId,
                     });
                 }
-                
+
                 const products = await query.getMany();
                 recommendedProductIds = products.map((p) => p.id);
             }
@@ -577,8 +569,6 @@ export class RecommendationService {
                 url += `&limit=${limit}`;
             }
 
-            this.logger.log(`Calling Advanced ML API: ${url}`);
-
             // Make the request to the ML API
             const response = await fetch(url);
 
@@ -602,9 +592,6 @@ export class RecommendationService {
             }
 
             // If no recommendations were found, try to get hot sales products as fallback
-            this.logger.log(
-                'No advanced recommendations found, falling back to hot sales products',
-            );
 
             try {
                 // Get product IDs from hot sales
@@ -612,9 +599,6 @@ export class RecommendationService {
                     await this.hotSalesService.findAllProductIds();
 
                 if (hotSalesProductIds && hotSalesProductIds.length > 0) {
-                    this.logger.log(
-                        `Found ${hotSalesProductIds.length} hot sales product IDs for fallback`,
-                    );
                     return hotSalesProductIds.slice(0, limit);
                 }
             } catch (hotSalesError) {
@@ -644,10 +628,6 @@ export class RecommendationService {
         limit: number = 10,
     ): Promise<ProductDetailsDto[]> {
         try {
-            this.logger.log(
-                `Getting category recommendations for ${category}, limit: ${limit}`,
-            );
-
             // First try to find popular products in this category based on user behavior
             const popularProductIds = await this.getPopularProductsByCategory(
                 category,
@@ -821,10 +801,6 @@ export class RecommendationService {
         limit: number = 5,
     ): Promise<string[]> {
         try {
-            this.logger.log(
-                `Getting preferred categories for customerId=${customerId}, sessionId=${sessionId}`,
-            );
-
             const categoryScores = new Map<string, number>();
 
             // Case 1: If customerId is provided, check customer's behavior
@@ -934,7 +910,8 @@ export class RecommendationService {
                     const weight = row.event_type === 'order_created' ? 4 : 5; // 4 for order_created, 5 for payment_completed
                     categoryScores.set(
                         row.category,
-                        (categoryScores.get(row.category) || 0) + row.count * weight,
+                        (categoryScores.get(row.category) || 0) +
+                            row.count * weight,
                     );
                 });
             }
@@ -987,17 +964,19 @@ export class RecommendationService {
                     ORDER BY count DESC
                 `;
 
-                const sessionOrderEventsResult = await this.productRepository.query(
-                    sessionOrderEventsQuery,
-                    [sessionId],
-                );
+                const sessionOrderEventsResult =
+                    await this.productRepository.query(
+                        sessionOrderEventsQuery,
+                        [sessionId],
+                    );
 
                 // Add order events with high weights
                 sessionOrderEventsResult.forEach((row) => {
                     const weight = row.event_type === 'order_created' ? 4 : 5; // 4 for order_created, 5 for payment_completed
                     categoryScores.set(
                         row.category,
-                        (categoryScores.get(row.category) || 0) + row.count * weight,
+                        (categoryScores.get(row.category) || 0) +
+                            row.count * weight,
                     );
                 });
             }

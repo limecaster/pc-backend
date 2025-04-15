@@ -254,61 +254,61 @@ export class PaymentController {
         };
     }
 
-    @Get('debug/:orderId')
-    async debugOrderPaymentStatus(@Param('orderId') orderId: string) {
-        try {
-            const order = await this.orderService.findOrderWithItems(
-                parseInt(orderId),
-            );
+    // @Get('debug/:orderId')
+    // async debugOrderPaymentStatus(@Param('orderId') orderId: string) {
+    //     try {
+    //         const order = await this.orderService.findOrderWithItems(
+    //             parseInt(orderId),
+    //         );
 
-            if (!order) {
-                return {
-                    success: false,
-                    message: 'Order not found',
-                };
-            }
+    //         if (!order) {
+    //             return {
+    //                 success: false,
+    //                 message: 'Order not found',
+    //             };
+    //         }
 
-            return {
-                success: true,
-                order: {
-                    id: order.id,
-                    orderNumber: order.orderNumber,
-                    status: order.status,
-                    createdAt: order.createdAt,
-                    updatedAt: order.updatedAt,
-                },
-            };
-        } catch (error) {
-            return {
-                success: false,
-                message: error.message,
-            };
-        }
-    }
+    //         return {
+    //             success: true,
+    //             order: {
+    //                 id: order.id,
+    //                 orderNumber: order.orderNumber,
+    //                 status: order.status,
+    //                 createdAt: order.createdAt,
+    //                 updatedAt: order.updatedAt,
+    //             },
+    //         };
+    //     } catch (error) {
+    //         return {
+    //             success: false,
+    //             message: error.message,
+    //         };
+    //     }
+    // }
 
-    @Get('test-success/:orderId')
-    async testPaymentSuccess(@Param('orderId') orderId: string) {
-        if (process.env.NODE_ENV === 'production') {
-            return { success: false, message: 'Not available in production' };
-        }
+    // @Get('test-success/:orderId')
+    // async testPaymentSuccess(@Param('orderId') orderId: string) {
+    //     if (process.env.NODE_ENV === 'production') {
+    //         return { success: false, message: 'Not available in production' };
+    //     }
 
-        try {
-            // Update order status
-            await this.orderService.updateOrderStatus(
-                parseInt(orderId),
-                OrderStatus.PAYMENT_SUCCESS,
-            );
+    //     try {
+    //         // Update order status
+    //         await this.orderService.updateOrderStatus(
+    //             parseInt(orderId),
+    //             OrderStatus.PAYMENT_SUCCESS,
+    //         );
 
-            return {
-                success: true,
-                message: 'Order status updated to payment_success for testing',
-                orderId,
-            };
-        } catch (error) {
-            return {
-                success: false,
-                message: error.message,
-            };
-        }
-    }
+    //         return {
+    //             success: true,
+    //             message: 'Order status updated to payment_success for testing',
+    //             orderId,
+    //         };
+    //     } catch (error) {
+    //         return {
+    //             success: false,
+    //             message: error.message,
+    //         };
+    //     }
+    // }
 }

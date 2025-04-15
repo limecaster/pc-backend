@@ -14,7 +14,7 @@ export class EmailService {
     }
 
     private async setupTransporter() {
-        // Check if we're in dev mode and no valid credentials are set
+ 
         const mailUser = this.configService.get('MAIL_USER');
         const mailPassword = this.configService.get('MAIL_PASSWORD');
         if (
@@ -24,7 +24,6 @@ export class EmailService {
                 mailUser === 'your_email@gmail.com' ||
                 mailPassword === 'your_app_password')
         ) {
-            // Create a test account on ethereal.email for development
             this.logger.log('Creating test email account on Ethereal...');
             try {
                 const testAccount = await nodemailer.createTestAccount();
@@ -32,7 +31,6 @@ export class EmailService {
                     `Test email account created: ${testAccount.user}`,
                 );
 
-                // Configure the transporter with the test credentials
                 this.transporter = nodemailer.createTransport({
                     host: 'smtp.ethereal.email',
                     port: 587,
@@ -63,7 +61,6 @@ export class EmailService {
                 );
             }
         } else {
-            // Use the configured email credentials
             try {
                 if (
                     mailUser === 'your_email@gmail.com' ||
@@ -263,7 +260,6 @@ Content: ${html.substring(0, 100)}...
       `);
         }
 
-        // If we don't have a transporter, just log and return
         if (!this.transporter) {
             this.logger.warn(
                 `Would send email to ${to} but no valid transporter is configured`,

@@ -6,10 +6,12 @@ import { CustomerService } from '../customer/customer.service';
 import { EmailService } from '../email/email.service';
 import { AdminService } from '../admin/admin.service';
 import { Role } from './enums/role.enum';
+import { getJwtConstants } from './constants';
 
 @Injectable()
 export class AuthService {
     private readonly logger = new Logger(AuthService.name);
+    private readonly jwtConstants;
 
     constructor(
         private customerService: CustomerService,
@@ -17,7 +19,9 @@ export class AuthService {
         private emailService: EmailService,
         private configService: ConfigService,
         private adminService: AdminService,
-    ) {}
+    ) {
+        this.jwtConstants = getJwtConstants(configService);
+    }
 
     async validateUser(email: string, password: string): Promise<any> {
         const customer = await this.customerService.findByEmail(email);
@@ -78,15 +82,15 @@ export class AuthService {
             ...(user.username && { username: user.username }),
         };
 
-        const token = this.jwtService.sign(payload);
+        const token = this.jwtService.sign(payload, {
+            expiresIn: this.jwtConstants.accessTokenExpiry
+        });
 
         const refreshToken = this.jwtService.sign(
             { ...payload },
             {
-                expiresIn: '7d',
-                secret:
-                    this.configService.get<string>('JWT_SECRET') ||
-                    'refreshSecret',
+                expiresIn: this.jwtConstants.refreshTokenExpiry,
+                secret: this.jwtConstants.refreshSecret,
             },
         );
 
@@ -212,10 +216,12 @@ export class AuthService {
             role: 'admin',
         };
 
-        const accessToken = this.jwtService.sign(payload);
+        const accessToken = this.jwtService.sign(payload, {
+            expiresIn: this.jwtConstants.accessTokenExpiry
+        });
         const refreshToken = this.jwtService.sign(payload, {
-            expiresIn: '7d',
-            secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+            expiresIn: this.jwtConstants.refreshTokenExpiry,
+            secret: this.jwtConstants.refreshSecret,
         });
 
         return {
@@ -235,7 +241,7 @@ export class AuthService {
     async refreshToken(refreshToken: string) {
         try {
             const payload = this.jwtService.verify(refreshToken, {
-                secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+                secret: this.jwtConstants.refreshSecret,
             });
 
             if (!payload) {
@@ -251,6 +257,8 @@ export class AuthService {
                 email,
                 sub,
                 role,
+            }, {
+                expiresIn: this.jwtConstants.accessTokenExpiry
             });
 
             return {

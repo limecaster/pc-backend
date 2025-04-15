@@ -84,11 +84,13 @@ export class KafkaConsumer implements OnModuleInit {
                                     eventData.eventType,
                                 );
                                 break;
-               
+
                             case 'auto_build_pc_request':
                             case 'auto_build_pc_add_to_cart':
                             case 'auto_build_pc_customize':
                             case 'manual_build_pc_add_to_cart':
+                            case 'manual_build_pc_component_select':
+                            case 'manual_build_pc_save_config':
                             case 'manual_build_pc_export_excel':
                                 await this.eventsService.handlePCBuildEvent(
                                     eventData,
@@ -108,7 +110,7 @@ export class KafkaConsumer implements OnModuleInit {
                 },
             },
         );
-        
+
         // Also consume auth events
         await this.consumerService.consume(
             { topics: ['auth-events'] },
@@ -117,11 +119,11 @@ export class KafkaConsumer implements OnModuleInit {
                     const messageValue = message.value.toString();
                     try {
                         const eventData = JSON.parse(messageValue);
-                        
+
                         // Handle auth events with a dedicated method
                         await this.eventsService.handleUserAuthEvent(
                             eventData,
-                            eventData.eventType
+                            eventData.eventType,
                         );
                     } catch (error) {
                         this.logger.error(

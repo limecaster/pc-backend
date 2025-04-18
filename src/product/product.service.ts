@@ -5,7 +5,7 @@ import {
     InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, Raw } from 'typeorm';
 import { Product } from './product.entity';
 import { ProductDetailsDto } from './dto/product-response.dto';
 import { UtilsService } from 'src/service/utils.service';
@@ -15,6 +15,7 @@ import { ProductRatingService } from './services/product-rating.service';
 import { ProductElasticsearchService } from './services/product-elasticsearch.service';
 import { DiscountService } from '../discount/discount.service';
 import { Neo4jConfigService } from '../config/neo4j.config';
+import { error } from 'console';
 
 @Injectable()
 export class ProductService {
@@ -564,257 +565,6 @@ export class ProductService {
         };
     }
 
-    async searchByName(
-        query: string,
-        page: number = 1,
-        limit: number = 12,
-        brands?: string[],
-        minPrice?: number,
-        maxPrice?: number,
-        minRating?: number,
-        category?: string,
-        subcategoryFilters?: Record<string, string[]>,
-    ): Promise<{
-        products: ProductDetailsDto[];
-        total: number;
-        pages: number;
-        page: number;
-    }> {
-        try {
-            if (!query || query.trim() === '') {
-                return { products: [], total: 0, pages: 0, page };
-            }
-
-            // Initialize variables for filtered IDs
-            let filteredProductIds: string[] | undefined = undefined;
-
-            // First handle subcategory filters if provided along with category
-            if (category && subcategoryFilters && Object.keys(subcategoryFilters).length > 0) {
-                try {
-                    const subcategoryFilteredIds =
-                        await this.productSpecService.getProductIdsBySubcategoryFilters(
-                            category,
-                            subcategoryFilters,
-                            brands,
-                        );
-
-                    if (!subcategoryFilteredIds || subcategoryFilteredIds.length === 0) {
-                        return { products: [], total: 0, pages: 0, page };
-                    }
-
-                    filteredProductIds = subcategoryFilteredIds;
-                } catch (error) {
-                    this.logger.error(
-                        `Error applying subcategory filters in search: ${error.message}`,
-                    );
-                    // Continue with search without subcategory filters if error occurs
-                }
-            }
-            // If no subcategory filters but we have brand filters, handle those
-            else if (brands && brands.length > 0) {
-                try {
-                    const brandFilteredIds =
-                        await this.productSpecService.getProductIdsByBrands(
-                            brands,
-                            category, 
-                        );
-
-                    if (!brandFilteredIds || brandFilteredIds.length === 0) {
-                        return { products: [], total: 0, pages: 0, page };
-                    }
-
-                    filteredProductIds = brandFilteredIds;
-                } catch (error) {
-                    this.logger.error(
-                        `Error applying brand filters in search: ${error.message}`,
-                    );
-                    // Continue with search without brand filters if error occurs
-                }
-            }
-
-            // Apply rating filter if provided
-            if (minRating !== undefined && minRating > 0) {
-                try {
-                    const ratingFilteredIds =
-                        await this.productRatingService.getProductIdsByMinRating(
-                            minRating,
-                        );
-
-                    if (!ratingFilteredIds || ratingFilteredIds.length === 0) {
-                        return { products: [], total: 0, pages: 0, page };
-                    }
-
-                    // If we already have product IDs from previous filters, we need to find the intersection
-                    if (filteredProductIds) {
-                        filteredProductIds = filteredProductIds.filter((id) =>
-                            ratingFilteredIds.includes(id),
-                        );
-
-                        if (filteredProductIds.length === 0) {
-                            return { products: [], total: 0, pages: 0, page };
-                        }
-                    } else {
-                        filteredProductIds = ratingFilteredIds;
-                    }
-                } catch (error) {
-                    this.logger.error(
-                        `Error applying rating filters in search: ${error.message}`,
-                    );
-                    // Continue with search without rating filters if error occurs
-                }
-            }
-
-            // Try enhanced search pattern matching first
-            const enhancedSearchResults = await this.handleEnhancedSearch(
-                query,
-                page,
-                limit,
-            );
-
-            if (enhancedSearchResults) {
-                // If we have filtered IDs, filter the enhanced search results
-                if (filteredProductIds && filteredProductIds.length > 0) {
-                    const filteredProducts = enhancedSearchResults.products.filter(
-                        product => filteredProductIds!.includes(product.id)
-                    );
-                    
-                    return {
-                        products: filteredProducts,
-                        total: filteredProducts.length,
-                        pages: Math.ceil(filteredProducts.length / limit),
-                        page,
-                    };
-                }
-                
-                return enhancedSearchResults;
-            }
-
-            // Build standard query filters
-            const whereClause: any = {};
-
-            // Add price filtering if provided
-            if (minPrice !== undefined) {
-                whereClause.price_gte = minPrice;
-            }
-
-            if (maxPrice !== undefined) {
-                whereClause.price_lte = maxPrice;
-            }
-
-            // If we have filtered IDs from previous filters, add them to where clause
-            if (filteredProductIds && filteredProductIds.length > 0) {
-                whereClause.id = In(filteredProductIds);
-            }
-
-            // Try Elasticsearch search with filters
-            try {
-                const esOptions: any = {
-                    page,
-                    limit,
-                    minPrice,
-                    maxPrice,
-                    brands,
-                };
-
-                // Add category to Elasticsearch search if provided
-                if (category) {
-                    esOptions.category = category;
-                }
-
-                const esResults = await this.productElasticsearchService.search(query, esOptions);
-
-                if (esResults.total > 0) {
-                    // Get product IDs from Elasticsearch results
-                    let productIds = esResults.hits.map((hit) => hit.id);
-
-                    // If we have filtered IDs, find intersection with ES results
-                    if (filteredProductIds) {
-                        productIds = productIds.filter(id => filteredProductIds!.includes(id));
-                        
-                        if (productIds.length === 0) {
-                            return { products: [], total: 0, pages: 0, page };
-                        }
-                    }
-
-                    // Set up database query with filtered IDs
-                    const dbWhereClause = { ...whereClause, id: In(productIds) };
-
-                    // Get products from database via ProductQueryService
-                    const result = await this.productQueryService.searchByName(
-                        query,
-                        page,
-                        limit,
-                        dbWhereClause,
-                        category, 
-                    );
-
-                    // Sort products to match Elasticsearch order
-                    const sortedProducts = productIds
-                        .map((id) => result.products.find((product) => product.id === id))
-                        .filter(Boolean);
-
-                    // Enrich with details
-                    const productDetails = await this.enrichProductsWithDetails(sortedProducts);
-
-                    return {
-                        products: productDetails,
-                        total: Math.min(esResults.total, productIds.length),
-                        pages: Math.ceil(Math.min(esResults.total, productIds.length) / limit),
-                        page,
-                    };
-                }
-            } catch (esError) {
-                this.logger.error(`Elasticsearch error: ${esError.message}`);
-                // Continue to database search if Elasticsearch fails
-            }
-
-            // Fall back to database search directly
-            const result = await this.productQueryService.searchByName(
-                query,
-                page,
-                limit,
-                whereClause,
-                category,
-            );
-
-            // Enrich products with details
-            const productDetails = await this.enrichProductsWithDetails(
-                result.products,
-            );
-
-            return {
-                products: productDetails,
-                total: result.total,
-                pages: result.pages,
-                page: result.page,
-            };
-        } catch (error) {
-            this.logger.error(
-                `Error searching products by name: ${error.message}`,
-            );
-            
-            // Fall back to legacy search as a last resort
-            try {
-                return await this.legacySearchByName(
-                    query,
-                    page,
-                    limit,
-                    brands,
-                    minPrice,
-                    maxPrice,
-                    minRating,
-                    category,
-                    subcategoryFilters,
-                );
-            } catch (legacyError) {
-                this.logger.error(
-                    `Legacy search also failed: ${legacyError.message}`,
-                );
-                return { products: [], total: 0, pages: 0, page };
-            }
-        }
-    }
-
     // Legacy search method using database directly
     private async legacySearchByName(
         query: string,
@@ -836,11 +586,17 @@ export class ProductService {
             // Build standard filters
             const whereClause: any = {};
 
+            // full‑text match on name
+            whereClause.name = Raw(
+                (alias) =>
+                    `to_tsvector('english', ${alias}.name) @@ plainto_tsquery('english', :query)`,
+                { query },
+            );
+
             // Add price filtering if provided
             if (minPrice !== undefined) {
                 whereClause.price_gte = minPrice;
             }
-
             if (maxPrice !== undefined) {
                 whereClause.price_lte = maxPrice;
             }
@@ -849,21 +605,30 @@ export class ProductService {
             let filteredProductIds: string[] | undefined = undefined;
 
             // Handle subcategory filters if provided
-            if (category && subcategoryFilters && Object.keys(subcategoryFilters).length > 0) {
+            if (
+                category &&
+                subcategoryFilters &&
+                Object.keys(subcategoryFilters).length > 0
+            ) {
                 try {
                     const subcategoryFilteredIds =
                         await this.productSpecService.getProductIdsBySubcategoryFilters(
                             category,
                             subcategoryFilters,
                         );
-                    
-                    if (!subcategoryFilteredIds || subcategoryFilteredIds.length === 0) {
+
+                    if (
+                        !subcategoryFilteredIds ||
+                        subcategoryFilteredIds.length === 0
+                    ) {
                         return { products: [], total: 0, pages: 0, page };
                     }
-                    
+
                     filteredProductIds = subcategoryFilteredIds;
                 } catch (error) {
-                    this.logger.error(`Error applying subcategory filters in legacy search: ${error.message}`);
+                    this.logger.error(
+                        `Error applying subcategory filters in legacy search: ${error.message}`,
+                    );
                     // Continue without subcategory filters if error occurs
                 }
             }
@@ -875,17 +640,17 @@ export class ProductService {
                         brands,
                         category, // Pass category to filter brands within category
                     );
-                    
+
                 if (brandFilteredIds.length === 0) {
                     return { products: [], total: 0, pages: 0, page };
                 }
 
                 // If we already have filtered IDs, find intersection
                 if (filteredProductIds) {
-                    filteredProductIds = filteredProductIds.filter(id => 
-                        brandFilteredIds.includes(id)
+                    filteredProductIds = filteredProductIds.filter((id) =>
+                        brandFilteredIds.includes(id),
                     );
-                    
+
                     if (filteredProductIds.length === 0) {
                         return { products: [], total: 0, pages: 0, page };
                     }
@@ -893,7 +658,7 @@ export class ProductService {
                     filteredProductIds = brandFilteredIds;
                 }
             }
-                
+
             // Apply rating filter if provided
             if (minRating !== undefined && minRating > 0) {
                 const ratingFilteredIds =
@@ -907,10 +672,10 @@ export class ProductService {
 
                 // If we already have filtered IDs, find intersection
                 if (filteredProductIds) {
-                    filteredProductIds = filteredProductIds.filter(id => 
-                        ratingFilteredIds.includes(id)
+                    filteredProductIds = filteredProductIds.filter((id) =>
+                        ratingFilteredIds.includes(id),
                     );
-                    
+
                     if (filteredProductIds.length === 0) {
                         return { products: [], total: 0, pages: 0, page };
                     }
@@ -981,6 +746,7 @@ export class ProductService {
         query: string,
         page: number,
         limit: number,
+        categoryProductIds?: string[],
     ): Promise<{
         products: ProductDetailsDto[];
         total: number;
@@ -1015,8 +781,23 @@ export class ProductService {
                         );
 
                     if (matchingIds && matchingIds.length > 0) {
+                        // If we have category filter, only include products that are in that category
+                        let finalIds = matchingIds;
+                        if (
+                            categoryProductIds &&
+                            categoryProductIds.length > 0
+                        ) {
+                            finalIds = matchingIds.filter((id) =>
+                                categoryProductIds.includes(id),
+                            );
+
+                            if (finalIds.length === 0) {
+                                return null; // No matches in the specified category
+                            }
+                        }
+
                         // Use these IDs to fetch products from relational DB
-                        const whereClause = { id: In(matchingIds) };
+                        const whereClause = { id: In(finalIds) };
                         const result =
                             await this.productQueryService.findByCategory(
                                 'GraphicsCard',
@@ -1077,8 +858,22 @@ export class ProductService {
                         );
 
                     if (matchingIds && matchingIds.length > 0) {
+                        // If we have category filter, only include products that are in that category
+                        let finalIds = matchingIds;
+                        if (
+                            categoryProductIds &&
+                            categoryProductIds.length > 0
+                        ) {
+                            finalIds = matchingIds.filter((id) =>
+                                categoryProductIds.includes(id),
+                            );
+
+                            if (finalIds.length === 0) {
+                                return null; // No matches in the specified category
+                            }
+                        }
                         // Use these IDs to fetch products from relational DB
-                        const whereClause = { id: In(matchingIds) };
+                        const whereClause = { id: In(finalIds) };
                         const result =
                             await this.productQueryService.findByCategory(
                                 'CPU',
@@ -1451,4 +1246,178 @@ export class ProductService {
     //         throw new Error(`Failed to migrate image URLs: ${error.message}`);
     //     }
     // }
+
+    // New helper: fetch by IDs, apply all filters, paginate, enrich & discount
+    private async fetchAndFilterByIds(
+        ids: string[],
+        query: string,
+        page: number,
+        limit: number,
+        brands?: string[],
+        minPrice?: number,
+        maxPrice?: number,
+        minRating?: number,
+        category?: string,
+        subcategoryFilters?: Record<string, string[]>,
+    ): Promise<{
+        products: ProductDetailsDto[];
+        total: number;
+        pages: number;
+        page: number;
+    }> {
+        if (ids.length === 0) {
+            return { products: [], total: 0, pages: 0, page };
+        }
+
+        // Build DB where-clause
+        const where: any = { id: In(ids) };
+        if (category && category !== 'all') where.category = category;
+        if (minPrice !== undefined) where.price_gte = minPrice;
+        if (maxPrice !== undefined) where.price_lte = maxPrice;
+
+        // Fetch raw products matching IDs + filters
+        const result = await this.productQueryService.searchByName(
+            query,
+            page,
+            limit,
+            where,
+            category,
+        );
+
+        // Preserve ES/enhanced order
+        const ordered = ids
+            .map((id) => result.products.find((p) => p.id === id))
+            .filter(Boolean) as Product[];
+
+        // Enrich & apply discounts
+        let dtos = await this.enrichProductsWithDetails(ordered);
+
+        // Apply brand & rating filters in-memory
+        if (brands?.length) dtos = dtos.filter((p) => brands.includes(p.brand));
+        if (minRating) dtos = dtos.filter((p) => p.rating >= minRating);
+
+        // Apply subcategory filters via Neo4j IDs
+        if (subcategoryFilters && category) {
+            const subIds =
+                await this.productSpecService.getProductIdsBySubcategoryFilters(
+                    category,
+                    subcategoryFilters,
+                );
+            dtos = dtos.filter((p) => subIds.includes(p.id));
+        }
+
+        // Paginate final DTO list
+        const total = dtos.length;
+        const pages = Math.ceil(total / limit);
+        const start = (page - 1) * limit;
+        const products = dtos.slice(start, start + limit);
+
+        return { products, total, pages, page };
+    }
+
+    async searchByName(
+        query: string,
+        page = 1,
+        limit = 12,
+        brands?: string[],
+        minPrice?: number,
+        maxPrice?: number,
+        minRating?: number,
+        category?: string,
+        subcategoryFilters?: Record<string, string[]>,
+    ): Promise<{
+        products: ProductDetailsDto[];
+        total: number;
+        pages: number;
+        page: number;
+    }> {
+        if (!query.trim()) {
+            return { products: [], total: 0, pages: 0, page };
+        }
+
+        // If category filter: restrict IDs upfront
+        let baseIds: string[] | undefined;
+        if (category && category !== 'all') {
+            try {
+                baseIds =
+                    await this.productSpecService.getProductsByCategory(
+                        category,
+                    );
+                if (!baseIds.length)
+                    return { products: [], total: 0, pages: 0, page };
+            } catch (error) {
+                this.logger.error(
+                    `Error fetching base IDs for category ${category}: ${error.message}`,
+                );
+                baseIds = undefined; // Reset baseIds to undefined to indicate no category restriction
+            }
+        }
+        this.logger.debug(
+            `Base IDs for category ${category}: ${baseIds?.length || 0}`,
+        );
+        // 1. Enhanced search
+        const enhanced = await this.handleEnhancedSearch(
+            query,
+            page,
+            limit,
+            baseIds,
+        );
+        this.logger.debug(
+            `Enhanced search result: ${enhanced?.products.length || 0} products`,
+        );
+        if (enhanced && enhanced.products.length > 0) {
+            const ids = enhanced.products.map((p) => p.id);
+            const result = await this.fetchAndFilterByIds(
+                ids,
+                query,
+                page,
+                limit,
+                brands,
+                minPrice,
+                maxPrice,
+                minRating,
+                category,
+                subcategoryFilters,
+            );
+
+            if (result.products.length > 0) {
+                return result;
+            }
+        }
+        this.logger.debug('No enhanced search results found');
+
+        this.logger.debug('No Elasticsearch search results found');
+        // 3. Fallback to legacy DB search (already applies filters)
+        const legacyResult = await this.legacySearchByName(
+            query,
+            page,
+            limit,
+            brands,
+            minPrice,
+            maxPrice,
+            minRating,
+            category,
+            subcategoryFilters,
+        );
+        this.logger.debug(
+            `Legacy search result: ${legacyResult.products.length} products`,
+        );
+        if (legacyResult.products.length > 0) {
+            const result = await this.fetchAndFilterByIds(
+                legacyResult.products.map((p) => p.id),
+                query,
+                page,
+                limit,
+                brands,
+                minPrice,
+                maxPrice,
+                minRating,
+                category,
+                subcategoryFilters,
+            );
+            return result;
+        } else {
+            return { products: [], total: 0, pages: 0, page };
+        }
+    }
 }

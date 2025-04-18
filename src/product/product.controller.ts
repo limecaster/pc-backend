@@ -384,7 +384,7 @@ export class ProductController {
     ): Promise<PaginatedProductsResponse> {
         try {
             const brands = brandsParam ? brandsParam.split(',') : undefined;
-            
+
             let subcategoryFilters: Record<string, string[]> | undefined;
 
             if (subcategoriesParam) {
@@ -420,7 +420,7 @@ export class ProductController {
                     );
                 }
             }
-            
+
             const result = await this.productService.searchByName(
                 query,
                 page,

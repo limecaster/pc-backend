@@ -783,6 +783,32 @@ export class ProductSpecificationService {
         }
     }
 
+    /**
+     * Get all product IDs in a specific category
+     * @param category The category to get products for
+     * @returns Array of product IDs in the category
+     */
+    async getProductsByCategory(category: string): Promise<string[]> {
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+
+        try {
+            const result = await session.run(
+                `MATCH (p:${category}) RETURN p.id as id`,
+                { category },
+            );
+
+            return result.records.map((record) => record.get('id'));
+        } catch (error) {
+            this.logger.error(
+                `Error getting products in category ${category}: ${error.message}`,
+            );
+            throw error;
+        } finally {
+            await session.close();
+        }
+    }
+
     // Helper method to extract numeric values from formatted strings
     private extractNumericValues(key: string, values: string[]): number[] {
         switch (key) {

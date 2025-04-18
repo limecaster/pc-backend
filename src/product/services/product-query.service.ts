@@ -123,19 +123,24 @@ export class ProductQueryService {
     }> {
         try {
             const offset = (page - 1) * limit;
-            const queryBuilder = this.productRepository.createQueryBuilder('product');
+            const queryBuilder =
+                this.productRepository.createQueryBuilder('product');
 
             // Add search term
-            queryBuilder.where('LOWER(product.name) LIKE LOWER(:query)', { 
-                query: `%${query}%` 
+            queryBuilder.where('LOWER(product.name) LIKE LOWER(:query)', {
+                query: `%${query}%`,
             });
 
             // Add status filter
-            queryBuilder.andWhere('product.status = :status', { status: 'active' });
+            queryBuilder.andWhere('product.status = :status', {
+                status: 'active',
+            });
 
             // Add category filter if provided
             if (category) {
-                queryBuilder.andWhere('product.category = :category', { category });
+                queryBuilder.andWhere('product.category = :category', {
+                    category,
+                });
             }
 
             // Add price filtering if provided
@@ -152,10 +157,18 @@ export class ProductQueryService {
             }
 
             // Add product IDs filter if provided (used for subcategory filtering)
-            if (whereClause.id && whereClause.id instanceof In && 
-                Array.isArray(whereClause.id.value) && whereClause.id.value.length > 0) {
+            if (
+                whereClause.id &&
+                whereClause.id instanceof In &&
+                Array.isArray(whereClause.id.value) &&
+                whereClause.id.value.length > 0
+            ) {
                 // Ensure IDs are strings and not duplicated
-                const uniqueStringIds = [...new Set(whereClause.id.value.map((id: any) => String(id)))];
+                const uniqueStringIds = [
+                    ...new Set(
+                        whereClause.id.value.map((id: any) => String(id)),
+                    ),
+                ];
                 queryBuilder.andWhere('product.id IN (:...filteredIds)', {
                     filteredIds: uniqueStringIds,
                 });

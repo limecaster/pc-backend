@@ -4,7 +4,6 @@ import {
     PrimaryGeneratedColumn,
     ManyToOne,
     JoinColumn,
-    Index,
     CreateDateColumn,
 } from 'typeorm';
 import { Customer } from '../../customer/customer.entity';
@@ -22,7 +21,6 @@ export class UserBehavior {
     eventId: string;
 
     @Column({ nullable: true, name: 'customer_id' })
-    @Index()
     customerId: number;
 
     @ManyToOne(() => Customer, { nullable: true })
@@ -33,11 +31,9 @@ export class UserBehavior {
     sessionId: string;
 
     @Column({ name: 'event_type' })
-    @Index()
     eventType: string;
 
     @Column({ name: 'entity_id', nullable: true })
-    @Index()
     entityId: string;
 
     @Column({ name: 'entity_type', nullable: true })
@@ -59,6 +55,5 @@ export class UserBehavior {
     eventData: Record<string, any>;
 
     @CreateDateColumn({ name: 'created_at' })
-    @Index()
     createdAt: Date;
 }

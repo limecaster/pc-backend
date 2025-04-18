@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Neo4jConfigService } from 'config/neo4j.config';
+import { Neo4jConfigService } from 'src/config/neo4j.config';
 import { PCConfiguration } from 'src/build/dto/auto-build.dto';
 
 /**

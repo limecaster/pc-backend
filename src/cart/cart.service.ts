@@ -11,7 +11,7 @@ import { CartItem } from './entities/cart-item.entity';
 import { Product } from '../product/product.entity';
 import { CartResponseDto } from './dto/cart.dto';
 import { Customer } from '../customer/customer.entity';
-import { Neo4jConfigService } from '../../config/neo4j.config';
+import { Neo4jConfigService } from '../config/neo4j.config';
 
 @Injectable()
 export class CartService {

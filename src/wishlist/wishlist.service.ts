@@ -8,7 +8,7 @@ import { Repository } from 'typeorm';
 import { Wishlist } from './wishlist.entity';
 import { Product } from '../product/product.entity';
 import { WishlistItemDto } from './dto/wishlist.dto';
-import { Neo4jConfigService } from '../../config/neo4j.config';
+import { Neo4jConfigService } from '../config/neo4j.config';
 
 @Injectable()
 export class WishlistService {

@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ElasticsearchConfigService } from '../../../config/elasticsearch.config';
+import { ElasticsearchConfigService } from '../../config/elasticsearch.config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../product.entity';

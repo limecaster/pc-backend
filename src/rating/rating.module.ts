@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { RatingController } from './rating.controller';
 import { RatingService } from './rating.service';
-import { PostgresConfigService } from '../../config/postgres.config';
+import { PostgresConfigService } from '../config/postgres.config';
 
 @Module({
     controllers: [RatingController],

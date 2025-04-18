@@ -7,7 +7,7 @@ import {
     ContentType,
     ContentSection,
 } from './cms-content.entity';
-import { CloudinaryConfigService } from '../../config/cloudinary.config';
+import { CloudinaryConfigService } from '../config/cloudinary.config';
 
 @Injectable()
 export class CmsService {

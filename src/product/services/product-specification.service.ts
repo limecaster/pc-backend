@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Neo4jConfigService } from '../../../config/neo4j.config';
-import { UtilsService } from 'service/utils.service';
+import { Neo4jConfigService } from '../../config/neo4j.config';
+import { UtilsService } from 'src/service/utils.service';
 import { ProductSpecDto } from '../dto/product-response.dto';
 
 @Injectable()

@@ -24,7 +24,7 @@ export class RecommendationService {
     ) {
         this.mlApiUrl =
             this.configService.get<string>('ML_API_URL') ||
-            'http://127.0.0.1:3003';
+            'http://0.0.0.0:8003';
     }
 
     /**

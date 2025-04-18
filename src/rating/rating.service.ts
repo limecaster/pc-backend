@@ -3,7 +3,7 @@ import {
     NotFoundException,
     BadRequestException,
 } from '@nestjs/common';
-import { PostgresConfigService } from '../../config/postgres.config';
+import { PostgresConfigService } from '../config/postgres.config';
 import {
     CreateRatingCommentDto,
     RatingCommentResponseDto,

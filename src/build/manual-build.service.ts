@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Neo4jConfigService } from 'config/neo4j.config';
-import { UtilsService } from '../../service/utils.service';
+import { Neo4jConfigService } from 'src/config/neo4j.config';
+import { UtilsService } from '../service/utils.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
 import { PCConfiguration } from 'src/build/dto/auto-build.dto';
 
@@ -196,15 +196,13 @@ export class ManualBuildService {
                     query += `
                     AND compatible.type = 'SSD'
                     `;
-                    this.logger.log('Filtering for SSD storage types');
+                    
                 } else if (originalTargetLabel === 'HDD') {
                     // Filter for non-SSD storage types
                     query += `
                     AND (compatible.type <> 'SSD' OR compatible.type IS NULL)
                     `;
-                    this.logger.log(
-                        'Filtering for HDD (non-SSD) storage types',
-                    );
+                    
                 }
 
                 if (searchTerm) {
@@ -261,16 +259,12 @@ export class ManualBuildService {
             // Add storage type filtering for SSD and HDD
             if (originalTargetLabel === 'SSD') {
                 whereConditions.push("compatible.type = 'SSD'");
-                this.logger.log(
-                    'Filtering compatible parts for SSD storage type',
-                );
+             
             } else if (originalTargetLabel === 'HDD') {
                 whereConditions.push(
                     "(compatible.type <> 'SSD' OR compatible.type IS NULL)",
                 );
-                this.logger.log(
-                    'Filtering compatible parts for HDD (non-SSD) storage types',
-                );
+               
             }
 
             if (searchTerm) {

@@ -1,10 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryResponse } from '../src/interfaces/cloudinary-response.interface';
+import { CloudinaryResponse } from '../interfaces/cloudinary-response.interface';
 import { Readable } from 'stream';
 
-import * as multer from 'multer';
+// Define the File interface directly to avoid any TypeScript confusion
+interface MulterFile {
+    fieldname: string;
+    originalname: string;
+    encoding: string;
+    mimetype: string;
+    size: number;
+    destination?: string;
+    filename?: string;
+    path?: string;
+    buffer: Buffer;
+}
 
 @Injectable()
 export class CloudinaryConfigService {
@@ -17,10 +28,10 @@ export class CloudinaryConfigService {
     }
 
     async uploadImage(
-        file: multer.Multer['File'],
+        file: MulterFile,
         folder: string = 'products',
     ): Promise<CloudinaryResponse> {
-        return new Promise((resolve, reject) => {
+        return new Promise<CloudinaryResponse>((resolve, reject) => {
             const uploadStream = cloudinary.uploader.upload_stream(
                 {
                     folder,
@@ -28,7 +39,7 @@ export class CloudinaryConfigService {
                 },
                 (error, result) => {
                     if (error) return reject(error);
-                    resolve(result);
+                    resolve(result as CloudinaryResponse);
                 },
             );
 

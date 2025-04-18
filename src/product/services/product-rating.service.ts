@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PostgresConfigService } from '../../../config/postgres.config';
+import { PostgresConfigService } from '../../config/postgres.config';
 import { ReviewDto } from '../dto/product-response.dto';
 
 @Injectable()

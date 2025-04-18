@@ -9,6 +9,10 @@ declare global {
                   >[0]['file']
                 : never;
         }
+
+        interface Request {
+            user?: any;  // The user property added by the Auth middleware
+        }
     }
 }
 

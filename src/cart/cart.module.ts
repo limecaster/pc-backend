@@ -6,7 +6,7 @@ import { Cart } from './entities/cart.entity';
 import { CartItem } from './entities/cart-item.entity';
 import { Product } from '../product/product.entity';
 import { Customer } from '../customer/customer.entity';
-import { Neo4jConfigService } from 'config/neo4j.config';
+import { Neo4jConfigService } from 'src/config/neo4j.config';
 
 @Module({
     imports: [TypeOrmModule.forFeature([Cart, CartItem, Product, Customer])],

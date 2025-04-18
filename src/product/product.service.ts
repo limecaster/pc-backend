@@ -8,13 +8,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { ProductDetailsDto } from './dto/product-response.dto';
-import { UtilsService } from 'service/utils.service';
+import { UtilsService } from 'src/service/utils.service';
 import { ProductQueryService } from './services/product-query.service';
 import { ProductSpecificationService } from './services/product-specification.service';
 import { ProductRatingService } from './services/product-rating.service';
 import { ProductElasticsearchService } from './services/product-elasticsearch.service';
 import { DiscountService } from '../discount/discount.service';
-import { Neo4jConfigService } from '../../config/neo4j.config';
+import { Neo4jConfigService } from '../config/neo4j.config';
 
 @Injectable()
 export class ProductService {

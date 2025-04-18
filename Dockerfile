@@ -1,51 +1,60 @@
-FROM node:20 AS builder
+FROM node:20-alpine AS base
 
+# Create app directory
 WORKDIR /app
 
-# Install dependencies
-COPY package*.json ./
+# Install dependencies stage
+FROM base AS deps
+COPY package.json package-lock.json ./
+
+# Install build dependencies for bcrypt and other native modules
+RUN apk add --no-cache make gcc g++ python3
+
+# Install npm dependencies
 RUN npm ci
 
-# Copy source code
+# Build stage
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Debug to verify files exist
-RUN ls -la
+# Install wget for healthcheck
+RUN apk add --no-cache wget make gcc g++ python3
 
-# Add explicit tsconfig copy if it doesn't exist
-RUN if [ ! -f tsconfig.json ]; then \
-    echo '{"compilerOptions":{"module":"commonjs","declaration":true,"removeComments":true,"emitDecoratorMetadata":true,"experimentalDecorators":true,"target":"es2017","sourceMap":true,"outDir":"./dist","baseUrl":"./","incremental":true}}' > tsconfig.json; \
-    fi
+# Clean any previous build and use NestJS CLI to build the app
+RUN rm -rf dist && \
+    npm run build
 
-# Debug tsconfig
-RUN cat tsconfig.json
-
-# Force clear dist directory if it exists
-RUN rm -rf dist
-
-# Build the application with verbose output
-RUN npm run build
-RUN ls -la dist
-
-# Production image
-FROM node:20 AS runner
-
+# Production stage
+FROM base AS runner
 WORKDIR /app
 
+# Set production environment
 ENV NODE_ENV=production
 
-# Copy necessary files from builder stage
+# Install wget for healthcheck and dependencies for bcrypt
+RUN apk add --no-cache wget
+
+# Copy built application
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
-RUN if [ -f /app/tsconfig.build.json ]; then cp /app/tsconfig.build.json ./tsconfig.build.json; fi
+COPY --from=builder /app/.env.production ./.env
 
-# Debug to verify files exist in production image
-RUN ls -la
-RUN ls -la dist || echo "dist directory not found or empty"
+# Rebuild bcrypt for the current architecture
+RUN apk add --no-cache make gcc g++ python3 && \
+    cd /app && \
+    npm rebuild bcrypt --build-from-source && \
+    apk del make gcc g++ python3
 
+# Don't run as root
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nestjs
+USER nestjs
+
+# Expose the port
 EXPOSE 3001
 
-# Use node to run the application
-CMD ["node", "dist/src/main.js"]
+# Start the application using the correct path from package.json start:prod script
+CMD ["node", "dist/main.js"] 

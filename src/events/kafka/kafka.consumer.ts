@@ -88,10 +88,13 @@ export class KafkaConsumer implements OnModuleInit {
                             case 'auto_build_pc_request':
                             case 'auto_build_pc_add_to_cart':
                             case 'auto_build_pc_customize':
+                            case 'auto_build_pc_save_config':
+                            case 'manual_build_pc_page_view':
                             case 'manual_build_pc_add_to_cart':
                             case 'manual_build_pc_component_select':
                             case 'manual_build_pc_save_config':
                             case 'manual_build_pc_export_excel':
+                            
                                 await this.eventsService.handlePCBuildEvent(
                                     eventData,
                                     eventData.eventType,

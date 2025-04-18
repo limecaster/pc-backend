@@ -33,6 +33,14 @@ export class UserBehaviorAnalyticsService {
                 events.map((event) => event.sessionId).filter(Boolean),
             );
 
+            // Pre-identify returning sessions (sessions with at least one customer ID)
+            const returningSessionsSet = new Set<string>();
+            events.forEach(event => {
+                if (event.sessionId && event.customerId) {
+                    returningSessionsSet.add(event.sessionId);
+                }
+            });
+
             // Calculate conversion rate (orders created / product views)
             const productViews = events.filter(
                 (event) => event.eventType === 'product_viewed',
@@ -161,8 +169,9 @@ export class UserBehaviorAnalyticsService {
 
             // Create a Map for tracking processed sessions to avoid duplicates
             const processedSessions = new Map();
-            // Track customer sessions for new vs returning calculation
-            const customerSessionMap = new Map<string, boolean>(); // sessionId -> isCustomer
+            
+            // Note: We no longer need customerSessionMap since we have returningSessionsSet
+            // which contains all sessions that have at least one record with customer_id
 
             for (let i = 0; i < days; i++) {
                 const date = new Date(startDate);
@@ -179,17 +188,11 @@ export class UserBehaviorAnalyticsService {
                 });
             }
 
-            // Process events by day
+            // Process events by day - group by session_id
+            const sessionsByDay = new Map();
+            
             events.forEach((event) => {
                 if (!event.sessionId) return; // Skip events without sessionId
-
-                // Track if this session belongs to a registered customer (for new vs returning stats)
-                if (
-                    event.customerId &&
-                    !customerSessionMap.has(event.sessionId)
-                ) {
-                    customerSessionMap.set(event.sessionId, true);
-                }
 
                 const eventDate = new Date(event.createdAt);
                 const dateStr = eventDate.toLocaleDateString('vi-VN', {
@@ -198,21 +201,30 @@ export class UserBehaviorAnalyticsService {
                 });
 
                 if (!dayMap.has(dateStr)) return;
-
-                const dayData = dayMap.get(dateStr);
-                const sessionKey = `${dateStr}-${event.sessionId}`;
-
-                // Check if this session was already counted for this day
-                if (!processedSessions.has(sessionKey)) {
-                    processedSessions.set(sessionKey, true);
-                    dayData.visitors++;
-
-                    if (event.customerId) {
+                
+                // Group sessions by day
+                const daySessionKey = `${dateStr}`;
+                if (!sessionsByDay.has(daySessionKey)) {
+                    sessionsByDay.set(daySessionKey, new Set());
+                }
+                sessionsByDay.get(daySessionKey).add(event.sessionId);
+            });
+            
+            // Count visitors by day based on unique sessions
+            sessionsByDay.forEach((sessionIds, dayKey) => {
+                if (!dayMap.has(dayKey)) return;
+                
+                const dayData = dayMap.get(dayKey);
+                dayData.visitors = sessionIds.size;
+                
+                // Count new vs returning based on our pre-identified returning sessions
+                sessionIds.forEach(sessionId => {
+                    if (returningSessionsSet.has(sessionId)) {
                         dayData.returningVisitors++;
                     } else {
                         dayData.newVisitors++;
                     }
-                }
+                });
             });
 
             // If we don't have enough data, generate some realistic fallback data
@@ -250,7 +262,7 @@ export class UserBehaviorAnalyticsService {
                 : uniqueSessionIds.size;
             const returningVisitors = hasValidChartData
                 ? totalReturningVisitorsFromChart
-                : customerSessionMap.size || Math.floor(totalVisitors * 0.35);
+                : returningSessionsSet.size || Math.floor(totalVisitors * 0.35);
             const newVisitors = hasValidChartData
                 ? totalNewVisitorsFromChart
                 : totalVisitors - returningVisitors ||
@@ -795,911 +807,6 @@ export class UserBehaviorAnalyticsService {
         }
     }
 
-    async getUserJourneyAnalysis(startDate: Date, endDate: Date) {
-        try {
-            // Get sequence of events for each session
-            const events = await this.userBehaviorRepository.find({
-                where: {
-                    createdAt: Between(startDate, endDate),
-                },
-                order: {
-                    sessionId: 'ASC',
-                    createdAt: 'ASC',
-                },
-            });
-
-            // Group events by session
-            const sessionMap = new Map();
-            events.forEach((event) => {
-                if (!sessionMap.has(event.sessionId)) {
-                    sessionMap.set(event.sessionId, []);
-                }
-                sessionMap.get(event.sessionId).push(event);
-            });
-
-            // Analyze journey paths
-            const pathMap = new Map();
-            const journeyLengths = [];
-            const entryPages = new Map();
-            const exitPages = new Map();
-
-            // Process each session
-            sessionMap.forEach((sessionEvents) => {
-                if (sessionEvents.length === 0) return;
-
-                // Track journey length
-                journeyLengths.push(sessionEvents.length);
-
-                // Analyze entry and exit pages
-                const firstEvent = sessionEvents[0];
-                const lastEvent = sessionEvents[sessionEvents.length - 1];
-
-                // Track entry pages
-                const entryPage = this.getPageType(firstEvent.pageUrl);
-                entryPages.set(entryPage, (entryPages.get(entryPage) || 0) + 1);
-
-                // Track exit pages
-                const exitPage = this.getPageType(lastEvent.pageUrl);
-                exitPages.set(exitPage, (exitPages.get(exitPage) || 0) + 1);
-
-                // Analyze journey paths (up to 3 steps)
-                for (let i = 0; i < sessionEvents.length - 1; i++) {
-                    const currentStep = this.getEventType(sessionEvents[i]);
-                    const nextStep = this.getEventType(sessionEvents[i + 1]);
-
-                    const pathKey = `${currentStep} → ${nextStep}`;
-                    pathMap.set(pathKey, (pathMap.get(pathKey) || 0) + 1);
-                }
-            });
-
-            // Calculate average journey length
-            const avgJourneyLength =
-                journeyLengths.length > 0
-                    ? journeyLengths.reduce((sum, length) => sum + length, 0) /
-                      journeyLengths.length
-                    : 0;
-
-            // Format output
-            return {
-                summary: {
-                    totalSessions: sessionMap.size,
-                    avgJourneyLength: parseFloat(avgJourneyLength.toFixed(1)),
-                    avgEventsPerSession: parseFloat(
-                        (events.length / Math.max(sessionMap.size, 1)).toFixed(
-                            1,
-                        ),
-                    ),
-                },
-                commonPaths: Array.from(pathMap.entries())
-                    .map(([path, count]) => ({ path, count }))
-                    .sort((a, b) => b.count - a.count)
-                    .slice(0, 10),
-                entryPages: Array.from(entryPages.entries())
-                    .map(([page, count]) => ({
-                        page,
-                        count,
-                        percentage: parseFloat(
-                            ((count / sessionMap.size) * 100).toFixed(1),
-                        ),
-                    }))
-                    .sort((a, b) => b.count - a.count),
-                exitPages: Array.from(exitPages.entries())
-                    .map(([page, count]) => ({
-                        page,
-                        count,
-                        percentage: parseFloat(
-                            ((count / sessionMap.size) * 100).toFixed(1),
-                        ),
-                    }))
-                    .sort((a, b) => b.count - a.count),
-            };
-        } catch (error) {
-            this.logger.error(
-                `Error getting user journey analysis: ${error.message}`,
-            );
-            throw error;
-        }
-    }
-
-    async getSearchAnalytics(startDate: Date, endDate: Date) {
-        try {
-            // Get all search events
-            const searchEvents = await this.userBehaviorRepository.find({
-                where: {
-                    eventType: 'search',
-                    createdAt: Between(startDate, endDate),
-                },
-            });
-
-            // Analyze search queries
-            const queryFrequency = new Map();
-            const queryResultCounts = new Map();
-            const queryWithPurchases = new Map();
-            const zeroResultQueries = new Set();
-
-            // Track when a search is followed by purchase
-            const searchPurchaseMap = new Map();
-
-            // Process search events
-            searchEvents.forEach((event) => {
-                if (!event.eventData) return;
-
-                const query = event.eventData.query?.toLowerCase() || 'unknown';
-                const resultsCount = event.eventData.resultsCount || 0;
-
-                // Track query frequency
-                queryFrequency.set(query, (queryFrequency.get(query) || 0) + 1);
-
-                // Track results counts
-                if (!queryResultCounts.has(query)) {
-                    queryResultCounts.set(query, []);
-                }
-                queryResultCounts.get(query).push(resultsCount);
-
-                // Track zero result searches
-                if (resultsCount === 0) {
-                    zeroResultQueries.add(query);
-                }
-
-                // Add to search purchase tracking
-                searchPurchaseMap.set(`${event.sessionId}-${query}`, {
-                    purchaseFollowed: false,
-                    searchTime: event.createdAt,
-                });
-            });
-
-            // Get purchase events to connect with searches
-            const purchaseEvents = await this.userBehaviorRepository.find({
-                where: {
-                    eventType: 'order_created',
-                    createdAt: Between(startDate, endDate),
-                },
-            });
-
-            // Process purchase events to see if they followed searches
-            purchaseEvents.forEach((event) => {
-                // Look for searches in the same session
-                for (const [key, value] of searchPurchaseMap.entries()) {
-                    // Only count if the key contains this session and the purchase was after search
-                    if (
-                        key.startsWith(event.sessionId) &&
-                        event.createdAt > value.searchTime
-                    ) {
-                        value.purchaseFollowed = true;
-
-                        // Extract the query from the key
-                        const query = key.split('-').slice(1).join('-');
-                        queryWithPurchases.set(
-                            query,
-                            (queryWithPurchases.get(query) || 0) + 1,
-                        );
-                    }
-                }
-            });
-
-            // Calculate search effectiveness
-            const searchToCartRate = searchEvents.length
-                ? (purchaseEvents.length / searchEvents.length) * 100
-                : 0;
-
-            // Calculate average results per query
-            const avgResultsMap = new Map();
-            queryResultCounts.forEach((counts, query) => {
-                const avg =
-                    counts.reduce((sum, count) => sum + count, 0) /
-                    counts.length;
-                avgResultsMap.set(query, avg);
-            });
-
-            // Calculate conversion rates by query
-            const conversionRates = new Map();
-            queryFrequency.forEach((count, query) => {
-                const purchases = queryWithPurchases.get(query) || 0;
-                conversionRates.set(query, {
-                    query,
-                    searches: count,
-                    conversions: purchases,
-                    rate: purchases > 0 ? (purchases / count) * 100 : 0,
-                });
-            });
-
-            return {
-                summary: {
-                    totalSearches: searchEvents.length,
-                    uniqueQueries: queryFrequency.size,
-                    zeroResultsRate:
-                        (zeroResultQueries.size /
-                            Math.max(queryFrequency.size, 1)) *
-                        100,
-                    searchToCartRate: parseFloat(searchToCartRate.toFixed(1)),
-                },
-                topQueries: Array.from(queryFrequency.entries())
-                    .map(([query, count]) => ({
-                        query,
-                        count,
-                        avgResults: Math.round(avgResultsMap.get(query) || 0),
-                        conversion:
-                            conversionRates.get(query)?.rate.toFixed(1) ||
-                            '0.0',
-                    }))
-                    .sort((a, b) => b.count - a.count)
-                    .slice(0, 10),
-                zeroResultQueries: Array.from(zeroResultQueries)
-                    .map((query) => ({
-                        query,
-                        count: queryFrequency.get(query) || 0,
-                    }))
-                    .sort((a, b) => b.count - a.count)
-                    .slice(0, 10),
-                searchConversions: Array.from(conversionRates.values())
-                    .sort((a, b) => b.rate - a.rate)
-                    .slice(0, 10)
-                    .map((item) => ({
-                        ...item,
-                        rate: parseFloat(item.rate.toFixed(1)),
-                    })),
-            };
-        } catch (error) {
-            this.logger.error(
-                `Error getting search analytics: ${error.message}`,
-            );
-            throw error;
-        }
-    }
-
-    async getUserInterestSegmentation(startDate: Date, endDate: Date) {
-        try {
-            // Get all product view and click events
-            const interactionEvents = await this.userBehaviorRepository.find({
-                where: {
-                    eventType: In(['product_viewed', 'product_click']),
-                    createdAt: Between(startDate, endDate),
-                },
-                relations: ['customer'],
-            });
-
-            // Process by category and product interest
-            const customerCategoryInterests = new Map();
-            const productInteractionCounts = new Map();
-            const sessionInterests = new Map();
-
-            interactionEvents.forEach((event) => {
-                // Extract product data
-                const productId = event.entityId;
-                const category = event.eventData?.category || 'unknown';
-
-                if (!productId) return;
-
-                // Track product interactions
-                productInteractionCounts.set(
-                    productId,
-                    (productInteractionCounts.get(productId) || 0) + 1,
-                );
-
-                // Track interests by customer if logged in
-                if (event.customerId) {
-                    if (!customerCategoryInterests.has(event.customerId)) {
-                        customerCategoryInterests.set(
-                            event.customerId,
-                            new Map(),
-                        );
-                    }
-
-                    const customerInterests = customerCategoryInterests.get(
-                        event.customerId,
-                    );
-                    customerInterests.set(
-                        category,
-                        (customerInterests.get(category) || 0) + 1,
-                    );
-                }
-
-                // Track interests by session
-                if (!sessionInterests.has(event.sessionId)) {
-                    sessionInterests.set(event.sessionId, new Map());
-                }
-
-                const sessionCategoryInterests = sessionInterests.get(
-                    event.sessionId,
-                );
-                sessionCategoryInterests.set(
-                    category,
-                    (sessionCategoryInterests.get(category) || 0) + 1,
-                );
-            });
-
-            // Calculate category popularity
-            const categoryPopularity = new Map();
-
-            // Combine both logged-in and anonymous data
-            sessionInterests.forEach((interests) => {
-                interests.forEach((count, category) => {
-                    categoryPopularity.set(
-                        category,
-                        (categoryPopularity.get(category) || 0) + count,
-                    );
-                });
-            });
-
-            // Calculate customer interests (segmentation)
-            const userSegments = [];
-            customerCategoryInterests.forEach((interests, customerId) => {
-                // Find top category for this customer
-                let topCategory = null;
-                let topCount = 0;
-
-                interests.forEach((count, category) => {
-                    if (count > topCount) {
-                        topCount = count;
-                        topCategory = category;
-                    }
-                });
-
-                if (topCategory) {
-                    userSegments.push({
-                        customerId,
-                        primaryInterest: topCategory,
-                        interactionCount: topCount,
-                        categories: Array.from(interests.entries())
-                            .map(([category, count]) => ({ category, count }))
-                            .sort((a, b) => b.count - a.count),
-                    });
-                }
-            });
-
-            return {
-                summary: {
-                    totalInteractions: interactionEvents.length,
-                    uniqueProducts: productInteractionCounts.size,
-                    uniqueCategories: categoryPopularity.size,
-                    uniqueUsers: customerCategoryInterests.size,
-                },
-                categoryPopularity: Array.from(categoryPopularity.entries())
-                    .map(([category, count]) => ({ category, count }))
-                    .sort((a, b) => b.count - a.count),
-                mostViewedProducts: Array.from(
-                    productInteractionCounts.entries(),
-                )
-                    .map(([productId, count]) => ({ productId, count }))
-                    .sort((a, b) => b.count - a.count)
-                    .slice(0, 10),
-                userSegmentation: {
-                    segments: this.categorizeUserSegments(userSegments),
-                    topUserInterests: userSegments
-                        .slice(0, 20)
-                        .map((segment) => ({
-                            customerId: segment.customerId,
-                            primaryInterest: segment.primaryInterest,
-                            interactionCount: segment.interactionCount,
-                        })),
-                },
-            };
-        } catch (error) {
-            this.logger.error(
-                `Error getting user interest segmentation: ${error.message}`,
-            );
-            throw error;
-        }
-    }
-
-    async getShoppingBehaviorPatterns(startDate: Date, endDate: Date) {
-        try {
-            // Get all relevant shopping events
-            const shoppingEvents = await this.userBehaviorRepository.find({
-                where: {
-                    eventType: In([
-                        'product_viewed',
-                        'product_added_to_cart',
-                        'product_removed_from_cart',
-                        'order_created',
-                        'payment_completed',
-                    ]),
-                    createdAt: Between(startDate, endDate),
-                },
-                order: {
-                    sessionId: 'ASC',
-                    createdAt: 'ASC',
-                },
-            });
-
-            // Group events by session to analyze behavior patterns
-            const sessionMap = new Map();
-            shoppingEvents.forEach((event) => {
-                if (!sessionMap.has(event.sessionId)) {
-                    sessionMap.set(event.sessionId, []);
-                }
-
-                sessionMap.get(event.sessionId).push(event);
-            });
-
-            // Initialize metrics
-            const timeMetrics = {
-                viewToCartTimes: [],
-                cartToCheckoutTimes: [],
-                checkoutToPaymentTimes: [],
-                totalShoppingTimes: [],
-            };
-
-            const behaviorMetrics = {
-                browseOnly: 0,
-                viewAndCart: 0,
-                cartAbandonment: 0,
-                purchaseComplete: 0,
-                multipleViews: 0,
-                cartModifications: 0,
-            };
-
-            const timeOfDayCount = Array(24).fill(0);
-            const weekdayCount = Array(7).fill(0);
-
-            // Process each session
-            sessionMap.forEach((events) => {
-                if (events.length === 0) return;
-
-                // Skip if not meaningful shopping behavior
-                if (
-                    events.length === 1 &&
-                    events[0].eventType !== 'product_viewed'
-                )
-                    return;
-
-                // Category of sessions based on behavior
-                const hasView = events.some(
-                    (e) => e.eventType === 'product_viewed',
-                );
-                const hasCart = events.some(
-                    (e) => e.eventType === 'product_added_to_cart',
-                );
-                const hasOrder = events.some(
-                    (e) => e.eventType === 'order_created',
-                );
-                const hasPayment = events.some(
-                    (e) => e.eventType === 'payment_completed',
-                );
-                const hasCartRemove = events.some(
-                    (e) => e.eventType === 'product_removed_from_cart',
-                );
-                const viewCount = events.filter(
-                    (e) => e.eventType === 'product_viewed',
-                ).length;
-
-                // Categorize based on behavior
-                if (hasView && !hasCart) {
-                    behaviorMetrics.browseOnly++;
-                } else if (hasView && hasCart && !hasOrder) {
-                    behaviorMetrics.cartAbandonment++;
-                    behaviorMetrics.viewAndCart++;
-                } else if (hasPayment || hasOrder) {
-                    behaviorMetrics.purchaseComplete++;
-                }
-
-                if (viewCount > 3) {
-                    behaviorMetrics.multipleViews++;
-                }
-
-                if (hasCart && hasCartRemove) {
-                    behaviorMetrics.cartModifications++;
-                }
-
-                // Calculate time metrics - find first occurrence of each event type
-                const firstView = events.find(
-                    (e) => e.eventType === 'product_viewed',
-                );
-                const firstCart = events.find(
-                    (e) => e.eventType === 'product_added_to_cart',
-                );
-                const firstOrder = events.find(
-                    (e) => e.eventType === 'order_created',
-                );
-                const firstPayment = events.find(
-                    (e) => e.eventType === 'payment_completed',
-                );
-
-                if (firstView && firstCart) {
-                    const viewToCartTime =
-                        (new Date(firstCart.createdAt).getTime() -
-                            new Date(firstView.createdAt).getTime()) /
-                        1000;
-                    if (viewToCartTime > 0 && viewToCartTime < 3600) {
-                        // Exclude unrealistic times
-                        timeMetrics.viewToCartTimes.push(viewToCartTime);
-                    }
-                }
-
-                if (firstCart && firstOrder) {
-                    const cartToCheckoutTime =
-                        (new Date(firstOrder.createdAt).getTime() -
-                            new Date(firstCart.createdAt).getTime()) /
-                        1000;
-                    if (cartToCheckoutTime > 0 && cartToCheckoutTime < 7200) {
-                        // Exclude unrealistic times
-                        timeMetrics.cartToCheckoutTimes.push(
-                            cartToCheckoutTime,
-                        );
-                    }
-                }
-
-                if (firstOrder && firstPayment) {
-                    const checkoutToPaymentTime =
-                        (new Date(firstPayment.createdAt).getTime() -
-                            new Date(firstOrder.createdAt).getTime()) /
-                        1000;
-                    if (
-                        checkoutToPaymentTime > 0 &&
-                        checkoutToPaymentTime < 1800
-                    ) {
-                        // Exclude unrealistic times
-                        timeMetrics.checkoutToPaymentTimes.push(
-                            checkoutToPaymentTime,
-                        );
-                    }
-                }
-
-                if (events.length > 1) {
-                    const firstEvent = events[0];
-                    const lastEvent = events[events.length - 1];
-                    const totalTime =
-                        (new Date(lastEvent.createdAt).getTime() -
-                            new Date(firstEvent.createdAt).getTime()) /
-                        1000;
-
-                    if (totalTime > 0 && totalTime < 14400) {
-                        // Less than 4 hours
-                        timeMetrics.totalShoppingTimes.push(totalTime);
-                    }
-                }
-
-                // Time of day and weekday analysis
-                events.forEach((event) => {
-                    const date = new Date(event.createdAt);
-                    const hour = date.getHours();
-                    const day = date.getDay(); // 0 = Sunday
-
-                    timeOfDayCount[hour]++;
-                    weekdayCount[day]++;
-                });
-            });
-
-            // Calculate averages
-            const avgTimes = {
-                viewToCart: this.calculateAverage(timeMetrics.viewToCartTimes),
-                cartToCheckout: this.calculateAverage(
-                    timeMetrics.cartToCheckoutTimes,
-                ),
-                checkoutToPayment: this.calculateAverage(
-                    timeMetrics.checkoutToPaymentTimes,
-                ),
-                totalShopping: this.calculateAverage(
-                    timeMetrics.totalShoppingTimes,
-                ),
-            };
-
-            // Peak hour and day analysis
-            const peakHour = timeOfDayCount.indexOf(
-                Math.max(...timeOfDayCount),
-            );
-            const peakDay = weekdayCount.indexOf(Math.max(...weekdayCount));
-            const days = [
-                'Sunday',
-                'Monday',
-                'Tuesday',
-                'Wednesday',
-                'Thursday',
-                'Friday',
-                'Saturday',
-            ];
-
-            return {
-                summary: {
-                    totalSessions: sessionMap.size,
-                    browseOnlyRate: parseFloat(
-                        (
-                            (behaviorMetrics.browseOnly / sessionMap.size) *
-                            100
-                        ).toFixed(1),
-                    ),
-                    cartAbandonmentRate: parseFloat(
-                        (
-                            (behaviorMetrics.cartAbandonment /
-                                behaviorMetrics.viewAndCart) *
-                            100
-                        ).toFixed(1),
-                    ),
-                    conversionRate: parseFloat(
-                        (
-                            (behaviorMetrics.purchaseComplete /
-                                sessionMap.size) *
-                            100
-                        ).toFixed(1),
-                    ),
-                },
-                timeMetrics: {
-                    avgViewToCartTime: Math.round(avgTimes.viewToCart), // seconds
-                    avgCartToCheckoutTime: Math.round(avgTimes.cartToCheckout), // seconds
-                    avgCheckoutToPaymentTime: Math.round(
-                        avgTimes.checkoutToPayment,
-                    ), // seconds
-                    avgTotalShoppingTime: Math.round(avgTimes.totalShopping), // seconds
-                },
-                timing: {
-                    peakHour,
-                    peakDay: days[peakDay],
-                    hourlyActivity: timeOfDayCount.map((count, hour) => ({
-                        hour,
-                        count,
-                    })),
-                    dailyActivity: weekdayCount.map((count, day) => ({
-                        day: days[day],
-                        count,
-                    })),
-                },
-                patterns: {
-                    browseOnly: behaviorMetrics.browseOnly,
-                    addToCart: behaviorMetrics.viewAndCart,
-                    cartAbandonment: behaviorMetrics.cartAbandonment,
-                    completePurchase: behaviorMetrics.purchaseComplete,
-                    multipleProductViews: behaviorMetrics.multipleViews,
-                    cartModifications: behaviorMetrics.cartModifications,
-                },
-            };
-        } catch (error) {
-            this.logger.error(
-                `Error getting shopping behavior patterns: ${error.message}`,
-            );
-            throw error;
-        }
-    }
-
-    async getDiscountImpactAnalysis(startDate: Date, endDate: Date) {
-        try {
-            // Get discount usage events
-            const discountEvents = await this.userBehaviorRepository.find({
-                where: {
-                    eventType: 'discount_usage',
-                    createdAt: Between(startDate, endDate),
-                },
-            });
-
-            // Get order created events for comparison
-            const orderEvents = await this.userBehaviorRepository.find({
-                where: {
-                    eventType: 'order_created',
-                    createdAt: Between(startDate, endDate),
-                },
-            });
-
-            // Analyze discount impact
-            let totalOrders = orderEvents.length;
-            let ordersWithDiscount = 0;
-            let totalDiscount = 0;
-            let totalOrderValue = 0;
-            let totalOrderValueWithDiscount = 0;
-
-            // Track discount usage by type
-            const discountTypeUsage = new Map();
-            const discountByDay = new Map();
-            const discountByCustomer = new Map();
-
-            // Process discount events
-            discountEvents.forEach((event) => {
-                if (!event.eventData) return;
-
-                ordersWithDiscount++;
-
-                // Track discount amount
-                const discountAmount = Number(
-                    event.eventData.discountAmount || 0,
-                );
-                totalDiscount += discountAmount;
-
-                // Track order value
-                const orderTotal = Number(event.eventData.orderTotal || 0);
-                totalOrderValueWithDiscount += orderTotal;
-
-                // Track discount by type
-                const discountType = event.eventData.discountType || 'unknown';
-                discountTypeUsage.set(
-                    discountType,
-                    (discountTypeUsage.get(discountType) || 0) + 1,
-                );
-
-                // Track discount by day
-                const date = new Date(event.createdAt)
-                    .toISOString()
-                    .split('T')[0];
-                if (!discountByDay.has(date)) {
-                    discountByDay.set(date, {
-                        date,
-                        count: 0,
-                        amount: 0,
-                        orders: 0,
-                    });
-                }
-                const dayData = discountByDay.get(date);
-                dayData.count++;
-                dayData.amount += discountAmount;
-                dayData.orders++;
-
-                // Track customer usage
-                if (event.customerId) {
-                    discountByCustomer.set(
-                        event.customerId,
-                        (discountByCustomer.get(event.customerId) || 0) + 1,
-                    );
-                }
-            });
-
-            // Calculate total order value without discounts
-            orderEvents.forEach((event) => {
-                if (!event.eventData) return;
-
-                const orderTotal = Number(event.eventData.orderTotal || 0);
-                totalOrderValue += orderTotal;
-            });
-
-            // Calculate metrics
-            const discountUsageRate = totalOrders
-                ? (ordersWithDiscount / totalOrders) * 100
-                : 0;
-            const avgDiscountPerOrder = ordersWithDiscount
-                ? totalDiscount / ordersWithDiscount
-                : 0;
-            const avgOrderValueWithDiscount = ordersWithDiscount
-                ? totalOrderValueWithDiscount / ordersWithDiscount
-                : 0;
-            const avgOrderValueWithoutDiscount =
-                totalOrders - ordersWithDiscount > 0
-                    ? (totalOrderValue - totalOrderValueWithDiscount) /
-                      (totalOrders - ordersWithDiscount)
-                    : 0;
-
-            // Calculate cart size impact - compare orders with/without discount
-            const ordersWithDiscountIds = new Set(
-                discountEvents.map((event) => event.entityId).filter(Boolean),
-            );
-
-            const cartSizeWithDiscount = [];
-            const cartSizeWithoutDiscount = [];
-
-            orderEvents.forEach((event) => {
-                if (
-                    !event.eventData ||
-                    !event.eventData.products ||
-                    !Array.isArray(event.eventData.products)
-                )
-                    return;
-
-                const cartSize = event.eventData.products.length;
-                const hasDiscount = ordersWithDiscountIds.has(event.entityId);
-
-                if (hasDiscount) {
-                    cartSizeWithDiscount.push(cartSize);
-                } else {
-                    cartSizeWithoutDiscount.push(cartSize);
-                }
-            });
-
-            const avgCartSizeWithDiscount =
-                this.calculateAverage(cartSizeWithDiscount);
-            const avgCartSizeWithoutDiscount = this.calculateAverage(
-                cartSizeWithoutDiscount,
-            );
-
-            return {
-                summary: {
-                    totalOrders,
-                    ordersWithDiscount,
-                    discountUsageRate: parseFloat(discountUsageRate.toFixed(1)),
-                    totalDiscount: parseFloat(totalDiscount.toFixed(2)),
-                    avgDiscountPerOrder: parseFloat(
-                        avgDiscountPerOrder.toFixed(2),
-                    ),
-                },
-                orderValueImpact: {
-                    avgOrderValueWithDiscount: parseFloat(
-                        avgOrderValueWithDiscount.toFixed(2),
-                    ),
-                    avgOrderValueWithoutDiscount: parseFloat(
-                        avgOrderValueWithoutDiscount.toFixed(2),
-                    ),
-                    difference: parseFloat(
-                        (
-                            avgOrderValueWithDiscount -
-                            avgOrderValueWithoutDiscount
-                        ).toFixed(2),
-                    ),
-                    percentageDifference: parseFloat(
-                        (avgOrderValueWithoutDiscount
-                            ? ((avgOrderValueWithDiscount -
-                                  avgOrderValueWithoutDiscount) /
-                                  avgOrderValueWithoutDiscount) *
-                              100
-                            : 0
-                        ).toFixed(1),
-                    ),
-                },
-                cartSizeImpact: {
-                    avgCartSizeWithDiscount: parseFloat(
-                        avgCartSizeWithDiscount.toFixed(1),
-                    ),
-                    avgCartSizeWithoutDiscount: parseFloat(
-                        avgCartSizeWithoutDiscount.toFixed(1),
-                    ),
-                    difference: parseFloat(
-                        (
-                            avgCartSizeWithDiscount - avgCartSizeWithoutDiscount
-                        ).toFixed(1),
-                    ),
-                    percentageDifference: parseFloat(
-                        (avgCartSizeWithoutDiscount
-                            ? ((avgCartSizeWithDiscount -
-                                  avgCartSizeWithoutDiscount) /
-                                  avgCartSizeWithoutDiscount) *
-                              100
-                            : 0
-                        ).toFixed(1),
-                    ),
-                },
-                usageByType: Array.from(discountTypeUsage.entries()).map(
-                    ([type, count]) => ({
-                        type,
-                        count,
-                        percentage: parseFloat(
-                            ((count / ordersWithDiscount) * 100).toFixed(1),
-                        ),
-                    }),
-                ),
-                usageByDay: Array.from(discountByDay.values()).sort(
-                    (a, b) =>
-                        new Date(a.date).getTime() - new Date(b.date).getTime(),
-                ),
-                customerUsage: {
-                    uniqueCustomers: discountByCustomer.size,
-                    repeatUsage: Array.from(discountByCustomer.values()).filter(
-                        (count) => count > 1,
-                    ).length,
-                    maxUsageByCustomer: Math.max(
-                        ...Array.from(discountByCustomer.values()),
-                        0,
-                    ),
-                },
-            };
-        } catch (error) {
-            this.logger.error(
-                `Error getting discount impact analysis: ${error.message}`,
-            );
-            throw error;
-        }
-    }
-
-    // New function to aggregate insights from user behavior in postgres joined with Product table
-    async getUserBehaviorInsights(startDate: Date, endDate: Date) {
-        try {
-            const insights = await this.userBehaviorRepository.query(
-                `
-                SELECT
-                    p.name AS product_name,
-                    COUNT(CASE WHEN ub.event_type = 'product_click' THEN 1 END) AS click_count,
-                    COUNT(CASE WHEN ub.event_type = 'product_viewed' THEN 1 END) AS view_count,
-                    COUNT(CASE WHEN ub.event_type = 'product_added_to_cart' THEN 1 END) AS add_to_cart_count,
-                    COUNT(CASE WHEN ub.event_type = 'order_created' THEN 1 END) AS order_count
-                FROM "User_Behavior" ub
-                LEFT JOIN "Products" p ON p.id::text = ub.entity_id
-                WHERE ub.created_at BETWEEN $1 AND $2
-                GROUP BY p.name
-                ORDER BY view_count DESC;
-                `,
-                [startDate, endDate],
-            );
-            return { insights };
-        } catch (error) {
-            this.logger.error(
-                `Error getting user behavior insights: ${error.message}`,
-            );
-            throw error;
-        }
-    }
-
     // Helper methods
     private getPageType(url: string): string {
         if (!url) return 'Unknown';
@@ -1746,42 +853,6 @@ export class UserBehaviorAnalyticsService {
         }
     }
 
-    private calculateAverage(values: number[]): number {
-        if (values.length === 0) return 0;
-        return values.reduce((sum, value) => sum + value, 0) / values.length;
-    }
-
-    private categorizeUserSegments(userInterests: any[]) {
-        // Group users by primary interest
-        const interestGroups = new Map();
-
-        userInterests.forEach((user) => {
-            if (!interestGroups.has(user.primaryInterest)) {
-                interestGroups.set(user.primaryInterest, []);
-            }
-            interestGroups.get(user.primaryInterest).push(user);
-        });
-
-        // Format the segments
-        return Array.from(interestGroups.entries())
-            .map(([category, users]) => ({
-                segment: category,
-                userCount: users.length,
-                percentageOfUsers: parseFloat(
-                    ((users.length / userInterests.length) * 100).toFixed(1),
-                ),
-                avgInteractionCount: parseFloat(
-                    (
-                        users.reduce(
-                            (sum, user) => sum + user.interactionCount,
-                            0,
-                        ) / users.length
-                    ).toFixed(1),
-                ),
-            }))
-            .sort((a, b) => b.userCount - a.userCount);
-    }
-
     async getPCBuildAnalytics(startDate: Date, endDate: Date) {
         try {
             // Get PC Build related events
@@ -1791,6 +862,8 @@ export class UserBehaviorAnalyticsService {
                         'auto_build_pc_request',
                         'auto_build_pc_add_to_cart',
                         'auto_build_pc_customize',
+                        'auto_build_pc_save_config',
+                        'manual_build_pc_page_view',
                         'manual_build_pc_add_to_cart',
                         'manual_build_pc_component_select',
                         'manual_build_pc_save_config',
@@ -1813,6 +886,9 @@ export class UserBehaviorAnalyticsService {
             const autoBuildCustomize = pcBuildEvents.filter(
                 (e) => e.eventType === 'auto_build_pc_customize',
             ).length;
+            const manualBuildPageView = pcBuildEvents.filter(
+                (e) => e.eventType === 'manual_build_pc_page_view',
+            ).length;
             const manualBuildAddToCart = pcBuildEvents.filter(
                 (e) => e.eventType === 'manual_build_pc_add_to_cart',
             ).length;
@@ -1826,6 +902,28 @@ export class UserBehaviorAnalyticsService {
                 (e) => e.eventType === 'pc_build_view' && e.entityId === 'manual_build_pc',
             ).length;
 
+            // Get unique sessions that viewed the manual build page
+            const manualBuildPageViewSessions = new Set(
+                pcBuildEvents
+                    .filter(e => e.eventType === 'manual_build_pc_page_view')
+                    .map(e => e.sessionId)
+                    .filter(Boolean) // Filter out null/undefined sessionIds
+            );
+
+            // Get unique sessions that had a conversion (add to cart or save config)
+            const manualBuildConversionSessions = new Set(
+                pcBuildEvents
+                    .filter(e => 
+                        e.eventType === 'manual_build_pc_add_to_cart' || 
+                        e.eventType === 'manual_build_pc_save_config'
+                    )
+                    .map(e => e.sessionId)
+                    .filter(Boolean) // Filter out null/undefined sessionIds
+            );
+
+            // Calculate manual build conversion events (add to cart)
+            const manualBuildConversions = manualBuildAddToCart;
+            
             // Calculate conversion rates
             const autoBuildConversionRate =
                 autoBuildRequests > 0
@@ -1837,13 +935,10 @@ export class UserBehaviorAnalyticsService {
                     ? (autoBuildCustomize / autoBuildRequests) * 100
                     : 0;
                     
-            // Calculate manual build conversion rate based on component selections
-            // A successful conversion is when a user adds to cart or saves a configuration
-            const manualBuildConversions = manualBuildAddToCart + manualBuildSaveConfig;
-            const manualBuildInteractions = manualBuildComponentSelect > 0 ? manualBuildComponentSelect : pcBuildViews;
+            // Calculate manual build conversion rate by simply dividing total conversions by total page views
             const manualBuildConversionRate = 
-                manualBuildInteractions > 0
-                    ? (manualBuildConversions / manualBuildInteractions) * 100
+                manualBuildPageView > 0
+                    ? (manualBuildConversions / manualBuildPageView) * 100
                     : 0;
 
             // Group by date for time series
@@ -1863,6 +958,7 @@ export class UserBehaviorAnalyticsService {
                     autoBuildRequests: 0,
                     autoBuildAddToCart: 0,
                     autoBuildCustomize: 0,
+                    manualBuildPageView: 0,
                     manualBuildAddToCart: 0,
                     manualBuildComponentSelect: 0,
                     manualBuildSaveConfig: 0,
@@ -1889,6 +985,9 @@ export class UserBehaviorAnalyticsService {
                         break;
                     case 'auto_build_pc_customize':
                         dayData.autoBuildCustomize++;
+                        break;
+                    case 'manual_build_pc_page_view':
+                        dayData.manualBuildPageView++;
                         break;
                     case 'manual_build_pc_add_to_cart':
                         dayData.manualBuildAddToCart++;
@@ -2026,6 +1125,7 @@ export class UserBehaviorAnalyticsService {
                     autoBuildRequests,
                     autoBuildAddToCart,
                     autoBuildCustomize,
+                    manualBuildPageView,
                     manualBuildAddToCart,
                     manualBuildComponentSelect,
                     manualBuildSaveConfig,

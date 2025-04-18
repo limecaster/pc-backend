@@ -11,7 +11,7 @@ declare global {
         }
 
         interface Request {
-            user?: any;  // The user property added by the Auth middleware
+            user?: any; // The user property added by the Auth middleware
         }
     }
 }

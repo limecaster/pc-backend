@@ -35,7 +35,7 @@ export class UserBehaviorAnalyticsService {
 
             // Pre-identify returning sessions (sessions with at least one customer ID)
             const returningSessionsSet = new Set<string>();
-            events.forEach(event => {
+            events.forEach((event) => {
                 if (event.sessionId && event.customerId) {
                     returningSessionsSet.add(event.sessionId);
                 }
@@ -169,7 +169,7 @@ export class UserBehaviorAnalyticsService {
 
             // Create a Map for tracking processed sessions to avoid duplicates
             const processedSessions = new Map();
-            
+
             // Note: We no longer need customerSessionMap since we have returningSessionsSet
             // which contains all sessions that have at least one record with customer_id
 
@@ -190,7 +190,7 @@ export class UserBehaviorAnalyticsService {
 
             // Process events by day - group by session_id
             const sessionsByDay = new Map();
-            
+
             events.forEach((event) => {
                 if (!event.sessionId) return; // Skip events without sessionId
 
@@ -201,7 +201,7 @@ export class UserBehaviorAnalyticsService {
                 });
 
                 if (!dayMap.has(dateStr)) return;
-                
+
                 // Group sessions by day
                 const daySessionKey = `${dateStr}`;
                 if (!sessionsByDay.has(daySessionKey)) {
@@ -209,16 +209,16 @@ export class UserBehaviorAnalyticsService {
                 }
                 sessionsByDay.get(daySessionKey).add(event.sessionId);
             });
-            
+
             // Count visitors by day based on unique sessions
             sessionsByDay.forEach((sessionIds, dayKey) => {
                 if (!dayMap.has(dayKey)) return;
-                
+
                 const dayData = dayMap.get(dayKey);
                 dayData.visitors = sessionIds.size;
-                
+
                 // Count new vs returning based on our pre-identified returning sessions
-                sessionIds.forEach(sessionId => {
+                sessionIds.forEach((sessionId) => {
                     if (returningSessionsSet.has(sessionId)) {
                         dayData.returningVisitors++;
                     } else {
@@ -875,7 +875,7 @@ export class UserBehaviorAnalyticsService {
                     createdAt: 'ASC',
                 },
             });
-            
+
             // Initialize analytics data structure
             const autoBuildRequests = pcBuildEvents.filter(
                 (e) => e.eventType === 'auto_build_pc_request',
@@ -899,31 +899,34 @@ export class UserBehaviorAnalyticsService {
                 (e) => e.eventType === 'manual_build_pc_save_config',
             ).length;
             const pcBuildViews = pcBuildEvents.filter(
-                (e) => e.eventType === 'pc_build_view' && e.entityId === 'manual_build_pc',
+                (e) =>
+                    e.eventType === 'pc_build_view' &&
+                    e.entityId === 'manual_build_pc',
             ).length;
 
             // Get unique sessions that viewed the manual build page
             const manualBuildPageViewSessions = new Set(
                 pcBuildEvents
-                    .filter(e => e.eventType === 'manual_build_pc_page_view')
-                    .map(e => e.sessionId)
-                    .filter(Boolean) // Filter out null/undefined sessionIds
+                    .filter((e) => e.eventType === 'manual_build_pc_page_view')
+                    .map((e) => e.sessionId)
+                    .filter(Boolean), // Filter out null/undefined sessionIds
             );
 
             // Get unique sessions that had a conversion (add to cart or save config)
             const manualBuildConversionSessions = new Set(
                 pcBuildEvents
-                    .filter(e => 
-                        e.eventType === 'manual_build_pc_add_to_cart' || 
-                        e.eventType === 'manual_build_pc_save_config'
+                    .filter(
+                        (e) =>
+                            e.eventType === 'manual_build_pc_add_to_cart' ||
+                            e.eventType === 'manual_build_pc_save_config',
                     )
-                    .map(e => e.sessionId)
-                    .filter(Boolean) // Filter out null/undefined sessionIds
+                    .map((e) => e.sessionId)
+                    .filter(Boolean), // Filter out null/undefined sessionIds
             );
 
             // Calculate manual build conversion events (add to cart)
             const manualBuildConversions = manualBuildAddToCart;
-            
+
             // Calculate conversion rates
             const autoBuildConversionRate =
                 autoBuildRequests > 0
@@ -934,9 +937,9 @@ export class UserBehaviorAnalyticsService {
                 autoBuildRequests > 0
                     ? (autoBuildCustomize / autoBuildRequests) * 100
                     : 0;
-                    
+
             // Calculate manual build conversion rate by simply dividing total conversions by total page views
-            const manualBuildConversionRate = 
+            const manualBuildConversionRate =
                 manualBuildPageView > 0
                     ? (manualBuildConversions / manualBuildPageView) * 100
                     : 0;
@@ -1035,7 +1038,7 @@ export class UserBehaviorAnalyticsService {
                     !event.eventData
                 )
                     return;
-                
+
                 const userInput = event.eventData.userInput || 'Unknown';
 
                 const key = `${userInput}`;
@@ -1053,68 +1056,130 @@ export class UserBehaviorAnalyticsService {
             // Process user input text for word cloud
             const userInputWordCounts = new Map();
             const vietnameseStopwords = [
-                'của', 'và', 'một', 'trong', 'cho', 'với', 'các', 'là', 'để', 'có',
-                'không', 'được', 'tại', 'những', 'này', 'khoảng', 'từ', 'đến',
-                'như', 'trên', 'dưới', 'đã', 'sẽ', 'cần', 'phải', 'về', 'bởi',
-                'vì', 'nhưng', 'vẫn', 'rằng', 'thì', 'làm', 'cùng', 'nên',
-                'theo', 'đây', 'đó', 'nếu', 'nào', 'sao', 'mà', 'thế',
-                'ai', 'sau', 'ở', 'cả', 'đều', 'lên', 'xuống', 'đi', 'lại'
+                'của',
+                'và',
+                'một',
+                'trong',
+                'cho',
+                'với',
+                'các',
+                'là',
+                'để',
+                'có',
+                'không',
+                'được',
+                'tại',
+                'những',
+                'này',
+                'khoảng',
+                'từ',
+                'đến',
+                'như',
+                'trên',
+                'dưới',
+                'đã',
+                'sẽ',
+                'cần',
+                'phải',
+                'về',
+                'bởi',
+                'vì',
+                'nhưng',
+                'vẫn',
+                'rằng',
+                'thì',
+                'làm',
+                'cùng',
+                'nên',
+                'theo',
+                'đây',
+                'đó',
+                'nếu',
+                'nào',
+                'sao',
+                'mà',
+                'thế',
+                'ai',
+                'sau',
+                'ở',
+                'cả',
+                'đều',
+                'lên',
+                'xuống',
+                'đi',
+                'lại',
             ];
 
             const autoBuildRequestEvents = pcBuildEvents.filter(
-                (e) => e.eventType === 'auto_build_pc_request' && e.eventData && e.eventData.userInput
+                (e) =>
+                    e.eventType === 'auto_build_pc_request' &&
+                    e.eventData &&
+                    e.eventData.userInput,
             );
-            
-            autoBuildRequestEvents.forEach(event => {
+
+            autoBuildRequestEvents.forEach((event) => {
                 if (!event.eventData.userInput) return;
-                
+
                 // Convert to lowercase and split by spaces or punctuation
                 const userInput = event.eventData.userInput.toLowerCase();
-                const words = userInput.split(/[\s,.!?;:()[\]{}'"\/\\-]+/).filter(word => 
-                    // Filter out empty strings, numbers, and stopwords
-                    word && 
-                    word.length > 1 && 
-                    !vietnameseStopwords.includes(word) &&
-                    !/^\d+$/.test(word)
-                );
-                
+                const words = userInput
+                    .split(/[\s,.!?;:()[\]{}'"\/\\-]+/)
+                    .filter(
+                        (word) =>
+                            // Filter out empty strings, numbers, and stopwords
+                            word &&
+                            word.length > 1 &&
+                            !vietnameseStopwords.includes(word) &&
+                            !/^\d+$/.test(word),
+                    );
+
                 // Count occurrences of each word
-                words.forEach(word => {
+                words.forEach((word) => {
                     userInputWordCounts.set(
-                        word, 
-                        (userInputWordCounts.get(word) || 0) + 1
+                        word,
+                        (userInputWordCounts.get(word) || 0) + 1,
                     );
                 });
             });
 
             // Extract key terms related to PC purposes and budgets
-            const purposeTerms = ['gaming', 'game', 'chơi', 'văn phòng', 'làm việc', 'đồ họa', 'thiết kế', 'stream', 'học tập'];
+            const purposeTerms = [
+                'gaming',
+                'game',
+                'chơi',
+                'văn phòng',
+                'làm việc',
+                'đồ họa',
+                'thiết kế',
+                'stream',
+                'học tập',
+            ];
             const purposeWordCounts = new Map();
-            
-            autoBuildRequestEvents.forEach(event => {
+
+            autoBuildRequestEvents.forEach((event) => {
                 if (!event.eventData.userInput) return;
-                
+
                 const userInput = event.eventData.userInput.toLowerCase();
-                
+
                 // Check for purpose-related terms
-                purposeTerms.forEach(term => {
+                purposeTerms.forEach((term) => {
                     if (userInput.includes(term)) {
                         purposeWordCounts.set(
-                            term, 
-                            (purposeWordCounts.get(term) || 0) + 1
+                            term,
+                            (purposeWordCounts.get(term) || 0) + 1,
                         );
                     }
                 });
-                
+
                 // Extract budget information using regex
                 const budgetRegex = /(\d+)\s*(triệu|tr|m|million)/i;
                 const budgetMatch = userInput.match(budgetRegex);
-                
+
                 if (budgetMatch) {
                     const budget = `${budgetMatch[1]} triệu`;
                     purposeWordCounts.set(
-                        budget, 
-                        (purposeWordCounts.get(budget) || 0) + 1
+                        budget,
+                        (purposeWordCounts.get(budget) || 0) + 1,
                     );
                 }
             });
@@ -1145,7 +1210,7 @@ export class UserBehaviorAnalyticsService {
                 buildConfigurations: Array.from(
                     buildConfigurations.values(),
                 ).sort((a, b) => b.count - a.count),
-                
+
                 wordCloud: {
                     // Convert word counts to array format for visualization
                     words: Array.from(userInputWordCounts.entries())
@@ -1154,8 +1219,8 @@ export class UserBehaviorAnalyticsService {
                         .slice(0, 50), // Limit to top 50 words
                     purposeAnalysis: Array.from(purposeWordCounts.entries())
                         .map(([text, value]) => ({ text, value }))
-                        .sort((a, b) => b.value - a.value)
-                }
+                        .sort((a, b) => b.value - a.value),
+                },
             };
         } catch (error) {
             this.logger.error(
@@ -1181,8 +1246,8 @@ export class UserBehaviorAnalyticsService {
                 buildConfigurations: [],
                 wordCloud: {
                     words: [],
-                    purposeAnalysis: []
-                }
+                    purposeAnalysis: [],
+                },
             };
         }
     }

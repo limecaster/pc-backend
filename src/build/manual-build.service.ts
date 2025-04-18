@@ -196,13 +196,11 @@ export class ManualBuildService {
                     query += `
                     AND compatible.type = 'SSD'
                     `;
-                    
                 } else if (originalTargetLabel === 'HDD') {
                     // Filter for non-SSD storage types
                     query += `
                     AND (compatible.type <> 'SSD' OR compatible.type IS NULL)
                     `;
-                    
                 }
 
                 if (searchTerm) {
@@ -259,12 +257,10 @@ export class ManualBuildService {
             // Add storage type filtering for SSD and HDD
             if (originalTargetLabel === 'SSD') {
                 whereConditions.push("compatible.type = 'SSD'");
-             
             } else if (originalTargetLabel === 'HDD') {
                 whereConditions.push(
                     "(compatible.type <> 'SSD' OR compatible.type IS NULL)",
                 );
-               
             }
 
             if (searchTerm) {

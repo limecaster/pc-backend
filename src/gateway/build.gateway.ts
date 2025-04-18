@@ -13,7 +13,7 @@ import { Socket, Server } from 'socket.io';
 export class BuildGateway {
     @WebSocketServer()
     server: Server;
-    
+
     private userRooms = new Map<string, string>();
 
     public sendConfigUpdate(config: any, userId: string) {
@@ -41,22 +41,19 @@ export class BuildGateway {
     @SubscribeMessage('subscribeAutoBuild')
     handleSubscription(
         @MessageBody() message: { userId: string },
-        @ConnectedSocket() client: Socket
+        @ConnectedSocket() client: Socket,
     ) {
         const userId = message.userId || client.id;
-        
+
         // Store mapping between userId and socket room
         this.userRooms.set(userId, client.id);
-        
+
         // Join client to their own room
         client.join(client.id);
-        
-        client.emit(
-            'autoBuildSubscribed',
-            {
-                message: 'Auto Build Subscription Successful',
-                userId: userId
-            }
-        );
+
+        client.emit('autoBuildSubscribed', {
+            message: 'Auto Build Subscription Successful',
+            userId: userId,
+        });
     }
 }

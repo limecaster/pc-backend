@@ -42,7 +42,6 @@ import { BuildStateService } from './build/build-state.service';
             isGlobal: true,
             envFilePath: '.env',
             validationSchema: Joi.object({
-
                 ML_API_URL: Joi.string().default('http://localhost:8003'),
             }),
         }),

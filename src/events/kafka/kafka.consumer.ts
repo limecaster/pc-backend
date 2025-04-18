@@ -94,7 +94,6 @@ export class KafkaConsumer implements OnModuleInit {
                             case 'manual_build_pc_component_select':
                             case 'manual_build_pc_save_config':
                             case 'manual_build_pc_export_excel':
-                            
                                 await this.eventsService.handlePCBuildEvent(
                                     eventData,
                                     eventData.eventType,

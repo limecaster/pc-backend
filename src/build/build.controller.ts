@@ -89,12 +89,14 @@ export class BuildController {
     @Post('auto-build')
     async autoBuild(
         @Body('userInput') userInput: string,
-        @Body('userId') userId?: string
+        @Body('userId') userId?: string,
     ) {
         //console.log(await this.autoBuildService.autoBuildAllOptions(userInput));
         //const result = await this.autoBuildService.autoBuildAllOptions(userInput);
-        const result2 =
-            await this.autoBuildService.getAllPCConfigurations(userInput, userId);
+        const result2 = await this.autoBuildService.getAllPCConfigurations(
+            userInput,
+            userId,
+        );
 
         return result2;
     }

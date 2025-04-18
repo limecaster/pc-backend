@@ -14,7 +14,6 @@ export class EmailService {
     }
 
     private async setupTransporter() {
- 
         const mailUser = this.configService.get('MAIL_USER');
         const mailPassword = this.configService.get('MAIL_PASSWORD');
         if (

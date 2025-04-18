@@ -83,7 +83,7 @@ export class AuthService {
         };
 
         const token = this.jwtService.sign(payload, {
-            expiresIn: this.jwtConstants.accessTokenExpiry
+            expiresIn: this.jwtConstants.accessTokenExpiry,
         });
 
         const refreshToken = this.jwtService.sign(
@@ -217,7 +217,7 @@ export class AuthService {
         };
 
         const accessToken = this.jwtService.sign(payload, {
-            expiresIn: this.jwtConstants.accessTokenExpiry
+            expiresIn: this.jwtConstants.accessTokenExpiry,
         });
         const refreshToken = this.jwtService.sign(payload, {
             expiresIn: this.jwtConstants.refreshTokenExpiry,
@@ -253,13 +253,16 @@ export class AuthService {
 
             const { sub, email, role } = payload;
 
-            const newAccessToken = this.jwtService.sign({
-                email,
-                sub,
-                role,
-            }, {
-                expiresIn: this.jwtConstants.accessTokenExpiry
-            });
+            const newAccessToken = this.jwtService.sign(
+                {
+                    email,
+                    sub,
+                    role,
+                },
+                {
+                    expiresIn: this.jwtConstants.accessTokenExpiry,
+                },
+            );
 
             return {
                 access_token: newAccessToken,

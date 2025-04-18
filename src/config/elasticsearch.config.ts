@@ -12,13 +12,18 @@ export class ElasticsearchConfigService {
         const host =
             this.configService.get<string>('ELASTICSEARCH_HOST') ||
             'http://localhost:9200';
-        
+
         // Check if security is enabled (based on username/password being provided)
-        const username = this.configService.get<string>('ELASTICSEARCH_USERNAME');
-        const password = this.configService.get<string>('ELASTICSEARCH_PASSWORD');
+        const username = this.configService.get<string>(
+            'ELASTICSEARCH_USERNAME',
+        );
+        const password = this.configService.get<string>(
+            'ELASTICSEARCH_PASSWORD',
+        );
         console.log(username, password);
-        const securityEnabled = username && password && username.length > 0 && password.length > 0;
-        
+        const securityEnabled =
+            username && password && username.length > 0 && password.length > 0;
+
         if (securityEnabled) {
             // Configure with authentication
             this.logger.log('Configuring Elasticsearch with authentication');

@@ -162,9 +162,14 @@ export class AutoBuildService {
         userId: string,
     ) {
         const userState = this.buildStateService.getUserState(userId);
-        
-        if (userState.preferredPartsCache.userInput === autoBuildDto.userInput) {
-            Object.assign(preferredPartsData, userState.preferredPartsCache.data);
+
+        if (
+            userState.preferredPartsCache.userInput === autoBuildDto.userInput
+        ) {
+            Object.assign(
+                preferredPartsData,
+                userState.preferredPartsCache.data,
+            );
             return;
         }
 
@@ -231,8 +236,8 @@ export class AutoBuildService {
 
         if (inputChanged) {
             userState.lastUserInputHash = newUserInput;
-            userState.partCache.clear(); 
-            userState.lastBudgetSnapshot = {}; 
+            userState.partCache.clear();
+            userState.lastBudgetSnapshot = {};
             return true;
         }
 
@@ -246,7 +251,7 @@ export class AutoBuildService {
         userId: string,
     ) {
         const userState = this.buildStateService.getUserState(userId);
-        
+
         this.shouldRefreshCache(
             budgetAllocation,
             userState.preferredPartsCache.userInput,
@@ -317,7 +322,8 @@ export class AutoBuildService {
                 userState.removedCandidates[sortOption] &&
                 userState.removedCandidates[sortOption][part]
             ) {
-                const removedNames = userState.removedCandidates[sortOption][part];
+                const removedNames =
+                    userState.removedCandidates[sortOption][part];
                 parts = parts.filter(
                     (item) => !removedNames.includes(item.name),
                 );
@@ -328,7 +334,8 @@ export class AutoBuildService {
             if (!userState.lastBudgetSnapshot[sortOption]) {
                 userState.lastBudgetSnapshot[sortOption] = {};
             }
-            userState.lastBudgetSnapshot[sortOption][part] = budgetAllocation[part];
+            userState.lastBudgetSnapshot[sortOption][part] =
+                budgetAllocation[part];
 
             userState.partPools[sortOption][part] = parts;
         }
@@ -399,7 +406,7 @@ export class AutoBuildService {
         userId: string,
     ): Promise<PCConfiguration> {
         const userState = this.buildStateService.getUserState(userId);
-        
+
         // Reset budget and reduce flag for each option
         autoBuildDto.budget = autoBuildDto.initialBudget;
         userState.isReducePreferredParts = false;
@@ -432,7 +439,13 @@ export class AutoBuildService {
             userState.partPools[optionType],
         );
         if (!this.isCompleteConfiguration(pcConfig)) {
-            pcConfig = await this.backtrackAndRebuild(autoBuildDto, pcConfig, 0, 0, userId);
+            pcConfig = await this.backtrackAndRebuild(
+                autoBuildDto,
+                pcConfig,
+                0,
+                0,
+                userId,
+            );
         }
         session.close();
         return pcConfig;
@@ -579,8 +592,11 @@ export class AutoBuildService {
         lastBudgetIncrease = 0,
         userId: string,
     ): Promise<PCConfiguration> {
-        const { preferredParts, otherParts } =
-            await this.allocateBudget(autoBuildDto, 'performance', userId);
+        const { preferredParts, otherParts } = await this.allocateBudget(
+            autoBuildDto,
+            'performance',
+            userId,
+        );
         const configuration = new PCConfiguration();
         Object.assign(configuration, partialConfig);
 
@@ -692,14 +708,17 @@ export class AutoBuildService {
         }
     }
 
-    public async getAllPCConfigurations(userInput: string, userId?: string): Promise<{
+    public async getAllPCConfigurations(
+        userInput: string,
+        userId?: string,
+    ): Promise<{
         performance: PCConfiguration[];
         popular: PCConfiguration[];
     }> {
         // Generate a userId if not provided
         const sessionId = userId || `anonymous-${uuidv4()}`;
         const userState = this.buildStateService.getUserState(sessionId);
-        
+
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
         const options = ['performance', 'popular'] as const;
@@ -723,7 +742,11 @@ export class AutoBuildService {
             while (attempts < maxAttempts) {
                 // Reset budget for each attempt.
                 autoBuildDto.budget = autoBuildDto.initialBudget;
-                const config = await this.buildOption(autoBuildDto, option, sessionId);
+                const config = await this.buildOption(
+                    autoBuildDto,
+                    option,
+                    sessionId,
+                );
                 if (!this.isCompleteConfiguration(config)) break;
 
                 const configStr = JSON.stringify(config);
@@ -746,7 +769,8 @@ export class AutoBuildService {
                     if (candidateName) {
                         // Record the removal persistently.
                         if (!userState.removedCandidates[option][randomLabel]) {
-                            userState.removedCandidates[option][randomLabel] = [];
+                            userState.removedCandidates[option][randomLabel] =
+                                [];
                         }
                         userState.removedCandidates[option][randomLabel].push(
                             candidateName,

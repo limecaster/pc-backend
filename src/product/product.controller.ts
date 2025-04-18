@@ -379,9 +379,48 @@ export class ProductController {
         @Query('minPrice') minPrice?: number,
         @Query('maxPrice') maxPrice?: number,
         @Query('minRating') minRating?: number,
+        @Query('category') category?: string,
+        @Query('subcategories') subcategoriesParam?: string,
     ): Promise<PaginatedProductsResponse> {
         try {
             const brands = brandsParam ? brandsParam.split(',') : undefined;
+            
+            let subcategoryFilters: Record<string, string[]> | undefined;
+
+            if (subcategoriesParam) {
+                try {
+                    const decodedParam = decodeURIComponent(subcategoriesParam);
+                    subcategoryFilters = JSON.parse(decodedParam);
+
+                    if (
+                        typeof subcategoryFilters !== 'object' ||
+                        subcategoryFilters === null
+                    ) {
+                        throw new BadRequestException(
+                            'Subcategories must be a valid object',
+                        );
+                    }
+
+                    Object.entries(subcategoryFilters).forEach(
+                        ([key, value]) => {
+                            if (!Array.isArray(value)) {
+                                subcategoryFilters[key] = [String(value)];
+                            } else if (value.length === 0) {
+                                delete subcategoryFilters[key];
+                            }
+                        },
+                    );
+
+                    if (Object.keys(subcategoryFilters).length === 0) {
+                        subcategoryFilters = undefined;
+                    }
+                } catch (parseError) {
+                    throw new BadRequestException(
+                        'Invalid JSON in subcategories parameter',
+                    );
+                }
+            }
+            
             const result = await this.productService.searchByName(
                 query,
                 page,
@@ -390,6 +429,8 @@ export class ProductController {
                 minPrice,
                 maxPrice,
                 minRating,
+                category,
+                subcategoryFilters,
             );
 
             if (result.products && Array.isArray(result.products)) {

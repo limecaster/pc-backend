@@ -114,6 +114,7 @@ export class ProductQueryService {
         page: number = 1,
         limit: number = 12,
         whereClause: any = {},
+        category?: string,
     ): Promise<{
         products: Product[];
         total: number;
@@ -122,23 +123,55 @@ export class ProductQueryService {
     }> {
         try {
             const offset = (page - 1) * limit;
+            const queryBuilder = this.productRepository.createQueryBuilder('product');
 
             // Add search term
-            whereClause.name = ILike(`%${query}%`);
+            queryBuilder.where('LOWER(product.name) LIKE LOWER(:query)', { 
+                query: `%${query}%` 
+            });
 
             // Add status filter
-            whereClause.status = 'active';
+            queryBuilder.andWhere('product.status = :status', { status: 'active' });
 
-            const totalCount = await this.productRepository.count({
-                where: whereClause,
-            });
+            // Add category filter if provided
+            if (category) {
+                queryBuilder.andWhere('product.category = :category', { category });
+            }
 
-            const products = await this.productRepository.find({
-                where: whereClause,
-                order: { createdAt: 'DESC' },
-                skip: offset,
-                take: limit,
-            });
+            // Add price filtering if provided
+            if (whereClause.price_gte !== undefined) {
+                queryBuilder.andWhere('product.price >= :minPrice', {
+                    minPrice: whereClause.price_gte,
+                });
+            }
+
+            if (whereClause.price_lte !== undefined) {
+                queryBuilder.andWhere('product.price <= :maxPrice', {
+                    maxPrice: whereClause.price_lte,
+                });
+            }
+
+            // Add product IDs filter if provided (used for subcategory filtering)
+            if (whereClause.id && whereClause.id instanceof In && 
+                Array.isArray(whereClause.id.value) && whereClause.id.value.length > 0) {
+                // Ensure IDs are strings and not duplicated
+                const uniqueStringIds = [...new Set(whereClause.id.value.map((id: any) => String(id)))];
+                queryBuilder.andWhere('product.id IN (:...filteredIds)', {
+                    filteredIds: uniqueStringIds,
+                });
+            }
+
+            // Count total results for pagination
+            const totalCount = await queryBuilder.getCount();
+
+            // Add pagination and ordering
+            queryBuilder
+                .orderBy('product.createdAt', 'DESC')
+                .skip(offset)
+                .take(limit);
+
+            // Execute query
+            const products = await queryBuilder.getMany();
 
             return {
                 products,

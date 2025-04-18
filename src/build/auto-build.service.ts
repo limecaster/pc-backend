@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Neo4jConfigService } from 'config/neo4j.config';
+import { Neo4jConfigService } from 'src/config/neo4j.config';
 import {
     AutoBuildDto,
     BudgetAllocation,
@@ -9,8 +9,10 @@ import {
 } from 'src/build/dto/auto-build.dto';
 import { SpacyService } from '../build/spacy.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
-import { UtilsService } from '../../service/utils.service';
-import { BuildGateway } from '../../gateway/build.gateway';
+import { UtilsService } from '../service/utils.service';
+import { BuildStateService } from './build-state.service';
+import { BuildGateway } from '../gateway/build.gateway';
+import { v4 as uuidv4 } from 'uuid'; // You may need to install this package
 
 @Injectable()
 export class AutoBuildService {
@@ -37,41 +39,6 @@ export class AutoBuildService {
         },
     };
 
-    private isReducePreferredParts = false;
-
-    private partPools = {
-        saving: {
-            CPU: [],
-            Motherboard: [],
-            RAM: [],
-            InternalHardDrive: [],
-            GraphicsCard: [],
-            PowerSupply: [],
-            Case: [],
-            CPUCooler: [],
-        },
-        performance: {
-            CPU: [],
-            Motherboard: [],
-            RAM: [],
-            InternalHardDrive: [],
-            GraphicsCard: [],
-            PowerSupply: [],
-            Case: [],
-            CPUCooler: [],
-        },
-        popular: {
-            CPU: [],
-            Motherboard: [],
-            RAM: [],
-            InternalHardDrive: [],
-            GraphicsCard: [],
-            PowerSupply: [],
-            Case: [],
-            CPUCooler: [],
-        },
-    };
-
     private partOrder = [
         'CPU',
         'CPUCooler',
@@ -89,6 +56,7 @@ export class AutoBuildService {
         private readonly checkCompatibilityService: CheckCompatibilityService,
         private readonly utilsService: UtilsService,
         private readonly buildGateway: BuildGateway,
+        private readonly buildStateService: BuildStateService,
     ) {}
 
     private async extractUserInput(userInput: string): Promise<AutoBuildDto> {
@@ -144,7 +112,9 @@ export class AutoBuildService {
     private async allocateBudget(
         autoBuildDto: AutoBuildDto,
         optionType: 'saving' | 'performance' | 'popular' = 'saving',
+        userId: string,
     ): Promise<{ preferredParts: PartsData; otherParts: PartsData }> {
+        const userState = this.buildStateService.getUserState(userId);
         const session = this.neo4jConfigService.getDriver().session();
         const preferredPartsData = new PartsData();
         const budgetAllocation = {
@@ -155,25 +125,23 @@ export class AutoBuildService {
             autoBuildDto,
             session,
             preferredPartsData,
+            userId,
         );
 
-        // This is a trick to get more parts for the same budget, which is easier to build a PC
-        // If there is a preferred part, add 0.15 to all weights
         if (autoBuildDto.preferredParts.length > 0) {
             for (const part in budgetAllocation) {
                 budgetAllocation[part] += 0.15;
             }
         } else {
-            // If there is no preferred part, add 0.1 to all weights
             for (const part in budgetAllocation) {
                 budgetAllocation[part] += 0.1;
             }
         }
 
-        if (!this.isReducePreferredParts) {
+        if (!userState.isReducePreferredParts) {
             autoBuildDto.budget -=
                 this.calculatePreferredPartsCost(preferredPartsData);
-            this.isReducePreferredParts = true;
+            userState.isReducePreferredParts = true;
         }
 
         this.allocateRemainingBudget(autoBuildDto, budgetAllocation);
@@ -181,32 +149,22 @@ export class AutoBuildService {
             session,
             budgetAllocation,
             optionType,
+            userId,
         );
-        const otherParts = this.partPools[optionType];
+        const otherParts = userState.partPools[optionType];
         return { preferredParts: preferredPartsData, otherParts };
     }
-
-    private preferredPartsCache = {
-        userInput: '',
-        data: {
-            CPU: {},
-            Motherboard: {},
-            RAM: {},
-            InternalHardDrive: {},
-            GraphicsCard: {},
-            PowerSupply: {},
-            Case: {},
-            CPUCooler: {},
-        },
-    };
 
     private async fetchPreferredPartsData(
         autoBuildDto: AutoBuildDto,
         session: any,
         preferredPartsData: PartsData,
+        userId: string,
     ) {
-        if (this.preferredPartsCache.userInput === autoBuildDto.userInput) {
-            Object.assign(preferredPartsData, this.preferredPartsCache.data);
+        const userState = this.buildStateService.getUserState(userId);
+        
+        if (userState.preferredPartsCache.userInput === autoBuildDto.userInput) {
+            Object.assign(preferredPartsData, userState.preferredPartsCache.data);
             return;
         }
 
@@ -238,8 +196,8 @@ export class AutoBuildService {
                 return properties;
             });
         }
-        this.preferredPartsCache.userInput = autoBuildDto.userInput;
-        this.preferredPartsCache.data = preferredPartsData;
+        userState.preferredPartsCache.userInput = autoBuildDto.userInput;
+        userState.preferredPartsCache.data = preferredPartsData;
     }
 
     private getIndexName(label: string): string {
@@ -263,135 +221,60 @@ export class AutoBuildService {
         }
     }
 
-    private partCache: Map<string, any> = new Map();
-    private lastBudgetSnapshot: Record<string, Record<string, number>> = {};
-    private lastUserInputHash: string | null = null;
-
     private shouldRefreshCache(
         newBudget: BudgetAllocation,
         newUserInput: string,
+        userId: string,
     ): boolean {
-        const inputChanged = this.lastUserInputHash !== newUserInput;
+        const userState = this.buildStateService.getUserState(userId);
+        const inputChanged = userState.lastUserInputHash !== newUserInput;
 
         if (inputChanged) {
-            this.lastUserInputHash = newUserInput;
-            this.partCache.clear(); // Clear cache when input changes
-            this.lastBudgetSnapshot = {}; // Reset budget snapshot
+            userState.lastUserInputHash = newUserInput;
+            userState.partCache.clear(); 
+            userState.lastBudgetSnapshot = {}; 
             return true;
         }
 
         return false;
     }
 
-    // private async fetchPartsWithinBudget(
-    //     session: any,
-    //     budgetAllocation: BudgetAllocation,
-    //     sortOption: 'saving' | 'performance' | 'popular',
-    // ) {
-    //     const startTime = new Date().getTime();
-    //     console.log(budgetAllocation);
-    //     this.shouldRefreshCache(
-    //         budgetAllocation,
-    //         this.preferredPartsCache.userInput,
-    //     );
-
-    //     for (const part in budgetAllocation) {
-    //         const cacheKey = `${part}-${budgetAllocation[part]}-${sortOption}`;
-
-    //         // Check if budget changed for this part type
-    //         const lastBudgetForPart =
-    //             this.lastBudgetSnapshot[sortOption]?.[part];
-    //         if (
-    //             this.partCache.has(cacheKey) &&
-    //             lastBudgetForPart === budgetAllocation[part]
-    //         ) {
-    //             console.log(`Cache hit for ${cacheKey}`);
-    //             this.partPools[sortOption][part] = this.partCache.get(cacheKey);
-    //             continue;
-    //         }
-
-    //         let orderClause = 'ORDER BY part.price ASC';
-    //         if (sortOption === 'performance') {
-    //             orderClause = 'ORDER BY part.benchmarkScore DESC';
-    //         } else if (sortOption === 'popular') {
-    //             orderClause = 'ORDER BY part.solds DESC';
-    //         }
-
-    //         const query = `
-    //         MATCH (part:${part})
-    //         WHERE part.price IS NOT NULL AND part.price <= $price
-    //         ${orderClause}
-    //         RETURN part
-    //         `;
-
-    //         const result = await session.run(query, {
-    //             price: budgetAllocation[part],
-    //         });
-
-    //         const parts = result.records.map((record) => {
-    //             const properties = record.get('part').properties;
-    //             for (const key in properties) {
-    //                 if (
-    //                     properties[key] &&
-    //                     typeof properties[key] === 'object' &&
-    //                     'low' in properties[key] &&
-    //                     'high' in properties[key]
-    //                 ) {
-    //                     properties[key] = this.utilsService.combineLowHigh(
-    //                         properties[key].low,
-    //                         properties[key].high,
-    //                     );
-    //                 }
-    //             }
-    //             return properties;
-    //         });
-
-    //         // Update cache and budget snapshot
-    //         this.partCache.set(cacheKey, parts);
-    //         if (!this.lastBudgetSnapshot[sortOption]) {
-    //             this.lastBudgetSnapshot[sortOption] = {};
-    //         }
-    //         this.lastBudgetSnapshot[sortOption][part] = budgetAllocation[part];
-
-    //         this.partPools[sortOption][part] = parts;
-    //     }
-
-    //     const endTime = new Date().getTime();
-    //     console.log(`Fetch parts within budget time: ${endTime - startTime}ms`);
-    // }
-
     private async fetchPartsWithinBudget(
         session: any,
         budgetAllocation: BudgetAllocation,
         sortOption: 'saving' | 'performance' | 'popular',
+        userId: string,
     ) {
+        const userState = this.buildStateService.getUserState(userId);
+        
         this.shouldRefreshCache(
             budgetAllocation,
-            this.preferredPartsCache.userInput,
+            userState.preferredPartsCache.userInput,
+            userId,
         );
 
         for (const part in budgetAllocation) {
             const cacheKey = `${part}-${budgetAllocation[part]}-${sortOption}`;
             const lastBudgetForPart =
-                this.lastBudgetSnapshot[sortOption]?.[part];
+                userState.lastBudgetSnapshot[sortOption]?.[part];
 
             if (
-                this.partCache.has(cacheKey) &&
+                userState.partCache.has(cacheKey) &&
                 lastBudgetForPart === budgetAllocation[part]
             ) {
-                let parts = this.partCache.get(cacheKey);
+                let parts = userState.partCache.get(cacheKey);
                 // Filter out any previously removed candidates.
                 if (
-                    this.removedCandidates[sortOption] &&
-                    this.removedCandidates[sortOption][part]
+                    userState.removedCandidates[sortOption] &&
+                    userState.removedCandidates[sortOption][part]
                 ) {
                     const removedNames =
-                        this.removedCandidates[sortOption][part];
+                        userState.removedCandidates[sortOption][part];
                     parts = parts.filter(
                         (item) => !removedNames.includes(item.name),
                     );
                 }
-                this.partPools[sortOption][part] = parts;
+                userState.partPools[sortOption][part] = parts;
                 continue;
             }
 
@@ -431,57 +314,25 @@ export class AutoBuildService {
 
             // Filter out any removed candidates.
             if (
-                this.removedCandidates[sortOption] &&
-                this.removedCandidates[sortOption][part]
+                userState.removedCandidates[sortOption] &&
+                userState.removedCandidates[sortOption][part]
             ) {
-                const removedNames = this.removedCandidates[sortOption][part];
+                const removedNames = userState.removedCandidates[sortOption][part];
                 parts = parts.filter(
                     (item) => !removedNames.includes(item.name),
                 );
             }
 
             // Update cache and snapshot.
-            this.partCache.set(cacheKey, parts);
-            if (!this.lastBudgetSnapshot[sortOption]) {
-                this.lastBudgetSnapshot[sortOption] = {};
+            userState.partCache.set(cacheKey, parts);
+            if (!userState.lastBudgetSnapshot[sortOption]) {
+                userState.lastBudgetSnapshot[sortOption] = {};
             }
-            this.lastBudgetSnapshot[sortOption][part] = budgetAllocation[part];
+            userState.lastBudgetSnapshot[sortOption][part] = budgetAllocation[part];
 
-            this.partPools[sortOption][part] = parts;
+            userState.partPools[sortOption][part] = parts;
         }
     }
-
-    // private addPreferredPartsToConfiguration(
-    //     preferredParts: PartsData,
-    //     pcConfiguration: PCConfiguration,
-    // ) {
-    //     for (const part in preferredParts) {
-    //         if (preferredParts[part].length > 0) {
-    //             pcConfiguration[part] = preferredParts[part][0];
-    //         }
-    //     }
-    // }
-
-    // private async addCompatiblePartsToConfiguration(
-    //     otherParts: PartsData,
-    //     pcConfiguration: PCConfiguration,
-    // ) {
-    //     for (const label of this.partOrder) {
-    //         if (otherParts[label]?.length && !pcConfiguration[label]) {
-    //             for (const partData of otherParts[label]) {
-    //                 if (
-    //                     await this.checkCompatibilityService.checkCompatibility(
-    //                         { partData, label },
-    //                         pcConfiguration,
-    //                     )
-    //                 ) {
-    //                     pcConfiguration[label] = partData;
-    //                     break;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
 
     public isCompleteConfiguration(pcConfiguration: PCConfiguration): boolean {
         const requiredParts = [
@@ -519,9 +370,9 @@ export class AutoBuildService {
 
         const [savingConfig, performanceConfig, popularConfig] =
             await Promise.all([
-                this.buildOption(autoBuildDto, 'saving'),
-                this.buildOption(autoBuildDto, 'performance'),
-                this.buildOption(autoBuildDto, 'popular'),
+                this.buildOption(autoBuildDto, 'saving', 'anonymous'),
+                this.buildOption(autoBuildDto, 'performance', 'anonymous'),
+                this.buildOption(autoBuildDto, 'popular', 'anonymous'),
             ]);
         const totalCost = (config: PCConfiguration) => {
             let total = 0;
@@ -545,14 +396,18 @@ export class AutoBuildService {
     private async buildOption(
         autoBuildDto: AutoBuildDto,
         optionType: 'saving' | 'performance' | 'popular',
+        userId: string,
     ): Promise<PCConfiguration> {
+        const userState = this.buildStateService.getUserState(userId);
+        
         // Reset budget and reduce flag for each option
         autoBuildDto.budget = autoBuildDto.initialBudget;
-        this.isReducePreferredParts = false;
+        userState.isReducePreferredParts = false;
 
         const { preferredParts } = await this.allocateBudget(
             autoBuildDto,
             optionType,
+            userId,
         );
         const session = this.neo4jConfigService.getDriver().session();
 
@@ -569,14 +424,15 @@ export class AutoBuildService {
             session,
             budgetAllocation,
             optionType,
+            userId,
         );
 
         let pcConfig = await this.buildPC(
             preferredParts,
-            this.partPools[optionType],
+            userState.partPools[optionType],
         );
         if (!this.isCompleteConfiguration(pcConfig)) {
-            pcConfig = await this.backtrackAndRebuild(autoBuildDto, pcConfig);
+            pcConfig = await this.backtrackAndRebuild(autoBuildDto, pcConfig, 0, 0, userId);
         }
         session.close();
         return pcConfig;
@@ -721,10 +577,10 @@ export class AutoBuildService {
         partialConfig: PCConfiguration,
         attempts = 0,
         lastBudgetIncrease = 0,
+        userId: string,
     ): Promise<PCConfiguration> {
-        const startTime = Date.now();
         const { preferredParts, otherParts } =
-            await this.allocateBudget(autoBuildDto);
+            await this.allocateBudget(autoBuildDto, 'performance', userId);
         const configuration = new PCConfiguration();
         Object.assign(configuration, partialConfig);
 
@@ -760,6 +616,7 @@ export class AutoBuildService {
                 configuration,
                 attempts + 1,
                 lastBudgetIncrease,
+                userId,
             );
         }
 
@@ -839,6 +696,10 @@ export class AutoBuildService {
         performance: PCConfiguration[];
         popular: PCConfiguration[];
     }> {
+        // Generate a userId if not provided
+        const sessionId = userId || `anonymous-${uuidv4()}`;
+        const userState = this.buildStateService.getUserState(sessionId);
+        
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
         const options = ['performance', 'popular'] as const;
@@ -849,7 +710,7 @@ export class AutoBuildService {
         const maxAttempts = 30;
 
         // Reset removal record for each run
-        this.removedCandidates = {
+        userState.removedCandidates = {
             performance: {},
             popular: {},
         };
@@ -858,11 +719,11 @@ export class AutoBuildService {
             const builds: PCConfiguration[] = [];
             let attempts = 0;
             // Ensure candidate pools are refreshed for this option.
-            await this.allocateBudget(autoBuildDto, option);
+            await this.allocateBudget(autoBuildDto, option, sessionId);
             while (attempts < maxAttempts) {
                 // Reset budget for each attempt.
                 autoBuildDto.budget = autoBuildDto.initialBudget;
-                const config = await this.buildOption(autoBuildDto, option);
+                const config = await this.buildOption(autoBuildDto, option, sessionId);
                 if (!this.isCompleteConfiguration(config)) break;
 
                 const configStr = JSON.stringify(config);
@@ -884,23 +745,22 @@ export class AutoBuildService {
                     const candidateName = config[randomLabel]?.name;
                     if (candidateName) {
                         // Record the removal persistently.
-                        if (!this.removedCandidates[option][randomLabel]) {
-                            this.removedCandidates[option][randomLabel] = [];
+                        if (!userState.removedCandidates[option][randomLabel]) {
+                            userState.removedCandidates[option][randomLabel] = [];
                         }
-                        this.removedCandidates[option][randomLabel].push(
+                        userState.removedCandidates[option][randomLabel].push(
                             candidateName,
                         );
 
                         // Optionally update the in-memory candidate pool immediately.
-                        if (this.partPools[option][randomLabel]) {
-                            this.partPools[option][randomLabel] =
-                                this.partPools[option][randomLabel].filter(
+                        if (userState.partPools[option][randomLabel]) {
+                            userState.partPools[option][randomLabel] =
+                                userState.partPools[option][randomLabel].filter(
                                     (item) => item.name !== candidateName,
                                 );
                         }
                     }
                     if (this.isCompleteConfiguration(config)) {
-                        // Pass userId to ensure config is sent only to the requesting user
                         this.buildGateway.sendConfigUpdate(config, userId);
                     }
                 }
@@ -920,12 +780,14 @@ export class AutoBuildService {
         popular: {},
     };
 
-    public async getSinglePCConfiguration(userInput: string) {
+    public async getSinglePCConfiguration(userInput: string, userId?: string) {
+        const sessionId = userId || `anonymous-${uuidv4()}`;
         const autoBuildDto = await this.extractUserInput(userInput);
         autoBuildDto['initialBudget'] = autoBuildDto.budget;
         const singleConfig = await this.buildOption(
             autoBuildDto,
             'performance',
+            sessionId,
         );
         return singleConfig;
     }

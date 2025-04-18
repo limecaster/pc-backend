@@ -2,17 +2,17 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BuildController } from './build/build.controller';
-import { ManualBuildService } from 'src/build/manual-build.service';
-import { Neo4jConfigService } from 'config/neo4j.config';
+import { ManualBuildService } from './build/manual-build.service';
+import { Neo4jConfigService } from './config/neo4j.config';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AutoBuildService } from 'src/build/auto-build.service';
-import { SpacyService } from 'src/build/spacy.service';
-import { CheckCompatibilityService } from 'src/build/check-compatibility.service';
-import { UtilsService } from 'service/utils.service';
-import { BuildGateway } from 'gateway/build.gateway';
-import { ChatbotController } from 'src/chatbot/chatbot.controller';
-import { ChatbotService } from 'src/chatbot/chatbot.service';
-import { PostgresConfigService } from 'config/postgres.config';
+import { AutoBuildService } from './build/auto-build.service';
+import { SpacyService } from './build/spacy.service';
+import { CheckCompatibilityService } from './build/check-compatibility.service';
+import { UtilsService } from './service/utils.service';
+import { BuildGateway } from './gateway/build.gateway';
+import { ChatbotController } from './chatbot/chatbot.controller';
+import { ChatbotService } from './chatbot/chatbot.service';
+import { PostgresConfigService } from './config/postgres.config';
 import { ProductModule } from './product/product.module';
 import { PaymentModule } from './payment/payment.module';
 import { AuthModule } from './auth/auth.module';
@@ -24,7 +24,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { OrderModule } from './order/order.module';
-import { CloudinaryModule } from '../config/cloudinary.module';
+import { CloudinaryModule } from './config/cloudinary.module';
 import { RatingModule } from './rating/rating.module';
 import { PCConfigurationModule } from './pc-configuration/pc-configuration.module';
 import { AccountModule } from './dashboard/account/account.module';
@@ -34,6 +34,7 @@ import { CmsModule } from './cms/cms.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { FAQModule } from './faq/faq.module';
 import * as Joi from 'joi';
+import { BuildStateService } from './build/build-state.service';
 
 @Module({
     imports: [
@@ -42,7 +43,7 @@ import * as Joi from 'joi';
             envFilePath: '.env',
             validationSchema: Joi.object({
 
-                ML_API_URL: Joi.string().default('http://localhost:5000'),
+                ML_API_URL: Joi.string().default('http://localhost:8003'),
             }),
         }),
         TypeOrmModule.forRootAsync({
@@ -94,6 +95,7 @@ import * as Joi from 'joi';
         UtilsService,
         ChatbotService,
         BuildGateway,
+        BuildStateService,
     ],
 })
 export class AppModule {}

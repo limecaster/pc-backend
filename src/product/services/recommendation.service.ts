@@ -552,7 +552,6 @@ export class RecommendationService {
         try {
             // Construct the API URL with query parameters
             let url = `${this.mlApiUrl}/api/advanced-recommendations?`;
-
             if (customerId) {
                 url += `&customerId=${customerId}`;
             }

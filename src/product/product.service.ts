@@ -1352,9 +1352,7 @@ export class ProductService {
                 baseIds = undefined; // Reset baseIds to undefined to indicate no category restriction
             }
         }
-        this.logger.debug(
-            `Base IDs for category ${category}: ${baseIds?.length || 0}`,
-        );
+
         // 1. Enhanced search
         const enhanced = await this.handleEnhancedSearch(
             query,
@@ -1362,9 +1360,7 @@ export class ProductService {
             limit,
             baseIds,
         );
-        this.logger.debug(
-            `Enhanced search result: ${enhanced?.products.length || 0} products`,
-        );
+
         if (enhanced && enhanced.products.length > 0) {
             const ids = enhanced.products.map((p) => p.id);
             const result = await this.fetchAndFilterByIds(
@@ -1384,9 +1380,6 @@ export class ProductService {
                 return result;
             }
         }
-        this.logger.debug('No enhanced search results found');
-
-        this.logger.debug('No Elasticsearch search results found');
         // 3. Fallback to legacy DB search (already applies filters)
         const legacyResult = await this.legacySearchByName(
             query,
@@ -1399,9 +1392,7 @@ export class ProductService {
             category,
             subcategoryFilters,
         );
-        this.logger.debug(
-            `Legacy search result: ${legacyResult.products.length} products`,
-        );
+
         if (legacyResult.products.length > 0) {
             const result = await this.fetchAndFilterByIds(
                 legacyResult.products.map((p) => p.id),

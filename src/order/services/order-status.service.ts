@@ -16,6 +16,7 @@ export class OrderStatusService {
     constructor(
         @InjectRepository(Order)
         private orderRepository: Repository<Order>,
+
         private orderInventoryService: OrderInventoryService,
     ) {}
 

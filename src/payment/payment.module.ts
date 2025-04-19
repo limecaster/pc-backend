@@ -1,20 +1,12 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PaymentService } from './payment.service';
 import { PaymentController } from './payment.controller';
 import { HttpModule } from '@nestjs/axios';
-import { CheckoutModule } from '../checkout/checkout.module';
-import { OrderModule } from '../order/order.module';
-import { DiscountModule } from '../discount/discount.module';
+import { OrderModule } from 'src/order/order.module';
 
 @Module({
-    imports: [
-        HttpModule,
-        forwardRef(() => CheckoutModule),
-        forwardRef(() => OrderModule),
-        DiscountModule,
-        ConfigModule,
-    ],
+    imports: [HttpModule, ConfigModule, OrderModule],
     controllers: [PaymentController],
     providers: [PaymentService],
     exports: [PaymentService],

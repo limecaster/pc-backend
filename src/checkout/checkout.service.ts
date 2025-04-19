@@ -6,7 +6,7 @@ import {
     forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm'; // Replace Connection with DataSource
+import { Repository, DataSource } from 'typeorm';
 import { Order, OrderStatus } from '../order/order.entity';
 import { OrderItem } from '../order/order-item.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -14,8 +14,9 @@ import { GuestOrderDto } from './dto/guest-order.dto';
 import { PaymentService } from '../payment/payment.service';
 import { OrderService } from '../order/order.service';
 import { OrderDto } from '../order/dto/order.dto';
-import { Customer } from '../customer/customer.entity'; // Import Customer entity
-import { Product } from '../product/product.entity'; // Import Product entity
+import { Customer } from '../customer/customer.entity';
+import { Product } from '../product/product.entity';
+import { DiscountUsageService } from '../discount/services/discount-usage.service';
 
 @Injectable()
 export class CheckoutService {
@@ -25,15 +26,16 @@ export class CheckoutService {
         @InjectRepository(Order)
         private orderRepository: Repository<Order>,
 
-        @InjectRepository(OrderItem)
-        private orderItemRepository: Repository<OrderItem>,
-
+        @Inject(PaymentService)
         private paymentService: PaymentService,
 
-        @Inject(forwardRef(() => OrderService))
+        @Inject(OrderService)
         private orderService: OrderService,
 
-        // Inject DataSource instead of Connection
+        @Inject(DiscountUsageService)
+        private discountUsageService: DiscountUsageService,
+
+        @Inject(DataSource)
         private dataSource: DataSource,
     ) {}
 
@@ -70,13 +72,20 @@ export class CheckoutService {
             order.status = OrderStatus.PENDING_APPROVAL;
             order.paymentMethod = createOrderDto.paymentMethod;
             order.deliveryAddress = createOrderDto.deliveryAddress;
+            order.customerName =
+                createOrderDto.customerName ||
+                `${customer.firstname} ${customer.lastname}`.trim();
+            order.customerPhone =
+                createOrderDto.customerPhone || customer.phoneNumber;
+            order.subtotal = createOrderDto.subtotal || createOrderDto.total;
+            order.shippingFee = createOrderDto.shippingFee || 0;
 
-            // Store notes in another field if 'notes' property doesn't exist
+            // Store notes if provided
             if (createOrderDto.notes) {
-                // Uncomment one of these options based on what exists in your Order entity
-                // order.notes = createOrderDto.notes; // if the field is actually named 'notes'
-                // order.orderNotes = createOrderDto.notes; // if it's named 'orderNotes'
-                // or don't set any notes field if it doesn't exist in the entity
+                // Use correct property name if available on the entity
+                if ('notes' in order) {
+                    order['notes'] = createOrderDto.notes;
+                }
             }
 
             // Add discount information if provided
@@ -98,6 +107,9 @@ export class CheckoutService {
                     order.appliedDiscountIds =
                         createOrderDto.appliedDiscountIds;
                 }
+
+                // Initialize discount usage flag to false - we'll record usage later
+                order.discountUsageRecorded = false;
             }
 
             const savedOrder = await queryRunner.manager.save(Order, order);
@@ -105,7 +117,25 @@ export class CheckoutService {
             // Create order items
             const orderItems: OrderItem[] = [];
 
+            let discountByProduct = new Map<
+                string,
+                { discountId: string; discountType: string; amount: number }
+            >();
+
+            // If we have product-specific discounts, prepare a map
+            if (
+                createOrderDto.appliedProductDiscounts &&
+                Object.keys(createOrderDto.appliedProductDiscounts).length > 0
+            ) {
+                for (const [productId, discountInfo] of Object.entries(
+                    createOrderDto.appliedProductDiscounts,
+                )) {
+                    discountByProduct.set(productId, discountInfo);
+                }
+            }
+
             for (const item of createOrderDto.items) {
+                // Fetch the actual product to verify it exists and get current stock
                 const product = await queryRunner.manager.findOne(Product, {
                     where: { id: item.productId },
                 });
@@ -116,97 +146,245 @@ export class CheckoutService {
                     );
                 }
 
+                // Check if we have enough stock
+                if (product.stockQuantity < item.quantity) {
+                    throw new Error(
+                        `Not enough stock for product ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`,
+                    );
+                }
+
                 const orderItem = new OrderItem();
                 orderItem.order = savedOrder;
                 orderItem.product = product;
                 orderItem.quantity = item.quantity;
 
-                // Fix: Use type assertion to set properties that might have different names in OrderItem entity
-                // This bypasses TypeScript checking - the actual property name should be verified
-                (orderItem as any).price = item.price; // Use type assertion to bypass TypeScript check
-                (orderItem as any).subPrice = item.price * item.quantity;
+                // Store original price and calculate final price after discounts
+                orderItem.originalPrice = item.originalPrice || item.price;
+                orderItem.price = item.price;
+                orderItem.finalPrice = item.price;
+
+                // Check if this product has a specific discount applied
+                if (discountByProduct.has(item.productId)) {
+                    const discountInfo = discountByProduct.get(item.productId);
+
+                    // Link the discount to this order item for usage tracking
+                    if (discountInfo.discountId) {
+                        orderItem.discount = {
+                            id: discountInfo.discountId,
+                        } as any; // Use as any to simplify reference
+                        orderItem.discountType =
+                            discountInfo.discountType as any;
+                        orderItem.discountAmount = discountInfo.amount || 0;
+                    }
+                }
 
                 orderItems.push(orderItem);
             }
 
             await queryRunner.manager.save(OrderItem, orderItems);
 
+            // Adjust inventory after saving all order items
+            for (const item of orderItems) {
+                // Decrease stock quantity of the product
+                if (item.product) {
+                    const product = item.product;
+                    product.stockQuantity = Math.max(
+                        0,
+                        product.stockQuantity - item.quantity,
+                    );
+                    await queryRunner.manager.save(Product, product);
+
+                    this.logger.log(
+                        `Reduced stock for product ${product.id} (${product.name}) from ${product.stockQuantity + item.quantity} to ${product.stockQuantity}`,
+                    );
+                }
+            }
+
             await queryRunner.commitTransaction();
 
-            return await this.orderService.findOrderWithItems(savedOrder.id);
+            // After transaction completes, also record usage via service
+            if (
+                order.discountAmount &&
+                order.discountAmount > 0 &&
+                (order.manualDiscountId ||
+                    (order.appliedDiscountIds &&
+                        order.appliedDiscountIds.length > 0))
+            ) {
+                // Use the service to record discount usage
+                await this.discountUsageService.recordDiscountUsage(
+                    savedOrder.id,
+                );
+            }
+
+            // Format and return the complete order with items
+            return this.orderService.findOrderWithItems(savedOrder.id);
         } catch (error) {
             await queryRunner.rollbackTransaction();
+            this.logger.error(`CreateOrder error: ${error.message}`);
             throw error;
         } finally {
             await queryRunner.release();
         }
     }
 
-    // Fix the createGuestOrder method to properly handle cart items
     async createGuestOrder(guestOrderDto: GuestOrderDto): Promise<Order> {
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
         try {
-            // Use a transaction for data consistency
-            const queryRunner = this.dataSource.createQueryRunner();
-            await queryRunner.connect();
-            await queryRunner.startTransaction();
+            // Create the order object
+            const order = queryRunner.manager.create(Order, {
+                customerName: guestOrderDto.customerName,
+                customerPhone: guestOrderDto.customerPhone,
+                guestEmail: guestOrderDto.email, // Store guest email
+                total: guestOrderDto.totalAmount,
+                subtotal: guestOrderDto.subtotal || guestOrderDto.totalAmount,
+                shippingFee: guestOrderDto.shippingFee || 0,
+                orderDate: new Date(),
+                status: OrderStatus.PENDING_APPROVAL,
+                paymentMethod: guestOrderDto.paymentMethod,
+                deliveryAddress: guestOrderDto.deliveryAddress,
+                orderNumber: `ORD-${Date.now()}`,
+            });
 
-            try {
-                // Create order entity without customer relation
-                const order = this.orderRepository.create({
-                    total: guestOrderDto.total,
-                    orderDate: new Date(),
-                    status: OrderStatus.PENDING_APPROVAL,
-                    paymentMethod: guestOrderDto.paymentMethod,
-                    deliveryAddress: guestOrderDto.deliveryAddress,
-                    orderNumber: `ORD-${Date.now()}`,
-                });
+            // Add discount information if provided
+            if (
+                guestOrderDto.discountAmount &&
+                guestOrderDto.discountAmount > 0
+            ) {
+                order.discountAmount = guestOrderDto.discountAmount;
 
-                // Save the order using transaction
-                const savedOrder = await queryRunner.manager.save(Order, order);
-
-                // Create order items with proper relationship handling
-                const orderItems: OrderItem[] = [];
-
-                for (const item of guestOrderDto.items) {
-                    // First verify the product exists to prevent FK constraint violation
-                    const product = await queryRunner.manager.findOne(Product, {
-                        where: { id: item.productId },
-                    });
-
-                    // Throw an error if product doesn't exist
-                    if (!product) {
-                        throw new Error(
-                            `Product with ID ${item.productId} not found`,
-                        );
-                    }
-
-                    // Create order item with proper product reference
-                    const orderItem = new OrderItem();
-                    orderItem.order = savedOrder;
-                    orderItem.product = product; // Use the full product entity
-                    orderItem.quantity = item.quantity;
-                    orderItem.price = item.price;
-
-                    orderItems.push(orderItem);
+                // Store manual discount ID if provided
+                if (guestOrderDto.manualDiscountId) {
+                    order.manualDiscountId = guestOrderDto.manualDiscountId;
+                }
+                // Store automatic discount IDs if provided
+                else if (
+                    guestOrderDto.appliedDiscountIds &&
+                    guestOrderDto.appliedDiscountIds.length > 0
+                ) {
+                    order.appliedDiscountIds = guestOrderDto.appliedDiscountIds;
                 }
 
-                // Save all order items within the transaction
-                await queryRunner.manager.save(OrderItem, orderItems);
-
-                // Commit transaction
-                await queryRunner.commitTransaction();
-
-                return savedOrder;
-            } catch (error) {
-                // Rollback transaction on error
-                await queryRunner.rollbackTransaction();
-                throw error;
-            } finally {
-                await queryRunner.release();
+                // Initialize discount usage flag
+                order.discountUsageRecorded = false;
             }
+
+            // Save the order using transaction
+            const savedOrder = await queryRunner.manager.save(Order, order);
+
+            // Create order items with proper relationship handling
+            const orderItems: OrderItem[] = [];
+
+            let discountByProduct = new Map<
+                string,
+                { discountId: string; discountType: string; amount: number }
+            >();
+
+            // If we have product-specific discounts, prepare a map
+            if (
+                guestOrderDto.appliedProductDiscounts &&
+                Object.keys(guestOrderDto.appliedProductDiscounts).length > 0
+            ) {
+                for (const [productId, discountInfo] of Object.entries(
+                    guestOrderDto.appliedProductDiscounts,
+                )) {
+                    discountByProduct.set(productId, discountInfo);
+                }
+            }
+
+            for (const item of guestOrderDto.items) {
+                // First verify the product exists to prevent FK constraint violation
+                const product = await queryRunner.manager.findOne(Product, {
+                    where: { id: item.productId },
+                });
+
+                // Throw an error if product doesn't exist
+                if (!product) {
+                    throw new Error(
+                        `Product with ID ${item.productId} not found`,
+                    );
+                }
+
+                // Check if we have enough stock
+                if (product.stockQuantity < item.quantity) {
+                    throw new Error(
+                        `Not enough stock for product ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`,
+                    );
+                }
+
+                // Create order item with proper product reference
+                const orderItem = new OrderItem();
+                orderItem.order = savedOrder;
+                orderItem.product = product; // Use the full product entity
+                orderItem.quantity = item.quantity;
+                orderItem.price = item.price;
+                orderItem.originalPrice = item.originalPrice || item.price;
+                orderItem.finalPrice = item.price;
+
+                // Check if this product has a specific discount applied
+                if (discountByProduct.has(item.productId)) {
+                    const discountInfo = discountByProduct.get(item.productId);
+
+                    // Link the discount to this order item for usage tracking
+                    if (discountInfo.discountId) {
+                        orderItem.discount = {
+                            id: discountInfo.discountId,
+                        } as any; // Use as any to simplify reference
+                        orderItem.discountType =
+                            discountInfo.discountType as any;
+                        orderItem.discountAmount = discountInfo.amount || 0;
+                    }
+                }
+
+                orderItems.push(orderItem);
+            }
+
+            // Save all order items within the transaction
+            await queryRunner.manager.save(OrderItem, orderItems);
+
+            // Adjust inventory after saving all order items
+            for (const item of orderItems) {
+                // Decrease stock quantity of the product
+                if (item.product) {
+                    const product = item.product;
+                    product.stockQuantity = Math.max(
+                        0,
+                        product.stockQuantity - item.quantity,
+                    );
+                    await queryRunner.manager.save(Product, product);
+
+                    this.logger.log(
+                        `Reduced stock for product ${product.id} (${product.name}) from ${product.stockQuantity + item.quantity} to ${product.stockQuantity}`,
+                    );
+                }
+            }
+
+            // Commit transaction
+            await queryRunner.commitTransaction();
+
+            // After transaction completes, also record usage via service
+            if (
+                order.discountAmount &&
+                order.discountAmount > 0 &&
+                (order.manualDiscountId ||
+                    (order.appliedDiscountIds &&
+                        order.appliedDiscountIds.length > 0))
+            ) {
+                // Use the service to record discount usage
+                await this.discountUsageService.recordDiscountUsage(
+                    savedOrder.id,
+                );
+            }
+
+            return savedOrder;
         } catch (error) {
-            this.logger.error(`Failed to create guest order: ${error.message}`);
-            throw new Error(`Failed to create guest order: ${error.message}`);
+            // Rollback transaction on error
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally {
+            await queryRunner.release();
         }
     }
 

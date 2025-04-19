@@ -9,8 +9,6 @@ import {
     Patch,
     Body,
     Post,
-    Inject,
-    forwardRef,
     Query,
     BadRequestException,
 } from '@nestjs/common';
@@ -20,7 +18,6 @@ import { OrderStatus } from './order.entity';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '../auth/enums/role.enum';
-import { CheckoutService } from '../checkout/checkout.service';
 import { EmailService } from '../email/email.service';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 
@@ -30,8 +27,6 @@ export class OrderController {
 
     constructor(
         private readonly orderService: OrderService,
-        @Inject(forwardRef(() => CheckoutService))
-        private readonly checkoutService: CheckoutService,
         private readonly emailService: EmailService,
     ) {}
 
@@ -250,83 +245,6 @@ export class OrderController {
             };
         } catch (error) {
             this.logger.error(`Error cancelling order: ${error.message}`);
-            return {
-                success: false,
-                message: error.message,
-            };
-        }
-    }
-
-    @UseGuards(JwtAuthGuard)
-    @Post(':id/pay')
-    async initiatePayment(
-        @Param('id') orderId: string,
-        @Request() req,
-        @Body() body: any,
-    ) {
-        try {
-            const order = await this.orderService.findOrderWithItems(
-                parseInt(orderId),
-            );
-
-            if (!order) {
-                this.logger.error(`Order with ID ${orderId} not found`);
-                throw new NotFoundException(
-                    `Order with ID ${orderId} not found`,
-                );
-            }
-
-            if (order.customerId !== req.user.id) {
-                return {
-                    success: false,
-                    message: 'You do not have permission to pay for this order',
-                };
-            }
-
-            if (order.status !== OrderStatus.APPROVED) {
-                return {
-                    success: false,
-                    message: 'This order is not ready for payment',
-                    status: order.status,
-                };
-            }
-
-            const paymentData = {
-                orderId: order.id.toString(),
-                description: `Order #${order.id} Thanh toan B Store`,
-                items: order.items.map((item) => ({
-                    id: item.product.id,
-                    name: item.product.name,
-                    price: item.product.price,
-                    quantity: item.quantity,
-                })),
-                customer: {
-                    fullName: req.user.firstName + ' ' + req.user.lastName,
-                    email: req.user.email,
-                    phone: req.user.phoneNumber || '',
-                    address: order.deliveryAddress,
-                },
-                total: order.total,
-                subtotal: order.total,
-                returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/success?orderId=${order.id}`,
-                cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/failure?orderId=${order.id}`,
-                webhookUrl: `${process.env.API_URL || 'http://localhost:5000'}/payment/webhook`,
-                extraData: {
-                    orderId: order.id.toString(),
-                    customerEmail: req.user.email,
-                },
-            };
-
-            const paymentResult =
-                await this.checkoutService.processPayment(paymentData);
-
-            return {
-                success: true,
-                data: paymentResult.data,
-                message: 'Payment link created successfully',
-            };
-        } catch (error) {
-            this.logger.error(`Error initiating payment: ${error.message}`);
             return {
                 success: false,
                 message: error.message,

@@ -67,20 +67,24 @@ export class OrderInventoryService {
                 continue;
             }
 
-            const oldStock = product.stock_quantity;
+            const oldStock = product.stockQuantity;
 
             // Adjust stock based on operation
             if (operation === 'decrease') {
                 // Don't allow negative stock
-                product.stock_quantity = Math.max(
+                product.stockQuantity = Math.max(
                     0,
-                    product.stock_quantity - item.quantity,
+                    product.stockQuantity - item.quantity,
                 );
             } else {
-                product.stock_quantity = product.stock_quantity + item.quantity;
+                product.stockQuantity = product.stockQuantity + item.quantity;
             }
 
             await productRepo.save(product);
+
+            this.logger.log(
+                `Product ${product.id} (${product.name}) inventory adjusted from ${oldStock} to ${product.stockQuantity} (${operation})`,
+            );
         }
     }
 }

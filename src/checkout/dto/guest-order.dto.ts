@@ -7,9 +7,10 @@ import {
     IsOptional,
     IsString,
     ValidateNested,
+    Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { OrderItemDto } from './create-order.dto';
+import { OrderItemDto, ProductDiscountInfo } from './create-order.dto';
 
 export class CustomerInfoDto {
     @IsString()
@@ -38,6 +39,33 @@ export class GuestOrderDto {
     @IsNotEmpty()
     deliveryAddress: string;
 
+    @IsString()
+    @IsOptional()
+    customerName?: string;
+
+    @IsString()
+    @IsOptional()
+    customerPhone?: string;
+
+    @IsString()
+    @IsEmail()
+    @IsOptional()
+    email?: string;
+
+    @IsNumber()
+    @IsOptional()
+    totalAmount?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    subtotal?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    shippingFee?: number;
+
     @IsObject()
     @ValidateNested()
     @Type(() => CustomerInfoDto)
@@ -51,4 +79,21 @@ export class GuestOrderDto {
     @IsString()
     @IsOptional()
     notes?: string;
+
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
+    discountAmount?: number;
+
+    @IsNumber()
+    @IsOptional()
+    manualDiscountId?: number;
+
+    @IsArray()
+    @IsOptional()
+    appliedDiscountIds?: string[];
+
+    @IsObject()
+    @IsOptional()
+    appliedProductDiscounts?: Record<string, ProductDiscountInfo>;
 }

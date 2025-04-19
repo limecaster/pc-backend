@@ -7,6 +7,7 @@ import {
     IsOptional,
     Min,
     IsBoolean,
+    IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -19,6 +20,33 @@ export class OrderItemDto {
 
     @IsNumber()
     price: number;
+
+    @IsNumber()
+    @IsOptional()
+    originalPrice?: number;
+
+    @IsNumber()
+    @IsOptional()
+    finalPrice?: number;
+
+    @IsString()
+    @IsOptional()
+    discountType?: string;
+
+    @IsNumber()
+    @IsOptional()
+    discountAmount?: number;
+}
+
+export class ProductDiscountInfo {
+    @IsString()
+    discountId: string;
+
+    @IsString()
+    discountType: string;
+
+    @IsNumber()
+    amount: number;
 }
 
 export class CreateOrderDto {
@@ -33,6 +61,14 @@ export class CreateOrderDto {
     @IsString()
     @IsNotEmpty()
     deliveryAddress: string;
+
+    @IsString()
+    @IsOptional()
+    customerName?: string;
+
+    @IsString()
+    @IsOptional()
+    customerPhone?: string;
 
     @IsArray()
     @ValidateNested({ each: true })
@@ -51,6 +87,11 @@ export class CreateOrderDto {
     @IsNumber()
     @IsOptional()
     @Min(0)
+    shippingFee?: number;
+
+    @IsNumber()
+    @IsOptional()
+    @Min(0)
     discountAmount?: number;
 
     @IsNumber()
@@ -60,4 +101,8 @@ export class CreateOrderDto {
     @IsArray()
     @IsOptional()
     appliedDiscountIds?: string[];
+
+    @IsObject()
+    @IsOptional()
+    appliedProductDiscounts?: Record<string, ProductDiscountInfo>;
 }

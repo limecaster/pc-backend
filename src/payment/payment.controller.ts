@@ -14,14 +14,11 @@ import { PaymentService } from './payment.service';
 import { OrderService } from '../order/order.service';
 import { OrderStatus } from '../order/order.entity';
 import { Request } from 'express';
-import { DiscountService } from '../discount/discount.service';
-
 @Controller('payment')
 export class PaymentController {
     constructor(
         private readonly paymentService: PaymentService,
         private readonly orderService: OrderService,
-        private readonly discountService: DiscountService,
     ) {}
 
     @Post('create')

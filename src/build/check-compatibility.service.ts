@@ -489,4 +489,73 @@ export class CheckCompatibilityService {
         }
         return true;
     }
+
+    /**
+     * Checks direct compatibility between two products by name using Neo4j relationship.
+     * @param name1 - Name of the first product.
+     * @param name2 - Name of the second product.
+     * @returns Promise resolving to a boolean indicating compatibility.
+     */
+    public async areCompatible(
+        name1: string,
+        type1: string,
+        name2: string,
+        type2: string,
+    ): Promise<boolean> {
+        const session = this.neo4jConfigService.getDriver().session();
+        try {
+            const availablePartsFulltextIndex = ["CPU", "CPUCooler", "Motherboard", "GraphicsCard", "RAM", "InternalHardDrive", "Case", "PowerSupply"];
+            
+            let dbName1;
+            if (type1 in availablePartsFulltextIndex) {
+                const query = `
+                    CALL db.index.fulltext.queryNodes($indexName, $partname)
+                    YIELD node, score
+                    WHERE score > 0.6
+                    ORDER BY score DESC
+                    RETURN node
+                    LIMIT 1
+                `;
+
+                const result = await session.run(query, { indexName: type1, partname: name1 });
+                if (result.records.length === 0) {
+                    dbName1 = name1;
+                } else {
+                    dbName1 = result.records[0].get('node').properties.name;
+                }
+            } else {
+                dbName1 = name1;
+            }
+
+            let dbName2;
+            if (type2 in availablePartsFulltextIndex) {
+                const query = `
+                    CALL db.index.fulltext.queryNodes($indexName, $partname)
+                    YIELD node, score
+                    WHERE score > 0.6
+                    ORDER BY score DESC
+                    RETURN node
+                    LIMIT 1
+                `;
+
+                const result = await session.run(query, { indexName: type2, partname: name2 });
+                if (result.records.length === 0) {
+                    dbName2 = name2;
+                } else {
+                    dbName2 = result.records[0].get('node').properties.name;
+                }
+            } else {
+                dbName2 = name2;
+            }
+
+            const query = `
+                MATCH (p1: ${type1} {name: $name1})-[r:COMPATIBLE_WITH]-(p2: ${type2} {name: $name2})
+                RETURN r
+            `;
+            const result = await session.run(query, { name1: dbName1, name2: dbName2 });
+            return result.records.length > 0;
+        } finally {
+            await session.close();
+        }
+    }
 }

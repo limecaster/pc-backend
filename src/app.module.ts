@@ -58,7 +58,7 @@ import { BuildStateService } from './build/build-state.service';
                     /* Manually specify entities here if autoLoadEntities is false */
                 ],
                 autoLoadEntities: true,
-                synchronize: true, // Set to false in production
+                synchronize: configService.get('IS_IN_PRODUCTION', false), // Notice to set to false in production
             }),
         }),
         ProductModule,

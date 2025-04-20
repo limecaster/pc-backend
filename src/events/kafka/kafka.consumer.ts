@@ -99,10 +99,21 @@ export class KafkaConsumer implements OnModuleInit {
                                     eventData.eventType,
                                 );
                                 break;
+                            case 'chatbot_send_message':
+                            case 'chatbot_auto_build':
+                            case 'chatbot_greeting':
+                            case 'chatbot_compatibility':
+                            case 'chatbot_faq':
+                                await this.eventsService.handleChatbotEvent(
+                                    eventData,
+                                    eventData.eventType,
+                                );
+                                break;
                             default:
                                 this.logger.warn(
                                     `Unknown event type: ${eventData.eventType}`,
                                 );
+
                         }
                     } catch (error) {
                         this.logger.error(

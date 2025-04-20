@@ -40,6 +40,10 @@ async function bootstrap() {
         allowedOrigins.push(process.env.FRONTEND_URL);
     }
 
+    if (process.env.AI_EXTRACTOR_URL) {
+        allowedOrigins.push(process.env.AI_EXTRACTOR_URL);
+    }
+
     logger.log(`Configuring CORS for origins: ${allowedOrigins.join(', ')}`);
 
     app.enableCors({

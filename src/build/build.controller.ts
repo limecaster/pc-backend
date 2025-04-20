@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, InternalServerErrorException, Post, Query } from '@nestjs/common';
 import { ManualBuildService } from '../build/manual-build.service';
 import { AutoBuildService } from '../build/auto-build.service';
+import { CheckCompatibilityService } from './check-compatibility.service';
 
 @Controller('build')
 export class BuildController {
     constructor(
         private readonly manualBuildService: ManualBuildService,
         private readonly autoBuildService: AutoBuildService,
+        private readonly checkCompatibilityService: CheckCompatibilityService,
     ) {}
 
     private mappingFrontendLabelToNeo4jLabel = {
@@ -39,6 +41,16 @@ export class BuildController {
         ThermalPaste: ['ThermalPaste'],
         InternalHardDrive: ['InternalHardDrive'],
     };
+
+    @Get('compatibility')
+    async checkCompatibility(@Query('product1') product1: string, @Query('type1') type1: string, @Query('product2') product2: string, @Query('type2') type2: string) {
+        try {
+            return this.checkCompatibilityService.areCompatible(product1, type1, product2, type2);
+        } catch (error) {
+            console.error('Error checking compatibility:', error);
+            throw new InternalServerErrorException('Failed to check compatibility');
+        }
+    }
 
     @Get('manual-build/compatible-parts')
     async getSpecificPartTypeCompatibleWithSelectedParts(

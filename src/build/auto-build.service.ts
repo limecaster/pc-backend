@@ -12,7 +12,7 @@ import { CheckCompatibilityService } from './check-compatibility.service';
 import { UtilsService } from '../service/utils.service';
 import { BuildStateService } from './build-state.service';
 import { BuildGateway } from '../gateway/build.gateway';
-import { v4 as uuidv4 } from 'uuid'; // You may need to install this package
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AutoBuildService {
@@ -74,16 +74,22 @@ export class AutoBuildService {
                 case 'BUDGET':
                     autoBuildDto.budget = this.parseBudget(value);
                     break;
-                case 'CPU':
-                    autoBuildDto.preferredParts.push({ name: value, label });
-                    break;
+
                 case 'GPU':
+                case 'GraphicsCard':
                     autoBuildDto.preferredParts.push({
                         name: value,
                         label: 'GraphicsCard',
                     });
                     break;
+                case 'CPU':
+                case 'GPUChipset':
                 case 'RAM':
+                case 'InternalHardDrive':
+                case 'CPUCooler':
+                case 'PowerSupply':
+                case 'Case':
+                case 'Motherboard':
                     autoBuildDto.preferredParts.push({ name: value, label });
                     break;
             }
@@ -174,32 +180,44 @@ export class AutoBuildService {
         }
 
         for (const part of autoBuildDto.preferredParts) {
-            const indexName = this.getIndexName(part.label);
-            const query = `CALL db.index.fulltext.queryNodes($indexName, $partname)
-                     YIELD node, score
-                     ORDER BY score DESC
-                     RETURN node LIMIT 1`;
-            const result = await session.run(query, {
-                indexName: indexName,
-                partname: part.name,
-            });
-            preferredPartsData[part.label] = result.records.map((record) => {
-                const properties = record.get('node').properties;
-                for (const key in properties) {
-                    if (
-                        properties[key] &&
-                        typeof properties[key] === 'object' &&
-                        'low' in properties[key] &&
-                        'high' in properties[key]
-                    ) {
-                        properties[key] = this.utilsService.combineLowHigh(
-                            properties[key].low,
-                            properties[key].high,
-                        );
-                    }
+            if (part.label === 'GPUChipset') {
+                // If GPUChipset detected, try to match with GPU.chipset
+                const query = 'MATCH (p:GPU {chipset: $partname}) WHERE p.price IS NOT NULL AND p.price > 0 RETURN p';
+                const result = await session.run(query, { partname: part.name });
+                if (result.records.length > 0) {
+                    preferredPartsData[part.label] = result.records[0].get('p');
+                    continue;
                 }
-                return properties;
-            });
+            }
+            else {
+                const indexName = this.getIndexName(part.label);
+                const query = `CALL db.index.fulltext.queryNodes($indexName, $partname)
+                     YIELD node, score
+                     WHERE score > 0.6 AND node.price IS NOT NULL AND node.price > 0
+                     ORDER BY score DESC
+                     RETURN node
+                     LIMIT 1`;
+                const result = await session.run(query, {
+                    indexName: indexName,
+                    partname: part.name,
+                });
+                preferredPartsData[part.label] = result.records.map((record) => {
+                    const properties = record.get('node').properties;
+                    for (const key in properties) {
+                        if (
+                            properties[key] &&
+                            typeof properties[key] === 'object' &&
+                            'low' in properties[key] &&
+                            'high' in properties[key]
+                        ) {
+                            properties[key] = this.utilsService.combineLowHigh(
+                                properties[key].low,
+                                properties[key].high,
+                            );
+                        }
+                    }
+                    return properties;
+            });}
         }
         userState.preferredPartsCache.userInput = autoBuildDto.userInput;
         userState.preferredPartsCache.data = preferredPartsData;

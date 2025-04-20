@@ -23,7 +23,7 @@ export class CheckoutController {
     constructor(
         private readonly checkoutService: CheckoutService,
         private readonly paymentService: PaymentService,
-    ) {}
+    ) { }
 
     @Post('create-order')
     @UseGuards(JwtAuthGuard)
@@ -33,22 +33,10 @@ export class CheckoutController {
                 req.user.id,
                 createOrderDto,
             );
-            let total = createOrderDto.subtotal || 0;
-            // Apply discount
-            if (
-                createOrderDto.discountAmount &&
-                createOrderDto.discountAmount > 0
-            ) {
-                total -= createOrderDto.discountAmount;
-            }
-            // Ensure final total >= 0
-            if (total < 0) {
-                total = 0;
-            }
             return {
                 success: true,
                 order,
-                finalPrice: total,
+                finalPrice: createOrderDto.subtotal || 0,
             };
         } catch (error) {
             this.logger.error(

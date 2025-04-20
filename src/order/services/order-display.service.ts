@@ -18,7 +18,7 @@ export class OrderDisplayService {
         private orderItemRepository: Repository<OrderItem>,
 
         private productSpecificationService: ProductSpecificationService,
-    ) {}
+    ) { }
 
     /**
      * Get order tracking information by order number (preferred)
@@ -110,10 +110,6 @@ export class OrderDisplayService {
                     .leftJoinAndSelect('item.product', 'product')
                     .where('item.order = :orderId', { orderId: order.id })
                     .getMany();
-
-                // Critical logs removed: commented out debug and warn logs
-                // this.logger.debug(`Order ${order.id}: Strategy 1 retrieved ${items.length} items`);
-                // this.logger.warn(`Order ${order.id}: Strategy 1 items: ${JSON.stringify(items)}`);
             } catch (error) {
                 this.logger.error(`Strategy 1 failed: ${error.message}`);
             }
@@ -124,20 +120,19 @@ export class OrderDisplayService {
                     // Directly query the order_items table with a raw query
                     const rawItems = await this.orderItemRepository.query(
                         `SELECT oi.*, p.id as product_id, p.name as product_name 
-                         FROM "order_items" oi 
+                         FROM "Order_Detail" oi 
                          LEFT JOIN "Products" p ON oi.product_id = p.id 
                          WHERE oi.order_id = $1`,
                         [order.id],
                     );
 
-                    // this.logger.debug(`Order ${order.id}: Strategy 2 retrieved ${rawItems.length} raw items`);
-
-                    // Map raw results to the expected format
                     if (rawItems && rawItems.length > 0) {
+
                         items = rawItems.map((item) => ({
                             id: item.id,
                             quantity: item.quantity,
                             price: item.price,
+                            originalPrice: item.original_price,
                             product: {
                                 id: item.product_id,
                                 name: item.product_name,
@@ -152,19 +147,12 @@ export class OrderDisplayService {
 
             // Strategy 3: As a last resort, create placeholder items if we still have none
             if (!items || items.length === 0) {
-                // this.logger.warn(`Order ${order.id}: No items found after multiple strategies. Creating placeholder.`);
-                // Check directly in the database if there are any items without proper relations
-                const orderItemCount = await this.orderItemRepository.count({
-                    where: { order: { id: order.id } },
-                });
-                // this.logger.debug(`Order ${order.id}: Direct count found ${orderItemCount} items`);
-
-                // Create a placeholder item to avoid empty UI
                 items = [
                     {
                         id: 0,
                         quantity: 1,
                         price: order.total,
+                        originalPrice: order.total,
                         product: {
                             id: 'unknown',
                             name: 'Đơn hàng #' + order.orderNumber,
@@ -172,27 +160,14 @@ export class OrderDisplayService {
                         order: { id: order.id },
                     },
                 ];
-
-                // this.logger.debug(`Order ${order.id}: Created placeholder item with price ${order.total}`);
             }
 
-            // Debug logging for the items we found - commented out non-critical logs
-            // this.logger.debug(`Order ${order.id}: Retrieved ${items.length} order items from database`);
-            // if (items.length > 0) {
-            //     this.logger.debug(`Order ${order.id}: First item sample: ${JSON.stringify(items[0])}`);
-            // }
-
-            // Generate activities based on order status and timestamps
             const activities = this.generateOrderActivities(order);
 
-            // Collect product IDs to fetch specifications in batch
             const productIds = items
                 .filter((item) => item.product && item.product.id)
                 .map((item) => item.product.id);
 
-            // this.logger.debug(`Order ${order.id}: Collected ${productIds.length} product IDs for specs`);
-
-            // Fetch product specifications with Neo4j in a single batch query
             let productSpecs = {};
             try {
                 if (productIds.length > 0) {
@@ -200,22 +175,13 @@ export class OrderDisplayService {
                         await this.productSpecificationService.getSpecificationsInBatch(
                             productIds,
                         );
-                    // this.logger.debug(`Order ${order.id}: Retrieved specs for ${Object.keys(productSpecs).length} products`);
-
-                    // Log first product spec as sample
-                    // if (Object.keys(productSpecs).length > 0) {
-                    //     const firstProductId = Object.keys(productSpecs)[0];
-                    //     this.logger.debug(`Order ${order.id}: Sample spec for product ${firstProductId}: ${JSON.stringify(productSpecs[firstProductId])}`);
-                    // }
                 }
             } catch (error) {
                 this.logger.error(
                     `Order ${order.id}: Failed to fetch product specifications: ${error.message}`,
                 );
-                // Continue with empty specs - we'll handle missing images gracefully
             }
 
-            // Ensure we have consistent shipping address data in the expected format
             const shippingAddress = {
                 fullName:
                     order.customerName ||
@@ -230,36 +196,33 @@ export class OrderDisplayService {
                         ? order.customer.phoneNumber
                         : 'Không có thông tin'),
             };
-
-            // Map items with detailed logging
             const formattedItems =
                 items && items.length > 0
                     ? items.map((item) => {
-                          // Get product specs if available
-                          const productId = item.product?.id;
-                          const specs = productId
-                              ? productSpecs[productId]
-                              : null;
+                        const productId = item.product?.id;
+                        const specs = productId
+                            ? productSpecs[productId]
+                            : null;
 
-                          const formattedItem = {
-                              id: productId || item.id.toString() || 'unknown',
-                              name: item.product?.name || 'Sản phẩm',
-                              price: item.product.price || 0,
-                              quantity: item.quantity || 0,
-                              // Rename imageUrl to image to match frontend expectations
-                              image:
-                                  specs?.imageUrl ||
-                                  specs?.images?.[0] ||
-                                  '/images/product-placeholder.jpg',
-                          };
+                        const formattedItem = {
+                            id: productId || item.id.toString() || 'unknown',
+                            name: item.product?.name || 'Sản phẩm',
+                            price: item.price || 0,
+                            originalPrice: item.originalPrice || 0,
+                            quantity: item.quantity || 0,
+                            image:
+                                specs?.imageUrl ||
+                                specs?.images?.[0] ||
+                                '/images/product-placeholder.jpg',
+                        };
 
-                          // Log when images are missing - commented out non-critical log
-                          // if (!specs?.imageUrl && !specs?.images?.[0]) {
-                          //     this.logger.warn(`Order ${order.id}: No image found for product ${productId}`);
-                          // }
+                        // Log when images are missing - commented out non-critical log
+                        // if (!specs?.imageUrl && !specs?.images?.[0]) {
+                        //     this.logger.warn(`Order ${order.id}: No image found for product ${productId}`);
+                        // }
 
-                          return formattedItem;
-                      })
+                        return formattedItem;
+                    })
                     : [];
 
             // this.logger.debug(`Order ${order.id}: Sending ${formattedItems.length} formatted items to frontend`);
@@ -297,7 +260,7 @@ export class OrderDisplayService {
                 orderDate: order.orderDate,
                 status: order.status,
                 error: 'Error processing order details',
-                items: [], // Empty array as fallback
+                items: [],
                 activities: this.generateOrderActivities(order),
                 shippingAddress: {
                     fullName: order.customerName || 'Không có thông tin',

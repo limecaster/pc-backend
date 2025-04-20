@@ -1,4 +1,11 @@
-import { Body, Controller, Get, InternalServerErrorException, Post, Query } from '@nestjs/common';
+import {
+    Body,
+    Controller,
+    Get,
+    InternalServerErrorException,
+    Post,
+    Query,
+} from '@nestjs/common';
 import { ManualBuildService } from '../build/manual-build.service';
 import { AutoBuildService } from '../build/auto-build.service';
 import { CheckCompatibilityService } from './check-compatibility.service';
@@ -43,12 +50,24 @@ export class BuildController {
     };
 
     @Get('compatibility')
-    async checkCompatibility(@Query('product1') product1: string, @Query('type1') type1: string, @Query('product2') product2: string, @Query('type2') type2: string) {
+    async checkCompatibility(
+        @Query('product1') product1: string,
+        @Query('type1') type1: string,
+        @Query('product2') product2: string,
+        @Query('type2') type2: string,
+    ) {
         try {
-            return this.checkCompatibilityService.areCompatible(product1, type1, product2, type2);
+            return this.checkCompatibilityService.areCompatible(
+                product1,
+                type1,
+                product2,
+                type2,
+            );
         } catch (error) {
             console.error('Error checking compatibility:', error);
-            throw new InternalServerErrorException('Failed to check compatibility');
+            throw new InternalServerErrorException(
+                'Failed to check compatibility',
+            );
         }
     }
 

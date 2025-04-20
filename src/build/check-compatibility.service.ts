@@ -504,8 +504,17 @@ export class CheckCompatibilityService {
     ): Promise<boolean> {
         const session = this.neo4jConfigService.getDriver().session();
         try {
-            const availablePartsFulltextIndex = ["CPU", "CPUCooler", "Motherboard", "GraphicsCard", "RAM", "InternalHardDrive", "Case", "PowerSupply"];
-            
+            const availablePartsFulltextIndex = [
+                'CPU',
+                'CPUCooler',
+                'Motherboard',
+                'GraphicsCard',
+                'RAM',
+                'InternalHardDrive',
+                'Case',
+                'PowerSupply',
+            ];
+
             let dbName1;
             if (type1 in availablePartsFulltextIndex) {
                 const query = `
@@ -517,7 +526,10 @@ export class CheckCompatibilityService {
                     LIMIT 1
                 `;
 
-                const result = await session.run(query, { indexName: type1, partname: name1 });
+                const result = await session.run(query, {
+                    indexName: type1,
+                    partname: name1,
+                });
                 if (result.records.length === 0) {
                     dbName1 = name1;
                 } else {
@@ -538,7 +550,10 @@ export class CheckCompatibilityService {
                     LIMIT 1
                 `;
 
-                const result = await session.run(query, { indexName: type2, partname: name2 });
+                const result = await session.run(query, {
+                    indexName: type2,
+                    partname: name2,
+                });
                 if (result.records.length === 0) {
                     dbName2 = name2;
                 } else {
@@ -552,7 +567,10 @@ export class CheckCompatibilityService {
                 MATCH (p1: ${type1} {name: $name1})-[r:COMPATIBLE_WITH]-(p2: ${type2} {name: $name2})
                 RETURN r
             `;
-            const result = await session.run(query, { name1: dbName1, name2: dbName2 });
+            const result = await session.run(query, {
+                name1: dbName1,
+                name2: dbName2,
+            });
             return result.records.length > 0;
         } finally {
             await session.close();

@@ -113,7 +113,6 @@ export class KafkaConsumer implements OnModuleInit {
                                 this.logger.warn(
                                     `Unknown event type: ${eventData.eventType}`,
                                 );
-
                         }
                     } catch (error) {
                         this.logger.error(

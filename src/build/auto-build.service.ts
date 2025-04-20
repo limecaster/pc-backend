@@ -182,14 +182,16 @@ export class AutoBuildService {
         for (const part of autoBuildDto.preferredParts) {
             if (part.label === 'GPUChipset') {
                 // If GPUChipset detected, try to match with GPU.chipset
-                const query = 'MATCH (p:GPU {chipset: $partname}) WHERE p.price IS NOT NULL AND p.price > 0 RETURN p';
-                const result = await session.run(query, { partname: part.name });
+                const query =
+                    'MATCH (p:GPU {chipset: $partname}) WHERE p.price IS NOT NULL AND p.price > 0 RETURN p';
+                const result = await session.run(query, {
+                    partname: part.name,
+                });
                 if (result.records.length > 0) {
                     preferredPartsData[part.label] = result.records[0].get('p');
                     continue;
                 }
-            }
-            else {
+            } else {
                 const indexName = this.getIndexName(part.label);
                 const query = `CALL db.index.fulltext.queryNodes($indexName, $partname)
                      YIELD node, score
@@ -201,23 +203,27 @@ export class AutoBuildService {
                     indexName: indexName,
                     partname: part.name,
                 });
-                preferredPartsData[part.label] = result.records.map((record) => {
-                    const properties = record.get('node').properties;
-                    for (const key in properties) {
-                        if (
-                            properties[key] &&
-                            typeof properties[key] === 'object' &&
-                            'low' in properties[key] &&
-                            'high' in properties[key]
-                        ) {
-                            properties[key] = this.utilsService.combineLowHigh(
-                                properties[key].low,
-                                properties[key].high,
-                            );
+                preferredPartsData[part.label] = result.records.map(
+                    (record) => {
+                        const properties = record.get('node').properties;
+                        for (const key in properties) {
+                            if (
+                                properties[key] &&
+                                typeof properties[key] === 'object' &&
+                                'low' in properties[key] &&
+                                'high' in properties[key]
+                            ) {
+                                properties[key] =
+                                    this.utilsService.combineLowHigh(
+                                        properties[key].low,
+                                        properties[key].high,
+                                    );
+                            }
                         }
-                    }
-                    return properties;
-            });}
+                        return properties;
+                    },
+                );
+            }
         }
         userState.preferredPartsCache.userInput = autoBuildDto.userInput;
         userState.preferredPartsCache.data = preferredPartsData;

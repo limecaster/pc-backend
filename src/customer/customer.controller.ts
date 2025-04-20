@@ -18,7 +18,6 @@ export class CustomerController {
 
     constructor(private readonly customerService: CustomerService) {}
 
-    // Updated to support search and pagination
     @Get('simple-list')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
@@ -32,14 +31,12 @@ export class CustomerController {
         pages: number;
     }> {
         try {
-            // Removed non-critical debug log
             return await this.customerService.getSimpleCustomerList(
                 search,
                 page,
                 limit,
             );
         } catch (error) {
-            // Keeping critical error log
             this.logger.error(
                 `Error retrieving customer list: ${error.message}`,
             );

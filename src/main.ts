@@ -34,7 +34,8 @@ async function bootstrap() {
     const allowedOrigins = [
         '*',
         'http://192.168.1.28:3000',
-        'http://localhost:3000',
+        'http://pc_frontend:3000',
+        'http://localhost', // NGINX proxy
     ];
     if (process.env.FRONTEND_URL) {
         allowedOrigins.push(process.env.FRONTEND_URL);
@@ -42,6 +43,14 @@ async function bootstrap() {
 
     if (process.env.AI_EXTRACTOR_URL) {
         allowedOrigins.push(process.env.AI_EXTRACTOR_URL);
+    }
+
+    if (process.env.CHATBOT_API_URL) {
+        allowedOrigins.push(process.env.CHATBOT_API_URL);
+    }
+
+    if (process.env.ML_API_URL) {
+        allowedOrigins.push(process.env.ML_API_URL);
     }
 
     logger.log(`Configuring CORS for origins: ${allowedOrigins.join(', ')}`);

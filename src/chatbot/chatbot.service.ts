@@ -11,10 +11,9 @@ export class ChatbotService {
         this.api_url = this.configService.get<string>('CHATBOT_API_URL');
     }
 
-    async clientChat(body: any) {
-        const { message } = body;
+    async clientChat(message: string, sessionId: string) {
         try {
-            const body = JSON.stringify({ message: message });
+            const body = JSON.stringify({ message: message, sessionId: sessionId });
 
             const response = await axios.post(
                 `${this.api_url}/client-chat`,

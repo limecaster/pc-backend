@@ -122,16 +122,11 @@ export class BuildController {
         @Body('userInput') userInput: string,
         @Body('userId') userId?: string,
     ) {
-        //console.log(await this.autoBuildService.autoBuildAllOptions(userInput));
-        //const result = await this.autoBuildService.autoBuildAllOptions(userInput);
-        const result2 = await this.autoBuildService.getAllPCConfigurations(
+        const result = await this.autoBuildService.getAllPCConfigurations(
             userInput,
             userId,
         );
-
-        console.log(result2);
-
-        return result2;
+        return result;
     }
 
     @Post('single-auto-build')

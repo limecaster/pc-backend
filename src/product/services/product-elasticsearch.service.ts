@@ -401,4 +401,18 @@ export class ProductElasticsearchService implements OnModuleInit {
             return [];
         }
     }
+
+    async removeProduct(id: string): Promise<void> {
+        const client = this.elasticsearchConfigService.getClient();
+        try {
+            await client.delete({
+                index: this.indexName,
+                id,
+            });
+            this.logger.log(`Deleted product ${id} from Elasticsearch index`);
+        } catch (error) {
+            this.logger.error(`Error deleting product ${id} from Elasticsearch: ${error.message}`);
+            // Optionally rethrow or ignore if not found
+        }
+    }
 }

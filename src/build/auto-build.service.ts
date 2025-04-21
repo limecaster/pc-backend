@@ -57,7 +57,7 @@ export class AutoBuildService {
         private readonly utilsService: UtilsService,
         private readonly buildGateway: BuildGateway,
         private readonly buildStateService: BuildStateService,
-    ) {}
+    ) { }
 
     private async extractUserInput(userInput: string): Promise<AutoBuildDto> {
         const autoBuildDto = new AutoBuildDto();
@@ -316,7 +316,7 @@ export class AutoBuildService {
 
             const query = `
             MATCH (part:${part})
-            WHERE part.price IS NOT NULL AND part.price <= $price 
+            WHERE part.price IS NOT NULL AND part.price > 0 AND part.price <= $price 
             ${orderClause}
             RETURN part
           `;
@@ -340,7 +340,6 @@ export class AutoBuildService {
                 }
                 return properties;
             });
-
             // Filter out any removed candidates.
             if (
                 userState.removedCandidates[sortOption] &&
@@ -391,38 +390,9 @@ export class AutoBuildService {
      * If a certain part type is missing, redistribute its budget proportionally to others.
      */
     private reallocateBudget(currentBudget: number): number {
-        // Example: If a motherboard is missing, shift some budget from CPU/GPU to motherboard
-        return Math.floor(currentBudget * 0.98 + 500_000); // Adjust dynamically
+        return Math.floor(currentBudget * 0.98 + 500_000);
     }
 
-    public async autoBuildAllOptions(userInput: string) {
-        const autoBuildDto = await this.extractUserInput(userInput);
-        autoBuildDto['initialBudget'] = autoBuildDto.budget;
-
-        const [savingConfig, performanceConfig, popularConfig] =
-            await Promise.all([
-                this.buildOption(autoBuildDto, 'saving', 'anonymous'),
-                this.buildOption(autoBuildDto, 'performance', 'anonymous'),
-                this.buildOption(autoBuildDto, 'popular', 'anonymous'),
-            ]);
-        const totalCost = (config: PCConfiguration) => {
-            let total = 0;
-            for (const part in config) {
-                if (config[part]) {
-                    total += config[part].price;
-                }
-            }
-            return total;
-        };
-        // console.log(`Saving: ${totalCost(savingConfig)} VND`);
-        // console.log(`Performance: ${totalCost(performanceConfig)} VND`);
-        // console.log(`Popular: ${totalCost(popularConfig)} VND`);
-        return {
-            saving: savingConfig,
-            performance: performanceConfig,
-            popular: popularConfig,
-        };
-    }
 
     private async buildOption(
         autoBuildDto: AutoBuildDto,
@@ -520,12 +490,6 @@ export class AutoBuildService {
 
         if (pool.length === 0) return false;
 
-        // console.log(`Trying to build ${label}...`);
-        // console.log(`Pool: ${pool.length} parts`);
-        // console.log(
-        //     `Configuration Parts: ${JSON.stringify(this.extractConfigNames(pcConfiguration))}`,
-        // );
-
         let candidateFound = false;
 
         // First try: iterate over the candidate pool in given order.
@@ -573,20 +537,6 @@ export class AutoBuildService {
         return false;
     }
 
-    /**
-     * Utility: Extracts a simple summary of the configuration (e.g., part names) for logging.
-     */
-    private extractConfigNames(
-        pcConfiguration: PCConfiguration,
-    ): Record<string, any> {
-        const summary: Record<string, any> = {};
-        for (const part of this.partOrder) {
-            summary[part] = pcConfiguration[part]
-                ? pcConfiguration[part].name || 'N/A'
-                : null;
-        }
-        return summary;
-    }
 
     /**
      * Determines if a part is required.
@@ -636,7 +586,7 @@ export class AutoBuildService {
                 attempts >= 30 ||
                 lastBudgetIncrease >= 3 ||
                 this.calculateTotalCost(configuration) >
-                    autoBuildDto.initialBudget * 1.2
+                autoBuildDto.initialBudget * 1.2
             ) {
                 return configuration;
             }
@@ -661,75 +611,6 @@ export class AutoBuildService {
         }
 
         return configuration;
-    }
-
-    /**
-     * Recursively collects all valid PC configurations.
-     * After a successful configuration, randomly remove one used part from its pool.
-     */
-    private async collectAllConfigurations(
-        preferredParts: PartsData,
-        otherParts: PartsData,
-        pcConfiguration: PCConfiguration,
-        index: number,
-        results: PCConfiguration[],
-    ): Promise<void> {
-        if (index >= this.partOrder.length) {
-            if (this.isCompleteConfiguration(pcConfiguration)) {
-                // Clone and add configuration to results.
-                results.push({ ...pcConfiguration });
-                // Randomly choose one label from partOrder.
-                const randIndex = Math.floor(
-                    Math.random() * this.partOrder.length,
-                );
-                const randomLabel = this.partOrder[randIndex];
-                const candidateName = pcConfiguration[randomLabel]?.name;
-                if (candidateName) {
-                    const removeCandidate = (arr: any[]) =>
-                        arr.filter((item) => item.name !== candidateName);
-                    if (preferredParts[randomLabel]) {
-                        preferredParts[randomLabel] = removeCandidate(
-                            preferredParts[randomLabel],
-                        );
-                    }
-                    if (otherParts[randomLabel]) {
-                        otherParts[randomLabel] = removeCandidate(
-                            otherParts[randomLabel],
-                        );
-                    }
-                }
-            }
-            return;
-        }
-        const label = this.partOrder[index];
-        const pool = [
-            ...(preferredParts[label] || []),
-            ...(otherParts[label] || []),
-        ];
-        if (pool.length === 0) return;
-        // console.log(`Trying to build ${label}...`);
-        // console.log(`Pool: ${pool.length} parts`);
-        // console.log(
-        //     `Configuration Parts: ${JSON.stringify(this.extractConfigNames(pcConfiguration))}`,
-        // );
-        for (const candidate of pool) {
-            if (
-                await this.checkCompatibilityService.checkCompatibility(
-                    { partData: candidate, label },
-                    pcConfiguration,
-                )
-            ) {
-                pcConfiguration[label] = candidate;
-                await this.collectAllConfigurations(
-                    preferredParts,
-                    otherParts,
-                    pcConfiguration,
-                    index + 1,
-                    results,
-                );
-                pcConfiguration[label] = null;
-            }
-        }
     }
 
     public async getAllPCConfigurations(
@@ -787,7 +668,7 @@ export class AutoBuildService {
                     // Randomly choose one part label from partOrder.
                     const randomLabel =
                         this.partOrder[
-                            Math.floor(Math.random() * this.partOrder.length)
+                        Math.floor(Math.random() * this.partOrder.length)
                         ];
                     const candidateName = config[randomLabel]?.name;
                     if (candidateName) {
@@ -820,13 +701,6 @@ export class AutoBuildService {
         return results;
     }
 
-    private removedCandidates: {
-        performance: { [partLabel: string]: string[] };
-        popular: { [partLabel: string]: string[] };
-    } = {
-        performance: {},
-        popular: {},
-    };
 
     public async getSinglePCConfiguration(userInput: string, userId?: string) {
         const sessionId = userId || `anonymous-${uuidv4()}`;

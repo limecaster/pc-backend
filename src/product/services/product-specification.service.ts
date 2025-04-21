@@ -809,6 +809,23 @@ export class ProductSpecificationService {
         }
     }
 
+    /**
+     * Delete all specifications for a product by ID from Neo4j
+     */
+    async deleteSpecifications(id: string): Promise<void> {
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+        try {
+            const query = `MATCH (p {id: $id}) DETACH DELETE p`;
+            await session.run(query, { id });
+        } catch (error) {
+            this.logger.error(`Error deleting specifications for product ${id}: ${error.message}`);
+            throw new Error(`Failed to delete specifications for product ${id}`);
+        } finally {
+            await session.close();
+        }
+    }
+
     // ADMIN: Get all unique values for a given specification key in a category
     async getSpecificationValuesForAdmin(category: string, specKey: string): Promise<string[]> {
         const driver = this.neo4jConfigService.getDriver();

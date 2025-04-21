@@ -16,7 +16,7 @@ export class BuildController {
         private readonly manualBuildService: ManualBuildService,
         private readonly autoBuildService: AutoBuildService,
         private readonly checkCompatibilityService: CheckCompatibilityService,
-    ) {}
+    ) { }
 
     private mappingFrontendLabelToNeo4jLabel = {
         CPU: ['CPU'],
@@ -128,6 +128,8 @@ export class BuildController {
             userInput,
             userId,
         );
+
+        console.log(result2);
 
         return result2;
     }

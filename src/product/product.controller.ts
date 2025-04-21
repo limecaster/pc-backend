@@ -960,6 +960,19 @@ export class ProductController {
         }
     }
 
+    @Delete('admin/:id')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    async deleteProduct(@Param('id') id: string) {
+        try {
+            await this.productService.deleteProduct(id);
+            return { success: true, message: 'Product deleted successfully' };
+        } catch (error) {
+            this.logger.error(`Failed to delete product: ${error.message}`);
+            throw new InternalServerErrorException(`Failed to delete product: ${error.message}`);
+        }
+    }
+
     private ensureProductDiscountInfo(product: any): any {
         const MIN_DISCOUNT_PERCENT = 1.0;
         const MIN_DISCOUNT_AMOUNT = 50000;

@@ -1086,7 +1086,7 @@ export class ProductService {
             // Prepare dynamic property creation
             const propertyAssignments = Object.entries(data)
                 .filter(([key, value]) =>
-                    value !== undefined && value !== null && key !== 'id' && key !== 'category')
+                    value !== undefined && value !== null && key !== 'id' && key !== 'category' && key !== 'price')
                 .map(([key, value]) => {
                     // Handle different value types
                     if (typeof value === 'number') {
@@ -1172,7 +1172,6 @@ export class ProductService {
                     ...specifications,
                     id,
                     name: name || existingProduct.name,
-                    price: price ?? existingProduct.price,
                     imageUrl:
                         thumbnail ||
                         (Array.isArray(images) && images.length > 0
@@ -1357,5 +1356,18 @@ export class ProductService {
         } else {
             return { products: [], total: 0, pages: 0, page };
         }
+    }
+
+    async deleteProduct(id: string): Promise<void> {
+        // Delete from main database
+        const product = await this.productRepository.findOne({ where: { id } });
+        if (!product) {
+            throw new NotFoundException(`Product with ID ${id} not found`);
+        }
+        await this.productRepository.delete(id);
+        // Delete from Neo4j
+        await this.productSpecService.deleteSpecifications(id);
+        // Delete from Elasticsearch
+        await this.productElasticsearchService.removeProduct(id);
     }
 }

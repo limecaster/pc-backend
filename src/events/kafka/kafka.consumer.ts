@@ -104,6 +104,7 @@ export class KafkaConsumer implements OnModuleInit {
                                 case 'chatbot_greeting':
                                 case 'chatbot_compatibility':
                                 case 'chatbot_faq':
+                                case 'chatbot_unknown':
                                     await this.eventsService.handleChatbotEvent(
                                         eventData,
                                         eventData.eventType,

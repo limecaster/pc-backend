@@ -51,6 +51,13 @@ export class CartService {
             throw new BadRequestException('Valid customer ID is required');
         }
 
+        // Ensure the customer exists
+        const customer = await this.customerRepository.findOne({ where: { id: userId } });
+        if (!customer) {
+            this.logger.error(`Customer with ID ${userId} not found`);
+            throw new NotFoundException(`Customer with ID ${userId} not found`);
+        }
+
         let cart = await this.cartRepository.findOne({
             where: { customerId: userId },
             relations: ['items', 'items.product'],
@@ -75,6 +82,13 @@ export class CartService {
     ): Promise<CartResponseDto> {
         if (!userId) {
             throw new BadRequestException('Valid customer ID is required');
+        }
+
+        // Ensure the customer exists
+        const customer = await this.customerRepository.findOne({ where: { id: userId } });
+        if (!customer) {
+            this.logger.error(`Customer with ID ${userId} not found`);
+            throw new NotFoundException(`Customer with ID ${userId} not found`);
         }
 
         const product = await this.productRepository.findOne({
@@ -104,7 +118,7 @@ export class CartService {
 
         if (existingItem) {
             existingItem.quantity += quantity;
-            existingItem.subPrice = product.price * existingItem.quantity;
+            existingItem.subPrice = parseFloat(product.price.toString()) * existingItem.quantity;
             await this.cartItemRepository.save(existingItem);
         } else {
             const newItem = this.cartItemRepository.create({

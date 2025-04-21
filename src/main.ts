@@ -9,21 +9,9 @@ import * as bodyParser from 'body-parser';
 import { MicroserviceOptions } from '@nestjs/microservices';
 import { getKafkaConfig } from './events/kafka/kafka.config';
 import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs';
-import * as path from 'path';
+import path from 'path';
 
-// Load the appropriate environment file based on NODE_ENV
-const nodeEnv = process.env.NODE_ENV || 'development';
-const envFile = `.env${nodeEnv !== 'development' ? `.${nodeEnv}` : ''}`;
-const envPath = path.resolve(process.cwd(), envFile);
 
-if (fs.existsSync(envPath)) {
-    console.log(`Loading environment from ${envPath}`);
-    dotenv.config({ path: envPath });
-} else {
-    console.log(`Environment file ${envPath} not found, using .env`);
-    dotenv.config();
-}
 
 async function bootstrap() {
     const logger = new Logger('Bootstrap');
@@ -31,26 +19,37 @@ async function bootstrap() {
         logger: ['error', 'warn', 'log', 'debug'], // Enable all log levels in development
     });
 
+    const configService = app.get(ConfigService);
+
+    // Load environment variables
+    const nodeEnv = configService.get('NODE_ENV') || 'development';
+    if (nodeEnv === 'development') {
+        dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+    } else {
+        dotenv.config({ path: path.resolve(process.cwd(), '.env.production') });
+    }
+
+    // Configure CORS
     const allowedOrigins = [
         '*',
         'http://192.168.1.28:3000',
         'http://pc_frontend:3000',
         'http://localhost', // NGINX proxy
     ];
-    if (process.env.FRONTEND_URL) {
-        allowedOrigins.push(process.env.FRONTEND_URL);
+    if (configService.get('FRONTEND_URL')) {
+        allowedOrigins.push(configService.get('FRONTEND_URL'));
     }
 
-    if (process.env.AI_EXTRACTOR_URL) {
-        allowedOrigins.push(process.env.AI_EXTRACTOR_URL);
+    if (configService.get('AI_EXTRACTOR_URL')) {
+        allowedOrigins.push(configService.get('AI_EXTRACTOR_URL'));
     }
 
-    if (process.env.CHATBOT_API_URL) {
-        allowedOrigins.push(process.env.CHATBOT_API_URL);
+    if (configService.get('CHATBOT_API_URL')) {
+        allowedOrigins.push(configService.get('CHATBOT_API_URL'));
     }
 
-    if (process.env.ML_API_URL) {
-        allowedOrigins.push(process.env.ML_API_URL);
+    if (configService.get('ML_API_URL')) {
+        allowedOrigins.push(configService.get('ML_API_URL'));
     }
 
     logger.log(`Configuring CORS for origins: ${allowedOrigins.join(', ')}`);
@@ -84,9 +83,6 @@ async function bootstrap() {
     // WebSocket adapters
     app.useWebSocketAdapter(new WsAdapter(app));
     app.useWebSocketAdapter(new IoAdapter(app));
-
-    const configService = app.get(ConfigService);
-
     // Connect Kafka microservice
     const kafkaConfig = getKafkaConfig(configService);
     app.connectMicroservice<MicroserviceOptions>(kafkaConfig);

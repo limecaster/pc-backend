@@ -9,6 +9,7 @@ import {
     HttpStatus,
     Req,
     Headers,
+    Logger,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { OrderService } from '../order/order.service';
@@ -16,10 +17,14 @@ import { OrderStatus } from '../order/order.entity';
 import { Request } from 'express';
 @Controller('payment')
 export class PaymentController {
+    private readonly logger: Logger;
+
     constructor(
         private readonly paymentService: PaymentService,
         private readonly orderService: OrderService,
-    ) {}
+    ) {
+        this.logger = new Logger('PaymentController');
+    }
 
     @Post('create')
     async createPayment(@Body() paymentData: any) {
@@ -64,24 +69,14 @@ export class PaymentController {
                     items: orderDetails.items,
                     customer: orderDetails.customer,
                     total: orderDetails.total,
-                    description: `B Store #${order.id}`, // Keep description short (max 25 chars)
-                    returnUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/success?orderId=${orderDetails.orderId}`,
-                    cancelUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/checkout/failure`,
+                    description: `B Store #${order.id}`,
+                    returnUrl: `${process.env.WEBSITE_DOMAIN_NAME || 'http://localhost:3000'}/checkout/success?orderId=${orderDetails.orderId}`,
+                    cancelUrl: `${process.env.WEBSITE_DOMAIN_NAME || 'http://localhost:3000'}/checkout/failure`,
                 };
-            }
-
-            let total = paymentData.orderTotal || 0;
-            // Subtract any discount
-            if (paymentData.discountAmount && paymentData.discountAmount > 0) {
-                total -= paymentData.discountAmount;
-            }
-            if (total < 0) {
-                total = 0;
             }
 
             const result =
                 await this.paymentService.createPaymentLink(paymentData);
-
             // If we got a successful result but no checkoutUrl, call the payment service directly
             if (
                 result.success &&
@@ -105,7 +100,7 @@ export class PaymentController {
                 }
             }
 
-            return { success: true, finalPrice: total };
+            return { success: true, data: result.data };
         } catch (error) {
             throw new HttpException(
                 error.message || 'Failed to create payment',
@@ -135,32 +130,62 @@ export class PaymentController {
         @Headers() headers: any,
         @Req() request: Request,
     ) {
-        try {
-            // Verify the webhook signature if required by your payment provider
-            const result = await this.paymentService.verifyPaymentWebhook(
-                payload,
-                headers,
-            );
 
+        try {
+            const result = await this.paymentService.verifyPaymentWebhook(payload, headers);
             if (result.success) {
-                const { orderId, status } = result.data;
+                const { orderId, status, orderCode, transactionId } = result.data;
 
                 // Update order status based on payment status
                 if (orderId && status === 'PAID') {
-                    await this.orderService.updateOrderStatus(
-                        parseInt(orderId),
-                        OrderStatus.PAYMENT_SUCCESS,
-                    );
+                    try {
+                        await this.orderService.updateOrderStatus(
+                            parseInt(orderId),
+                            OrderStatus.PAYMENT_SUCCESS,
+                        );
+                        this.logger.log(`Order ${orderId} marked as PAYMENT_SUCCESS`);
+                    } catch (updateError) {
+                        this.logger.error('Error updating order status from webhook', { updateError, orderId, status });
+                        return {
+                            success: false,
+                            message: `Error updating order status: ${updateError.message}`,
+                            orderId,
+                            status,
+                        };
+                    }
+                } else if (orderId && status === 'CANCELLED') {
+                    // Optionally handle cancelled/refunded statuses
+                    try {
+                        await this.orderService.updateOrderStatus(
+                            parseInt(orderId),
+                            OrderStatus.CANCELLED,
+                        );
+                        this.logger.log(`Order ${orderId} marked as CANCELLED`);
+                    } catch (updateError) {
+                        this.logger.error('Error updating order status to CANCELLED from webhook', { updateError, orderId, status });
+                        return {
+                            success: false,
+                            message: `Error updating order status: ${updateError.message}`,
+                            orderId,
+                            status,
+                        };
+                    }
                 }
 
                 return {
                     success: true,
                     message: 'Webhook processed successfully',
+                    orderId,
+                    status,
+                    orderCode,
+                    transactionId,
                 };
+            } else {
+                this.logger.warn('Webhook verification failed', result);
+                return result;
             }
-
-            return result;
         } catch (error) {
+            this.logger.error('Error processing webhook', { error, payload, headers });
             return {
                 success: false,
                 message: error.message || 'Failed to process webhook',
@@ -178,10 +203,9 @@ export class PaymentController {
         @Req() request: Request,
     ) {
         try {
-            // Check if this is a direct success call with valid parameters
+
             const isPaid = paymentStatus === 'PAID' && paymentCode === '00';
 
-            // If we have a direct orderId and payment is successful, immediately update the order
             if (orderId && isPaid) {
                 try {
                     // First get the order to verify its existence and status
@@ -204,13 +228,7 @@ export class PaymentController {
                             parseInt(orderId),
                             OrderStatus.PAYMENT_SUCCESS,
                         );
-
-                        return {
-                            success: true,
-                            message: 'Payment successful, order status updated',
-                            orderId,
-                            status: 'PAYMENT_SUCCESS',
-                        };
+                        this.logger.log(`Order ${orderId} marked as PAYMENT_SUCCESS via returnUrl`);
                     } else {
                         return {
                             success: false,
@@ -219,6 +237,7 @@ export class PaymentController {
                         };
                     }
                 } catch (error) {
+                    this.logger.error(`Error updating order status for ${orderId}:`, error);
                     return {
                         success: false,
                         message: `Error updating order status: ${error.message}`,
@@ -229,12 +248,12 @@ export class PaymentController {
 
             return {
                 success: false,
-                message:
-                    'Could not process payment success. Please check order status manually.',
+                message: 'Could not process payment success. Please check order status manually.',
                 paymentStatus,
                 paymentCode,
             };
         } catch (error) {
+            this.logger.error('Error processing payment success callback', { error, orderId, paymentStatus, paymentCode, id, orderCode });
             return {
                 success: false,
                 message: `Error processing payment: ${error.message}`,

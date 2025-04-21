@@ -809,6 +809,30 @@ export class ProductSpecificationService {
         }
     }
 
+    // ADMIN: Get all unique values for a given specification key in a category
+    async getSpecificationValuesForAdmin(category: string, specKey: string): Promise<string[]> {
+        const driver = this.neo4jConfigService.getDriver();
+        const session = driver.session();
+
+        try {
+            const query = `
+                MATCH (p:${category})
+                WHERE p.${specKey} IS NOT NULL
+                RETURN DISTINCT p.${specKey} AS value
+                ORDER BY value
+            `;
+            const result = await session.run(query);
+            return result.records.map(record => record.get('value'));
+        } catch (error) {
+            this.logger.error(
+                `Error fetching admin spec values for ${specKey} in ${category}: ${error.message}`,
+            );
+            throw new Error(`Failed to get admin spec values for ${specKey}`);
+        } finally {
+            await session.close();
+        }
+    }
+
     // Helper method to extract numeric values from formatted strings
     private extractNumericValues(key: string, values: string[]): number[] {
         switch (key) {

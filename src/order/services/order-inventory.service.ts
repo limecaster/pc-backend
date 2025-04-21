@@ -14,7 +14,7 @@ export class OrderInventoryService {
 
         @InjectRepository(Product)
         private productRepository: Repository<Product>,
-    ) {}
+    ) { }
 
     /**
      * Adjust inventory stock for all products in an order
@@ -81,10 +81,6 @@ export class OrderInventoryService {
             }
 
             await productRepo.save(product);
-
-            this.logger.log(
-                `Product ${product.id} (${product.name}) inventory adjusted from ${oldStock} to ${product.stockQuantity} (${operation})`,
-            );
         }
     }
 }

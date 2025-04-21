@@ -16,6 +16,7 @@ import {
     Body,
     Delete,
     Put,
+    Patch,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { ProductDetailsDto } from './dto/product-response.dto';
@@ -47,7 +48,7 @@ export class ProductController {
         private readonly hotSalesService: HotSalesService,
         private readonly recommendationService: RecommendationService,
         private readonly configService: ConfigService,
-    ) {}
+    ) { }
 
     @Post('admin/train-recommendation-model')
     @UseGuards(JwtAuthGuard, RolesGuard)
@@ -238,7 +239,8 @@ export class ProductController {
         @Param('id') id: string,
     ): Promise<ProductDetailsDto> {
         try {
-            return await this.productService.findBySlug(id, true);
+            const product = await this.productService.findBySlug(id, true);
+            return product;
         } catch (error) {
             if (error instanceof NotFoundException) {
                 throw error;
@@ -749,6 +751,22 @@ export class ProductController {
         }
     }
 
+    @Get('admin/specification-values/:category/:specKey')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    async getSpecificationValuesForAdmin(
+        @Param('category') category: string,
+        @Param('specKey') specKey: string,
+    ): Promise<string[]> {
+        try {
+            return await this.productService.getSpecificationValuesForAdmin(category, specKey);
+        } catch (error) {
+            throw new InternalServerErrorException(
+                `Failed to retrieve admin spec values for ${specKey} in ${category}`,
+            );
+        }
+    }
+
     @Get('preferred-categories')
     async getPreferredCategories(
         @Query('customerId') customerId?: number,
@@ -915,7 +933,7 @@ export class ProductController {
         }
     }
 
-    @Put(':id')
+    @Patch('admin/:id')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(Role.ADMIN)
     async updateProduct(
@@ -941,25 +959,6 @@ export class ProductController {
             );
         }
     }
-
-    // @Post('admin/migrate-images')
-    // @UseGuards(JwtAuthGuard, RolesGuard)
-    // @Roles(Role.ADMIN)
-    // async migrateImagesFromNeo4j(): Promise<{ success: boolean; message: string; migrated: number }> {
-    //     try {
-    //         const result = await this.productService.migrateImagesFromNeo4j();
-    //         return {
-    //             success: true,
-    //             message: 'Image URLs successfully migrated from Neo4j',
-    //             migrated: result.migratedCount
-    //         };
-    //     } catch (error) {
-    //         this.logger.error(`Failed to migrate images from Neo4j: ${error.message}`);
-    //         throw new InternalServerErrorException(
-    //             `Failed to migrate images: ${error.message}`
-    //         );
-    //     }
-    // }
 
     private ensureProductDiscountInfo(product: any): any {
         const MIN_DISCOUNT_PERCENT = 1.0;

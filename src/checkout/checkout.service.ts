@@ -26,6 +26,9 @@ export class CheckoutService {
         @InjectRepository(Order)
         private orderRepository: Repository<Order>,
 
+        @InjectRepository(OrderItem)
+        private orderItemRepository: Repository<OrderItem>,
+
         @Inject(PaymentService)
         private paymentService: PaymentService,
 
@@ -37,7 +40,7 @@ export class CheckoutService {
 
         @Inject(DataSource)
         private dataSource: DataSource,
-    ) {}
+    ) { }
 
     async createOrder(
         customerId: number,
@@ -388,25 +391,27 @@ export class CheckoutService {
         }
     }
 
-    async processPayment(paymentData: any) {
+    async processPayment(orderId: Record<string, string>) {
         try {
             // First ensure the order is in approved status before proceeding with payment
-            if (paymentData.orderId) {
-                const order = await this.orderRepository.findOne({
-                    where: { id: parseInt(paymentData.orderId) },
-                });
-
+            if (orderId && orderId.orderId) {
+                const order = await this.orderRepository
+                    .createQueryBuilder('order')
+                    .leftJoinAndSelect('order.items', 'orderItem')
+                    .leftJoinAndSelect('orderItem.product', 'product')
+                    .leftJoinAndSelect('order.customer', 'customer')
+                    .where('order.id = :orderId', { orderId: parseInt(orderId.orderId) })
+                    .getOne();
                 if (order && order.status !== OrderStatus.APPROVED) {
                     throw new Error(
                         `Cannot process payment for order in ${order.status} status`,
                     );
                 }
+                // Fetch order details, integrate with PayOS
+                const result =
+                    await this.paymentService.createPaymentLink(order);
+                return result;
             }
-
-            // Fetch order details, integrate with PayOS
-            const result =
-                await this.paymentService.createPaymentLink(paymentData);
-            return result;
         } catch (error) {
             this.logger.error(`Payment processing failed: ${error.message}`);
             throw new Error(`Payment processing failed: ${error.message}`);

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import axios from 'axios';
+import { Order } from 'src/order/order.entity';
 
 @Injectable()
 export class PaymentService {
@@ -29,33 +30,32 @@ export class PaymentService {
 
     async createPaymentLink(paymentData: any) {
         try {
-            // Generate order code as a numeric value (timestamp-based)
-            const timestamp = Date.now();
-            const orderCode = Number(timestamp % 100000000);
-
+            // Use numeric order ID for PayOS orderCode
+            const orderCode = paymentData.orderId; // Ensure this is a number and within safe range
             // Format price and amount values as numbers (NOT strings)
             const formattedAmount = this.formatCurrencyForPayOS(
                 paymentData.total,
             );
             const numericAmount = Number(formattedAmount);
             if (numericAmount <= 0) {
-                throw new Error('Amount must be greater than 0');
+                throw new Error('Giá trị thanh toán phải lớn hơn 0');
             }
             if (numericAmount >= 10000000000) {
-                throw new Error('Amount must be less than 10,000,000,000 VND');
+                throw new Error('Giá trị thanh toán phải nhỏ hơn 10,000,000,000 VND');
             }
 
             // Format items with constraint validation - using numeric values
+
             const formattedItems = paymentData.items.map((item) => {
                 const price = Number(this.formatCurrencyForPayOS(item.price));
                 if (price <= 0) {
                     throw new Error(
-                        `Item price for "${item.name}" must be greater than 0`,
+                        `Giá trị thanh toán cho "${item.name}" phải lớn hơn 0`,
                     );
                 }
                 if (price >= 10000000000) {
                     throw new Error(
-                        `Item price for "${item.name}" must be less than 10,000,000,000 VND`,
+                        `Giá trị thanh toán cho "${item.name}" phải nhỏ hơn 10,000,000,000 VND`,
                     );
                 }
                 return {
@@ -67,40 +67,40 @@ export class PaymentService {
 
             // Limit description to 25 characters as per API requirement
             const description = (
-                paymentData.description || 'Thanh toan B Store'
+                'B Store'
             ).substring(0, 25);
+
+            const config = this.configService.get('FRONTEND_URL');
 
             // Prepare payment request
             const paymentRequest = {
-                orderCode: orderCode,
+                orderCode: orderCode, // Now numeric
                 amount: numericAmount,
                 description,
-                cancelUrl: paymentData.cancelUrl,
-                returnUrl: paymentData.returnUrl,
-                buyerName: (paymentData.customer?.fullName || '').substring(
+                cancelUrl: `${config}/checkout/cancel`,
+                returnUrl: `${config}/checkout/success`,
+                buyerName: (paymentData.customerName || '').substring(
                     0,
                     50,
                 ),
-                buyerEmail: (paymentData.customer?.email || '').substring(
+                buyerEmail: (paymentData.customer.email || '').substring(
                     0,
                     50,
                 ),
-                buyerPhone: (paymentData.customer?.phone || '').substring(
+                buyerPhone: (paymentData.customerPhone || '').substring(
                     0,
                     20,
                 ),
-                buyerAddress: (paymentData.customer?.address || '').substring(
+                buyerAddress: (paymentData.deliveryAddress || '').substring(
                     0,
                     100,
                 ),
                 items: formattedItems,
             };
 
-            // Create signature
             const signatureString = this.buildSignatureString(paymentRequest);
             const signature = this.generateSignature(signatureString);
 
-            // Add signature to request
             const finalRequest = {
                 ...paymentRequest,
                 signature: signature,
@@ -120,13 +120,12 @@ export class PaymentService {
             );
 
             if (response.data && response.data.code === '00') {
-                // Fix: Extract values from the nested 'data' object correctly
                 return {
                     success: true,
                     data: {
                         checkoutUrl: response.data.data?.checkoutUrl,
                         qrCode: response.data.data?.qrCode,
-                        orderCode: orderCode,
+                        orderId: orderCode,
                         paymentLinkId: response.data.data?.paymentLinkId,
                     },
                 };
@@ -219,7 +218,6 @@ export class PaymentService {
                 },
             );
             if (response.data && response.data.code === '00') {
-                // Fix: Return the nested data structure correctly
                 return {
                     success: true,
                     data: response.data.data || response.data,
@@ -251,7 +249,6 @@ export class PaymentService {
      */
     async verifyPaymentWebhook(payload: any, headers: any) {
         try {
-            // In a real implementation, you would verify the signature
             if (!payload) {
                 return {
                     success: false,

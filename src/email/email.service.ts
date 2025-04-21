@@ -23,12 +23,10 @@ export class EmailService {
                 mailUser === 'your_email@gmail.com' ||
                 mailPassword === 'your_app_password')
         ) {
-            this.logger.log('Creating test email account on Ethereal...');
+
             try {
                 const testAccount = await nodemailer.createTestAccount();
-                this.logger.log(
-                    `Test email account created: ${testAccount.user}`,
-                );
+
 
                 this.transporter = nodemailer.createTransport({
                     host: 'smtp.ethereal.email',
@@ -40,18 +38,6 @@ export class EmailService {
                     },
                 });
 
-                this.logger.log('Test email transporter created');
-                this.logger.log(
-                    'For production, please set up proper Gmail credentials in .env file',
-                );
-                this.logger.log('For Gmail, make sure to:');
-                this.logger.log(
-                    '1. Enable 2-Step Verification on your Google account',
-                );
-                this.logger.log(
-                    '2. Create an App Password at https://myaccount.google.com/apppasswords',
-                );
-                this.logger.log('3. Use that App Password in your .env file');
             } catch (error) {
                 this.logger.error('Failed to create test email account', error);
                 // In development, we'll just log emails to console
@@ -85,9 +71,6 @@ export class EmailService {
                 // Verify connection configuration
                 try {
                     await this.transporter.verify();
-                    this.logger.log(
-                        'Email transporter configured successfully',
-                    );
                 } catch (verifyError) {
                     if (verifyError.code === 'EAUTH') {
                         this.logger.error(
@@ -207,7 +190,7 @@ export class EmailService {
         const subject = 'Đơn hàng của bạn đã được xác nhận - B Store';
 
         // Format the payment link
-        const paymentLink = `${this.configService.get('FRONTEND_URL', 'http://localhost:3000')}/dashboard/orders`;
+        const paymentLink = `${this.configService.get('WEBSITE_DOMAIN_NAME', 'http://localhost:3000')}/dashboard/orders`;
 
         const html = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e7e9; border-radius: 5px;">
@@ -249,15 +232,7 @@ export class EmailService {
         html: string,
     ): Promise<void> {
         // Always log the email in dev mode, regardless of whether we'll send it or not
-        if (this.isDev) {
-            this.logger.debug(`
-===== EMAIL =====
-To: ${to}
-Subject: ${subject}
-Content: ${html.substring(0, 100)}...
-================
-      `);
-        }
+
 
         if (!this.transporter) {
             this.logger.warn(
@@ -267,26 +242,14 @@ Content: ${html.substring(0, 100)}...
         }
 
         try {
-            const info = await this.transporter.sendMail({
+            await this.transporter.sendMail({
                 from: `"B Store" <${this.configService.get('MAIL_FROM', 'noreply@bstore.com')}>`,
                 to,
                 subject,
                 html,
             });
 
-            if (this.isDev) {
-                // If using Ethereal, log the preview URL
-                if (info.messageId && info.preview) {
-                    this.logger.log(`Email sent: ${info.messageId}`);
-                    this.logger.log(
-                        `Preview URL: ${nodemailer.getTestMessageUrl(info)}`,
-                    );
-                } else {
-                    this.logger.log(
-                        `Email sent to ${to} with subject: ${subject} with otp: ${html}`,
-                    );
-                }
-            }
+
         } catch (error) {
             this.logger.error(`Failed to send email to ${to}:`, error);
             // In development, we don't want to fail the application just because email sending failed

@@ -31,7 +31,7 @@ export class ProductService {
         private readonly utilsService: UtilsService,
         private readonly discountService: DiscountService,
         private readonly neo4jConfigService: Neo4jConfigService,
-    ) {}
+    ) { }
 
     async findBySlug(
         slug: string,
@@ -117,7 +117,6 @@ export class ProductService {
             const productsWithDiscounts = await this.applyAutomaticDiscounts([
                 productDetails,
             ]);
-
             return productsWithDiscounts[0];
         } catch (error) {
             if (error instanceof NotFoundException) {
@@ -465,13 +464,13 @@ export class ProductService {
             const [specificationsMap, ratingsMap] = await Promise.all([
                 idsNeedingImages.length > 0
                     ? this.productSpecService.getSpecificationsInBatch(
-                          idsNeedingImages,
-                      )
+                        idsNeedingImages,
+                    )
                     : {},
                 idsNeedingRatings.length > 0
                     ? this.productRatingService.getRatingsInBatch(
-                          idsNeedingRatings,
-                      )
+                        idsNeedingRatings,
+                    )
                     : {},
             ]);
 
@@ -1086,21 +1085,27 @@ export class ProductService {
         try {
             // Prepare dynamic property creation
             const propertyAssignments = Object.entries(data)
-                .filter(([key, value]) => value !== undefined && value !== null)
+                .filter(([key, value]) =>
+                    value !== undefined && value !== null && key !== 'id' && key !== 'category')
                 .map(([key, value]) => {
                     // Handle different value types
                     if (typeof value === 'number') {
                         return `p.${key} = ${value}`;
                     } else {
-                        return `p.${key} = "${String(value).replace(/"/g, '\\"')}"`;
+                        return `p.${key} = "${String(value).replace(/"/g, '\"')}"`;
                     }
                 })
                 .join(', ');
 
-            // Create or update the node in Neo4j with the provided label (category)
+            // Use sanitized label for Cypher
+            let label = 'Product';
+            if (typeof data.category === 'string') {
+                label = data.category.replace(/[^a-zA-Z0-9_]/g, '');
+            }
+
             const query = `
-                MERGE (p:${data.category} {id: $productId})
-                SET ${propertyAssignments}
+                MERGE (p:${label} {id: $productId})
+                ${propertyAssignments ? 'SET ' + propertyAssignments : ''}
                 RETURN p
             `;
 
@@ -1117,9 +1122,6 @@ export class ProductService {
         }
     }
 
-    /**
-     * Update an existing product and synchronize it with Neo4j
-     */
     async updateProduct(id: string, productData: any): Promise<any> {
         try {
             // 1. Find the existing product
@@ -1187,65 +1189,10 @@ export class ProductService {
         }
     }
 
-    // /**
-    //  * Migrate image URLs from Neo4j to PostgreSQL
-    //  */
-    // async migrateImagesFromNeo4j(): Promise<{ migratedCount: number }> {
-    //     const logger = new Logger('migrateImagesFromNeo4j');
-    //     logger.log('Starting image URL migration from Neo4j to PostgreSQL');
-
-    //     try {
-    //         // Get all products from PostgreSQL
-    //         const products = await this.productRepository.find();
-    //         logger.log(`Found ${products.length} products in PostgreSQL`);
-
-    //         let migratedCount = 0;
-    //         let errorCount = 0;
-
-    //         // Get Neo4j driver from config service
-    //         const driver = this.neo4jConfigService.getDriver();
-    //         const session = driver.session();
-
-    //         try {
-    //             // Process each product
-    //             for (const product of products) {
-    //                 try {
-    //                     // Query Neo4j for the product's image URL
-    //                     const result = await session.run(
-    //                         'MATCH (p {id: $id}) RETURN p.imageUrl as imageUrl',
-    //                         { id: product.id }
-    //                     );
-
-    //                     const imageUrl = result.records[0]?.get('imageUrl');
-
-    //                     if (imageUrl) {
-    //                         // Update the PostgreSQL product with the image URL
-    //                         product.imageUrl = imageUrl;
-    //                         await this.productRepository.save(product);
-    //                         migratedCount++;
-
-    //                         if (migratedCount % 50 === 0) {
-    //                             logger.log(`Migrated ${migratedCount} products so far`);
-    //                         }
-    //                     }
-    //                 } catch (err) {
-    //                     errorCount++;
-    //                     logger.error(`Error migrating product ${product.id}: ${err.message}`);
-    //                     // Continue with the next product
-    //                 }
-    //             }
-    //         } finally {
-    //             // Close the session when done
-    //             await session.close();
-    //         }
-
-    //         logger.log(`Migration completed. Migrated: ${migratedCount}, Errors: ${errorCount}`);
-    //         return { migratedCount };
-    //     } catch (error) {
-    //         logger.error(`Migration failed: ${error.message}`);
-    //         throw new Error(`Failed to migrate image URLs: ${error.message}`);
-    //     }
-    // }
+    // ADMIN: Get all unique values for a given specification key in a category
+    async getSpecificationValuesForAdmin(category: string, specKey: string): Promise<string[]> {
+        return this.productSpecService.getSpecificationValuesForAdmin(category, specKey);
+    }
 
     // New helper: fetch by IDs, apply all filters, paginate, enrich & discount
     private async fetchAndFilterByIds(

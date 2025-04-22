@@ -129,7 +129,13 @@ export class CustomerService {
         isEmailVerified?: boolean;
         status?: string;
     }): Promise<Customer> {
-        const existingEmail = await this.findByEmail(data.email);
+        let existingEmail = null;
+        try {
+            existingEmail = await this.findByEmail(data.email);
+        } catch (err) {
+            if (!(err instanceof NotFoundException)) throw err;
+            // Not found is expected during registration
+        }
 
         if (existingEmail) {
             if (existingEmail.isEmailVerified) {

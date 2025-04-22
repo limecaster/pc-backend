@@ -1,7 +1,6 @@
 /* eslint-disable prettier/prettier */
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { WsAdapter } from '@nestjs/platform-ws';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import * as bodyParser from 'body-parser';
@@ -70,7 +69,7 @@ async function bootstrap() {
     });
 
     // WebSocket adapters
-    app.useWebSocketAdapter(new WsAdapter(app));
+    // app.useWebSocketAdapter(new WsAdapter(app)); // Removed: Only use IoAdapter for Socket.IO
     app.useWebSocketAdapter(new IoAdapter(app));
     // Connect Kafka microservice
     const kafkaConfig = getKafkaConfig(configService);

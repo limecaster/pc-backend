@@ -51,6 +51,7 @@
         "passport-local": "^1.0.0",
         "pg": "^8.14.0",
         "reflect-metadata": "^0.2.2",
+        "resend": "^4.4.0",
         "rxjs": "^7.8.2",
         "socket.io": "^4.8.1",
         "stream": "^0.0.3",

@@ -1,104 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 @Injectable()
 export class EmailService {
-    private transporter: nodemailer.Transporter;
+    private resend: Resend;
     private readonly logger = new Logger(EmailService.name);
     private readonly isDev: boolean;
 
     constructor(private configService: ConfigService) {
         this.isDev = this.configService.get('NODE_ENV') !== 'production';
-        this.setupTransporter();
-    }
-
-    private async setupTransporter() {
-        const mailUser = this.configService.get('MAIL_USER');
-        const mailPassword = this.configService.get('MAIL_PASSWORD');
-        if (
-            this.isDev &&
-            (!mailUser ||
-                !mailPassword ||
-                mailUser === 'your_email@gmail.com' ||
-                mailPassword === 'your_app_password')
-        ) {
-
-            try {
-                const testAccount = await nodemailer.createTestAccount();
-
-
-                this.transporter = nodemailer.createTransport({
-                    host: 'smtp.ethereal.email',
-                    port: 587,
-                    secure: false,
-                    auth: {
-                        user: testAccount.user,
-                        pass: testAccount.pass,
-                    },
-                });
-
-            } catch (error) {
-                this.logger.error('Failed to create test email account', error);
-                // In development, we'll just log emails to console
-                this.logger.warn(
-                    'Email sending will be simulated (logged to console only)',
-                );
-            }
-        } else {
-            try {
-                if (
-                    mailUser === 'your_email@gmail.com' ||
-                    mailPassword === 'your_app_password'
-                ) {
-                    throw new Error(
-                        'Please update your email credentials in .env file. These are placeholders only.',
-                    );
-                }
-
-                this.transporter = nodemailer.createTransport({
-                    host: this.configService.get('MAIL_HOST', 'smtp.gmail.com'),
-                    port: parseInt(this.configService.get('MAIL_PORT', '587')),
-                    secure:
-                        this.configService.get('MAIL_SECURE', 'false') ===
-                        'true',
-                    auth: {
-                        user: mailUser,
-                        pass: mailPassword,
-                    },
-                });
-
-                // Verify connection configuration
-                try {
-                    await this.transporter.verify();
-                } catch (verifyError) {
-                    if (verifyError.code === 'EAUTH') {
-                        this.logger.error(
-                            'Gmail authentication failed. If using Gmail, please make sure:',
-                        );
-                        this.logger.error(
-                            '1. You have enabled 2-Step Verification on your Google account',
-                        );
-                        this.logger.error(
-                            '2. You are using an App Password, not your regular password',
-                        );
-                        this.logger.error(
-                            '3. The App Password is entered correctly (16 characters without spaces)',
-                        );
-                        this.logger.error(
-                            'Create App Password at: https://myaccount.google.com/apppasswords',
-                        );
-                    }
-                    throw verifyError;
-                }
-            } catch (error) {
-                this.logger.error('Failed to set up email transporter', error);
-                this.logger.warn(
-                    'Email sending will be simulated (logged to console only)',
-                );
-                this.transporter = null;
-            }
-        }
+        this.resend = new Resend(this.configService.get('RESEND_API_KEY'));
     }
 
     async sendVerificationEmail(
@@ -231,28 +143,22 @@ export class EmailService {
         subject: string,
         html: string,
     ): Promise<void> {
-        // Always log the email in dev mode, regardless of whether we'll send it or not
-
-
-        if (!this.transporter) {
+        const from = this.configService.get('RESEND_FROM', 'noreply@bstore.com');
+        if (!this.resend) {
             this.logger.warn(
-                `Would send email to ${to} but no valid transporter is configured`,
+                `Resend client not initialized. Would send email to ${to} but no valid client is configured`,
             );
             return;
         }
-
         try {
-            await this.transporter.sendMail({
-                from: `"B Store" <${this.configService.get('MAIL_FROM', 'noreply@bstore.com')}>`,
+            await this.resend.emails.send({
+                from,
                 to,
                 subject,
                 html,
             });
-
-
         } catch (error) {
             this.logger.error(`Failed to send email to ${to}:`, error);
-            // In development, we don't want to fail the application just because email sending failed
             if (!this.isDev) {
                 throw new Error('Failed to send email');
             }

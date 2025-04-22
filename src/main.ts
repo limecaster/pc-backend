@@ -19,10 +19,11 @@ async function bootstrap() {
 
     // Configure CORS
     const allowedOrigins = [
-        '*',
+        'https://bpcstore.me',
+        'https://www.bpcstore.me',
+        'http://localhost', // For local dev
         'http://192.168.1.28:3000',
-        'http://pc_frontend:3000',
-        'http://localhost', // NGINX proxy
+        'http://pc_frontend:3000'
     ];
     if (configService.get('FRONTEND_URL')) {
         allowedOrigins.push(configService.get('FRONTEND_URL'));

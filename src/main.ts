@@ -4,14 +4,10 @@ import { AppModule } from './app.module';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { ValidationPipe, Logger } from '@nestjs/common';
-import * as dotenv from 'dotenv';
 import * as bodyParser from 'body-parser';
 import { MicroserviceOptions } from '@nestjs/microservices';
 import { getKafkaConfig } from './events/kafka/kafka.config';
 import { ConfigService } from '@nestjs/config';
-import path from 'path';
-
-
 
 async function bootstrap() {
     const logger = new Logger('Bootstrap');
@@ -20,14 +16,6 @@ async function bootstrap() {
     });
 
     const configService = app.get(ConfigService);
-
-    // Load environment variables
-    const nodeEnv = configService.get('NODE_ENV') || 'development';
-    if (nodeEnv === 'development') {
-        dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-    } else {
-        dotenv.config({ path: path.resolve(process.cwd(), '.env.production') });
-    }
 
     // Configure CORS
     const allowedOrigins = [
@@ -90,6 +78,6 @@ async function bootstrap() {
 
     const port = process.env.PORT ?? 3001;
     await app.listen(port);
-    logger.debug(`Application listening on port ${port} in ${nodeEnv} mode`);
+    logger.debug(`Application listening on port ${port} in ${configService.get('NODE_ENV')} mode`);
 }
 bootstrap();

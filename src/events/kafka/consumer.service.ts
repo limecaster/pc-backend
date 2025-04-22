@@ -21,6 +21,8 @@ export class ConsumerService implements OnApplicationShutdown {
         this.kafka = new Kafka({
             clientId,
             brokers,
+            connectionTimeout: 30000,
+            requestTimeout: 30000,
             retry: {
                 initialRetryTime: 300,
                 retries: 10,

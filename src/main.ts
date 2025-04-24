@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -11,17 +10,14 @@ import { ConfigService } from '@nestjs/config';
 async function bootstrap() {
     const logger = new Logger('Bootstrap');
     const app = await NestFactory.create(AppModule, {
-        logger: ['error', 'warn', 'log', 'debug'], // Enable all log levels in development
+        logger: ['error', 'warn', 'log', 'debug'],
     });
 
     const configService = app.get(ConfigService);
 
-    // Configure CORS
     const allowedOrigins = [
         'https://bpcstore.me',
         'https://www.bpcstore.me',
-        'http://localhost', // For local dev
-        'http://192.168.1.28:3000',
         'http://pc_frontend:3000'
     ];
     if (configService.get('FRONTEND_URL')) {
